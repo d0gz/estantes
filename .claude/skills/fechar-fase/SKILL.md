@@ -1,6 +1,6 @@
 ---
 name: fechar-fase
-description: Fecha uma fase do projeto — confere pendências, chama o teacher-consolidador para gerar o guia e o PDF da fase, e prepara a próxima. Use quando o Ricardo digitar /fechar-fase ou pedir para encerrar uma fase.
+description: Fecha uma fase do projeto — confere pendências, chama o teacher-consolidador para gerar o guia da fase em Markdown, e prepara a próxima. Use quando o Ricardo digitar /fechar-fase ou pedir para encerrar uma fase.
 ---
 
 # Fechar uma fase
@@ -16,15 +16,14 @@ Argumento opcional: número da fase. Se não vier, use a "Fase atual" do `CLAUDE
    - Se a última entrada tiver respostas ainda não corrigidas, chame o subagente `teacher`
      pedindo apenas a correção dessa entrada.
 
-2. **Verificar ferramentas**
-   - `which pandoc typst`. Se faltar algo, peça para o Ricardo rodar `brew install pandoc typst`.
-
-3. **Consolidar**
+2. **Consolidar**
    - Chame o subagente `teacher-consolidador` com o número da fase.
-   - Ao terminar, confirme que existem `docs/guias/fase-N-guia.md` e `docs/guias/fase-N.pdf`.
+   - Ao terminar, confirme que existe `docs/guias/fase-N.md` (só Markdown; não há PDF).
 
-4. **Registrar e preparar a próxima fase**
+3. **Registrar e preparar a próxima fase**
    - Commit: `Fecha fase N: guia de aprendizado`.
    - Crie uma tag git `fase-N`.
    - Atualize a linha "Fase atual" do `CLAUDE.md` para N+1.
-   - Mostre ao Ricardo: caminho do PDF, número de páginas e os 3 temas principais do guia.
+   - Mostre ao Ricardo: o link do guia no GitHub
+     (`https://github.com/d0gz/estantes/blob/main/docs/guias/fase-N.md`, válido depois que o commit
+     chegar ao `main`) e os 3 temas principais do guia.

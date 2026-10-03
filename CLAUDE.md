@@ -49,7 +49,7 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 - `data/` — scripts de inspeção e limpeza do LexML
 - `supabase/` — migrations e Edge Functions
 - `docs/aprendizado/fase-N.md` — log de aprendizado de cada fase (mantido pelo teacher)
-- `docs/guias/fase-N.pdf` — guia consolidado de cada fase
+- `docs/guias/fase-N.md` — guia consolidado de cada fase (só Markdown, sem PDF)
 
 ## Fase atual
 Fase 0 — Ambiente. (Atualize esta linha ao abrir uma nova fase.)
@@ -64,7 +64,7 @@ Fase 0 — Ambiente. (Atualize esta linha ao abrir uma nova fase.)
    - um resumo do que foi feito e das decisões tomadas;
    - a saída de `git diff` (ou `git diff HEAD~1` se já houve commit).
    O teacher acrescenta uma entrada em `docs/aprendizado/fase-N.md`. Não pule este passo.
-4. **Ao fim da fase**, Ricardo roda `/fechar-fase`, que gera o guia consolidado e o PDF.
+4. **Ao fim da fase**, Ricardo roda `/fechar-fase`, que gera o guia consolidado em Markdown.
 5. Commits pequenos, com mensagens em português no imperativo ("Adiciona modelo Estante").
 6. Segredos (chaves de API, service role do Supabase) nunca entram no repositório.
 
