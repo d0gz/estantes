@@ -10,18 +10,9 @@ struct ContentView: View {
                     .foregroundColor(.accentColor)
                 Text("Estantes")
                     .font(.largeTitle.bold())
-                Text("Versão \(AppInfo.versao)")
-                    .foregroundColor(.secondary)
             }
             .navigationTitle("Minhas estantes")
         }
-    }
-}
-
-/// Informações do app lidas do Info.plist.
-enum AppInfo {
-    static var versao: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
     }
 }
 
