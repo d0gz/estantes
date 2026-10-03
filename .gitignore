@@ -16,8 +16,8 @@ supabase/.temp/
 # Dados grandes do LexML
 data/raw/
 data/*.csv
-!data/livros_lexml.csv.gz
 data/resumo_*.txt
+data/verificacao_repetidos.txt
 data/amostra_*.json
 data/*.jsonl
 data/cache_urn/

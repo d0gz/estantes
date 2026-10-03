@@ -51,7 +51,7 @@ ios/Estantes/
     CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca
     Portas/         BibliotecaRepositorio, CatalogoServico, OCRServico, LeitorCodigoBarras
   Dados/
-    Persistencia/   PilhaCoreData, BibliotecaRepositorioCoreData (NSManagedObject <-> struct)
+    Persistencia/   PersistenceController, BibliotecaRepositorioCoreData (NSManagedObject <-> struct)
     Rede/           CatalogoSupabase
     Visao/          OCRVision, LeitorCodigoBarrasVision
     Exportacao/     BibliotecaExportadaV1 (Codable)
@@ -94,8 +94,8 @@ ios/EstantesTests/
 - Mac: MacBook Pro 15" 2015, **macOS Monterey 12.7.x + Xcode 14.2 / Swift 5.7**.
 - CI: GitHub Actions `macos-26` com **Xcode 26** (exigido pela Apple para envio).
 - iPhone: `.ipa` sem assinatura gerado pela CI, instalado com **Sideloadly** + Apple ID grátis (vale 7 dias).
-- Claude Code: exige macOS 13+, então roda **na web (claude.ai/code)** ligado a este repositório,
-  ou no PC Windows. O código chega ao Mac por `git pull`.
+- Claude Code: roda **no próprio Mac** (Monterey; não é suportado oficialmente, mas funciona).
+  Ferramentas: XcodeGen 2.46.0 (binário pronto; não reinstalar) e `gh` (PRs e acompanhamento da CI).
 - Plano B, se o ciclo pela nuvem ficar lento: OCLP + macOS Sequoia + Xcode 26 no Mac.
 
 ### Regras para compilar nos dois Xcodes (críticas)
@@ -109,10 +109,11 @@ ios/EstantesTests/
 
 ### Ciclo de trabalho
 
-1. Claude Code edita numa branch e faz push.
-2. Mac: `git pull` → `cd ios && xcodegen generate` → Xcode 14.2 → simulador iOS 16.
-3. Ajustes → commit → push → CI (Xcode 26) roda os testes.
-4. iPhone: Actions → iOS → Run workflow → artefato `Estantes-ipa` → Sideloadly.
+1. Claude Code cria uma branch e edita no Mac.
+2. `./scripts/testar.sh` (`xcodegen generate` + `xcodebuild test` no simulador iPhone 14, iOS 16) antes de cada commit.
+3. Commit → push → `gh pr create` → CI (Xcode 26) roda os testes no PR, acompanhada com `gh`.
+4. Ricardo revisa e faz o merge.
+5. iPhone: Actions → iOS → Run workflow → artefato `Estantes-ipa` → Sideloadly.
 
 ## Dados (Fase 1)
 
@@ -174,6 +175,9 @@ create index edicoes_obra on edicoes (obra_id);
 ```
 
 - Importar `livros_lexml.csv` com `COPY` (CSV, UTF-8 com BOM, cabeçalho). O JSONL fica fora do banco.
+- O CSV tem 7 colunas (`lexml_id, urn, titulo, autores, ano, descricao, outros_tipos`), mas `lexml_livros`
+  não tem `autores`: o dataset não traz autor (a coluna vem vazia) e os autores chegam pelo enriquecimento
+  da /urn, em `obras`. O `COPY` da Fase 1 precisa levar essa coluna vazia em conta.
 - RLS: leitura pública; escrita só pelas Edge Functions (service role).
 - Projeto grátis pausa após 7 dias sem uso: `supabase-keepalive.yml` faz ping 2x por semana.
 
@@ -288,3 +292,4 @@ campo do parser e do Gemini.
 | 03/10 | Prateleira = etiqueta livre | Achar o livro na biblioteca física |
 | 03/10 | Busca + exportar/importar na Fase 2 | Objetivo do app; backup contra Sideloadly |
 | 03/10 | MVVM em camadas, structs no domínio, nomes em português | Algoritmos testáveis sem simulador; telas independentes do Core Data |
+| 03/10 | Claude Code no Mac (Monterey), com `./scripts/testar.sh` (xcodegen + xcodebuild test) antes de cada commit | Testa no Xcode 14.2 antes da CI; ciclo mais curto que pela web |

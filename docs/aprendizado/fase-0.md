@@ -856,3 +856,65 @@ Criamos `scripts/testar.sh`, que gera o projeto com XcodeGen, roda `xcodebuild t
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+## Tarefa 0.11 — Claude Code no Mac e documentos atualizados (2026-10-03)
+
+### O que foi feito
+O `CLAUDE.md` passou a refletir que o Claude Code roda no próprio Mac: depois de mudar Swift, roda-se `./scripts/testar.sh` antes de commitar e acompanha-se a CI com `gh`. O `docs/PLANO.md` teve "Ambiente" e "Ciclo de trabalho" reescritos para o fluxo local, o nome `PilhaCoreData` virou `PersistenceController`, e entrou uma nota sobre a coluna `autores` vazia no CSV. O `.gitignore` perdeu uma regra sem efeito (`!data/livros_lexml.csv.gz`) e ganhou `data/verificacao_repetidos.txt`.
+
+### Conceitos envolvidos
+
+**Documentação como fonte da verdade para um agente.** Para um humano, um README desatualizado atrapalha; para um agente, é pior: o `CLAUDE.md` entra no contexto de toda sessão e é tratado como instrução. Se ele diz "o Claude Code não roda Xcode nesta máquina", o agente deixa de rodar os testes e pede ao Ricardo para fazê-lo, mesmo que a máquina já permita. A instrução obsoleta vira comportamento errado, e de forma silenciosa. Regra prática: quando o ambiente muda, o documento muda no mesmo PR.
+
+**DRY aplicado à documentação.** Aqui o `CLAUDE.md` manda rodar `./scripts/testar.sh` em vez de copiar `xcodegen generate && xcodebuild test -destination ...`. O que o script faz fica em um só lugar (ver 0.10). Se o simulador mudar de "iPhone 14" para outro, edita-se o script e todos os documentos continuam corretos. Cópias do mesmo comando em vários arquivos divergem com o tempo, e ninguém percebe qual está certa. Limite: DRY não vale para tudo; repetir uma frase curta de contexto é aceitável, repetir lógica não.
+
+**Registro de decisões (ADR leve).** O "Histórico de decisões" do PLANO guarda decisão, data e motivo. O código mostra o *o quê*; só o texto guarda o *porquê* e o que foi descartado. Sem isso, daqui a meses alguém (você mesmo) reabre a discussão ou desfaz a decisão sem saber o custo. É a versão enxuta dos *Architecture Decision Records* (Michael Nygard). A regra do projeto de "não reabrir decisão registrada sem avisar" só funciona porque o motivo está escrito.
+
+**Como o `.gitignore` decide.** O Git lê as regras em ordem; para cada caminho, **a última regra que casa vence**. Uma regra com `!` só tem efeito se algo antes tinha ignorado aquele caminho. Foi o caso da regra removida: nenhuma regra ignorava `.gz`, então a negação não fazia nada, só dava a falsa impressão de proteção. Outra limitação importante: se uma *pasta* está ignorada, o Git nem entra nela, então `!pasta/arquivo` não funciona; é preciso ignorar o conteúdo (`pasta/*`) e não a pasta, e então negar o arquivo.
+
+```gitignore
+data/*.csv            # ignora todo csv em data/
+!data/importante.csv  # funciona: ignorado antes, agora reincluído
+data/raw/             # pasta inteira ignorada
+!data/raw/a.txt       # NÃO funciona: o Git não desce na pasta
+```
+
+Para diagnosticar: `git check-ignore -v caminho` mostra o arquivo, a linha e o padrão que ignorou (e, com regra `!`, que a negação venceu). Sem saída e código 1 significa que o caminho não é ignorado. Observação: arquivo já rastreado não é afetado pelo `.gitignore`; é preciso `git rm --cached`.
+
+**Nomes consistentes entre documento e código.** `PilhaCoreData` no PLANO versus `PersistenceController` no checklist da Fase 2 é o tipo de inconsistência que faz o agente (ou você) criar o arquivo com o nome errado, ou procurar algo que não existe. Documento é uma API para quem vai implementar: nomes precisam bater com o que será escrito.
+
+### Por que assim
+- Atualizar `CLAUDE.md` e PLANO junto com a mudança de ambiente: instrução errada custa mais que instrução ausente.
+- Referenciar o script: uma fonte só.
+- Anotar a coluna `autores` vazia agora: o problema só aparece no `COPY` da Fase 1 (número de colunas do CSV diferente da tabela), e a nota poupa horas de diagnóstico.
+- Corrigir "testes a cada push" para o que o workflow realmente faz (push no main e PRs que mexem em `ios/`): documentação descreve o comportamento real, não o desejado.
+
+### Alternativas descartadas
+- Deixar o `CLAUDE.md` como estava e avisar de viva voz: não persiste entre sessões.
+- Duplicar os comandos no PLANO "para facilitar a leitura": divergência garantida.
+- Deixar a regra `!` "por segurança": uma regra sem efeito é ruído que engana quem lê.
+- Um arquivo de ADR por decisão (`docs/adr/0001-...md`): mais formal, mas pesado para um projeto individual; uma tabela de histórico basta.
+
+### Padrões e boas práticas
+- Fonte única da verdade; documentos apontam para ela.
+- Docs como código: mudam no mesmo commit/PR que a mudança que descrevem.
+- Registrar decisão com motivo e alternativas. Quando NÃO: decisões triviais e facilmente reversíveis não precisam de registro.
+
+### Armadilhas
+- `.gitignore` não afeta arquivos já rastreados.
+- Negar arquivo dentro de pasta ignorada (`dir/` seguido de `!dir/x`) não funciona.
+- Ordem importa: uma regra ignorando colocada depois de uma `!` a anula.
+- Documento que diz "não roda X" depois que passou a rodar: revise o `CLAUDE.md` sempre que o ambiente mudar.
+
+### Para ir além
+- `man gitignore` / documentação "gitignore" do Git (seção PATTERN FORMAT).
+- Michael Nygard, "Documenting Architecture Decisions" (2011).
+- Documentação do Claude Code sobre memória e `CLAUDE.md`.
+
+### Perguntas
+1. Com suas palavras: por que uma instrução desatualizada no `CLAUDE.md` é mais perigosa que a ausência da instrução?
+2. Se você quisesse ignorar a pasta `data/raw/` mas manter versionado `data/raw/LEIAME.md`, como escreveria as regras? Por que a forma `data/raw/` não serve?
+3. Um colega mudou o nome do simulador no script para "iPhone 15", mas o PLANO ainda cita "iPhone 14" nos comandos copiados. Que problema isso causa e como a organização atual o evita?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
