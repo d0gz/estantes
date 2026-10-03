@@ -15,7 +15,7 @@ padrões, funcionamento interno e, principalmente, **o porquê de cada escolha**
 - Backend: Supabase (Postgres + `pg_trgm` + `unaccent`, RPC `buscar_livro`, Edge Functions em TypeScript/Deno)
 - Dados: dataset LexML filtrado para registros do tipo "Livro"
 - Fallbacks: Google Books API → Gemini (chaves só nas Edge Functions, nunca no app)
-- CI: GitHub Actions, runner `macos-26` com Xcode 26 (testes a cada push; `.ipa` sem assinatura no "Run workflow")
+- CI: GitHub Actions, runner `macos-26` com Xcode 26 (testes em push no main e em PRs que mexem em `ios/`; `.ipa` sem assinatura no "Run workflow")
 - Instalação no iPhone: Sideloadly com Apple ID gratuito (o app vale 7 dias)
 
 ## Ambiente: dois Xcodes (regra crítica)
@@ -27,8 +27,13 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 - Use: Core Data, `ObservableObject` + `@Published`, `PreviewProvider`, XCTest, `NavigationStack`.
 - O projeto é gerado pelo XcodeGen a partir de `ios/project.yml` (`projectFormat: xcode14_0`).
   Nunca edite nem commite `Estantes.xcodeproj`. Arquivos novos em `ios/Estantes/` entram sozinhos.
-- O Claude Code não roda Xcode nesta máquina/sessão: depois de mudar Swift, avise o Ricardo para
-  rodar `xcodegen generate` e testar no Xcode 14.2, e confira o resultado da CI.
+- O Claude Code roda no próprio Mac (Monterey, apesar de não ser suportado oficialmente). Depois de
+  mudar código Swift, rode `./scripts/testar.sh` antes de commitar: ele faz `cd ios && xcodegen generate`
+  e `xcodebuild test -project Estantes.xcodeproj -scheme Estantes -destination 'platform=iOS Simulator,name=iPhone 14'`.
+  Depois do push, acompanhe a CI (Xcode 26) com o `gh`.
+- Ferramentas na máquina: Xcode 14.2 (`/Applications/Xcode.app`, via `xcode-select`), XcodeGen 2.46.0
+  (binário em `/usr/local/bin`; não reinstale nem atualize), `gh` autenticado (abrir PRs com
+  `gh pr create`, acompanhar a CI com `gh run list`/`gh run view`).
 
 ## Arquitetura (regra crítica — detalhes em docs/PLANO.md)
 - MVVM em camadas: `Dominio/` (structs, regras puras, casos de uso, protocolos) ← `Dados/` e `Apresentacao/`.
