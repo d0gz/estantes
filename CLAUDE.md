@@ -73,3 +73,17 @@ Fase 0 — Ambiente. (Atualize esta linha ao abrir uma nova fase.)
 | `revisor` — revisão de código | Sonnet |
 
 Troque o modelo da sessão com `/model` conforme a tarefa.
+
+## Economia de contexto
+- Para testar o app, rode `./scripts/testar.sh` (gera o projeto e mostra só erros e o resumo).
+  Não rode `xcodebuild` direto: a saída tem milhares de linhas. Se precisar do detalhe de um erro,
+  leia trechos do log indicado pelo script com `grep`/`tail`, nunca o arquivo inteiro.
+- Não leia os arquivos grandes de `data/` (CSV, JSONL, cache_urn): consulte com `head`, `wc -l`
+  ou scripts. O `.claude/settings.json` bloqueia a leitura direta deles.
+- Para GitHub (PRs, CI, artefatos), use o `gh` em vez de abrir páginas.
+- Uma tarefa por sessão; ao trocar de assunto, sugira ao Ricardo usar `/clear`.
+
+# Compact instructions
+Ao compactar, preserve: a fase e a tarefa atuais, decisões tomadas na sessão, arquivos alterados,
+comandos de teste e o resultado do último teste. Descarte saídas longas de comandos e conteúdo de
+arquivos já lidos.
