@@ -272,7 +272,7 @@ campo do parser e do Gemini.
 
 - `teacher` (Sonnet): uma entrada por tarefa em `docs/aprendizado/fase-N.md`, com 3 perguntas;
   Ricardo responde por escrito e o teacher corrige na entrada seguinte.
-- `teacher-consolidador` (Opus) + `/fechar-fase`: guia da fase em `docs/guias/fase-N.pdf`.
+- `teacher-consolidador` (Opus) + `/fechar-fase`: guia da fase em `docs/guias/fase-N.md`.
 - `revisor` (Sonnet): revisa as tarefas marcadas `[eu escrevo]`, sem reescrever.
 
 ## Histórico de decisões
@@ -293,3 +293,4 @@ campo do parser e do Gemini.
 | 03/10 | Busca + exportar/importar na Fase 2 | Objetivo do app; backup contra Sideloadly |
 | 03/10 | MVVM em camadas, structs no domínio, nomes em português | Algoritmos testáveis sem simulador; telas independentes do Core Data |
 | 03/10 | Claude Code no Mac (Monterey), com `./scripts/testar.sh` (xcodegen + xcodebuild test) antes de cada commit | Testa no Xcode 14.2 antes da CI; ciclo mais curto que pela web |
+| 03/10 | Guias de fase só em Markdown (`docs/guias/fase-N.md`), sem PDF, Pandoc nem Typst | O Homebrew não funciona no macOS 12 (Tier 3) e compilaria GHC/LLVM/Rust do código-fonte; o GitHub já mostra o .md formatado, com Mermaid |
