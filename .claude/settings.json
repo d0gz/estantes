@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./data/**/*.jsonl)",
+      "Read(./data/**/*.csv)",
+      "Read(./data/**/*.csv.gz)",
+      "Read(./data/cache_urn/**)",
+      "Read(./ios/Estantes.xcodeproj/**)"
+    ]
+  }
+}
