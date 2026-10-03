@@ -27,6 +27,68 @@ iPhone (offline)                      Supabase (plano grátis)                Ex
 └───────────────────────┘            └─────────────────────────────┘          └──────────────┘
 ```
 
+## Arquitetura do código (decidida em 03/10)
+
+**MVVM em camadas** (Clean pragmático), **structs no domínio**, Core Data escondido no repositório,
+nomes do domínio em português e sufixos técnicos em inglês. No SwiftUI não há controller: a tela é
+função do estado, e o ViewModel faz o papel que o controller tinha no MVC.
+
+### Camadas — as dependências apontam para dentro
+
+| Camada | Contém | Pode depender de |
+| --- | --- | --- |
+| **Dominio** | entidades (structs), regras puras, casos de uso, protocolos ("portas") | Foundation, e nada mais |
+| **Dados** | Core Data, cliente Supabase, Vision, formato de exportação | Dominio |
+| **Apresentacao** | Views SwiftUI + ViewModels (`ObservableObject`, `@MainActor`) | Dominio |
+| **App** | ponto de entrada e montagem das dependências | todas |
+
+```
+ios/Estantes/
+  App/              EstantesApp, Dependencias (montagem)
+  Dominio/
+    Entidades/      Livro, Estante, Candidato, FichaExtraida
+    Regras/         ISBN, ParserISBD, Pontuacao, JaroWinkler, Normalizacao
+    CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca
+    Portas/         BibliotecaRepositorio, CatalogoServico, OCRServico, LeitorCodigoBarras
+  Dados/
+    Persistencia/   PilhaCoreData, BibliotecaRepositorioCoreData (NSManagedObject <-> struct)
+    Rede/           CatalogoSupabase
+    Visao/          OCRVision, LeitorCodigoBarrasVision
+    Exportacao/     BibliotecaExportadaV1 (Codable)
+  Apresentacao/
+    Inicio/  Estante/  Scanner/  Confirmacao/  Componentes/
+ios/EstantesTests/
+  Dominio/          testes puros e rápidos
+  Dados/            Core Data em memória, ida e volta da exportação
+  Apresentacao/     ViewModels com serviços falsos
+```
+
+### Regras práticas
+
+- **Caso de uso só onde há orquestração real:** `IdentificarLivro`, `ExportarBiblioteca`,
+  `ImportarBiblioteca`. Ações simples (renomear estante, apagar livro) vão do ViewModel direto ao repositório.
+- **Um único ponto de conversão** `NSManagedObject` ↔ struct, dentro de `BibliotecaRepositorioCoreData`.
+  Views e ViewModels nunca veem `NSManagedObject`. Sem `@FetchRequest`: o ViewModel recarrega o
+  estado depois de cada alteração.
+- **Injeção pelo `init`:** cada tipo recebe seus protocolos no inicializador; a montagem acontece só em
+  `App/Dependencias`. Sem singletons espalhados.
+- **`async/await`** nas portas; ViewModels com `@MainActor`.
+- **Previews e testes** usam implementações falsas das portas (sem rede nem banco real).
+- **Nomes:** domínio em português (`Estante`, `prateleira`, `IdentificarLivro`); sufixos e convenções do
+  Swift em inglês (`ViewModel`, `View`), seguindo as Swift API Design Guidelines.
+- **Fora do app:** Edge Functions com handler HTTP fino e lógica em módulos puros (`deno test`);
+  SQL em `supabase/migrations/`; `data/` são ferramentas, fora desta arquitetura.
+
+### Por que assim
+
+- As partes mais ricas do app são algoritmos puros (ISBN, ISBD, Jaro-Winkler, pontuação): no Dominio,
+  rodam em testes de milissegundos e servem ao conjunto de avaliação da Fase 3.
+- Protocolos permitem trocar implementações: Supabase por um falso nos testes; Core Data por SwiftData
+  no futuro, mexendo só no repositório.
+- Descartados: MVC (padrão do UIKit); Clean "de livro" com um caso de uso por ação e conversores em
+  todas as camadas (pesado para duas entidades); `NSManagedObject` direto nas telas (acopla as telas
+  ao Core Data e dificulta testar).
+
 ## Ambiente (Fase 0)
 
 - Mac: MacBook Pro 15" 2015, **macOS Monterey 12.7.x + Xcode 14.2 / Swift 5.7**.
@@ -225,3 +287,4 @@ campo do parser e do Gemini.
 | 03/10 | Chave da estante no `Livro` | Relação um-para-muitos |
 | 03/10 | Prateleira = etiqueta livre | Achar o livro na biblioteca física |
 | 03/10 | Busca + exportar/importar na Fase 2 | Objetivo do app; backup contra Sideloadly |
+| 03/10 | MVVM em camadas, structs no domínio, nomes em português | Algoritmos testáveis sem simulador; telas independentes do Core Data |

@@ -30,6 +30,13 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 - O Claude Code não roda Xcode nesta máquina/sessão: depois de mudar Swift, avise o Ricardo para
   rodar `xcodegen generate` e testar no Xcode 14.2, e confira o resultado da CI.
 
+## Arquitetura (regra crítica — detalhes em docs/PLANO.md)
+- MVVM em camadas: `Dominio/` (structs, regras puras, casos de uso, protocolos) ← `Dados/` e `Apresentacao/`.
+- `Dominio/` importa só Foundation: nada de SwiftUI, CoreData, Vision ou rede.
+- `NSManagedObject` só existe dentro de `Dados/Persistencia/`; telas e ViewModels usam structs.
+- Dependências entram pelo `init`; a montagem fica em `App/Dependencias`. Sem singletons.
+- Toda regra nova do Domínio nasce com teste XCTest em `EstantesTests/Dominio/`.
+
 ## Estrutura
 - `ios/project.yml` — definição do projeto (XcodeGen)
 - `ios/Estantes/`, `ios/EstantesTests/` — código e testes

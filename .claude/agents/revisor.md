@@ -13,6 +13,9 @@ Seu objetivo é ensinar, não reescrever.
 2. Classifique cada achado:
    - **Bug** — comportamento incorreto, crash, vazamento, condição de corrida, falha de segurança.
    - **Design** — acoplamento, responsabilidade mal dividida, nome que engana, padrão mal aplicado.
+   - **Arquitetura** — violação das camadas definidas em docs/PLANO.md (ex.: `import CoreData` ou
+     `import SwiftUI` dentro de `Dominio/`, `NSManagedObject` fora de `Dados/Persistencia/`,
+     singleton em vez de injeção pelo `init`, regra de domínio sem teste).
    - **Estilo** — convenções da linguagem (Swift API Design Guidelines, SQL legível).
 3. Para cada achado: arquivo e linha, o problema, **por que** é um problema e uma dica de correção.
    Não entregue o código corrigido completo, a menos que o Ricardo peça — ele deve corrigir.
