@@ -1,0 +1,122 @@
+name: iOS
+
+# Testes: a cada push/PR que mexa no app.
+# .ipa: só quando você clica em "Run workflow" (economiza minutos de macOS).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+  workflow_dispatch:
+
+# Um push novo cancela a execução anterior do mesmo branch.
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ios
+
+jobs:
+  test:
+    name: Compilar e testar (Xcode 26)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versões
+        run: |
+          xcodebuild -version
+          sw_vers
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Gerar o projeto
+        run: xcodegen generate
+
+      - name: Escolher um simulador de iPhone
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime, lista in sorted(devices.items(), reverse=True):
+              if "iOS" in runtime:
+                  for d in lista:
+                      if d["name"].startswith("iPhone"):
+                          print(d["udid"]); sys.exit(0)
+          sys.exit("Nenhum simulador de iPhone encontrado")
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Testes
+        run: |
+          LOG="$RUNNER_TEMP/xcodebuild-test.log"
+          xcodebuild test \
+            -project Estantes.xcodeproj \
+            -scheme Estantes \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            > "$LOG" 2>&1 && STATUS=0 || STATUS=$?
+          # Mostra só as linhas úteis; o log completo vira artefato se falhar.
+          grep -E "error:|Test Case|TEST (SUCCEEDED|FAILED)|Executed" "$LOG" || tail -n 50 "$LOG"
+          exit $STATUS
+
+      - name: Guardar o log se falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-testes
+          path: ${{ runner.temp }}/xcodebuild-test.log
+          retention-days: 7
+
+  ipa:
+    name: Gerar .ipa sem assinatura
+    needs: test
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Gerar o projeto
+        run: xcodegen generate
+
+      - name: Arquivar para iPhone (sem assinatura)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Estantes.xcodeproj \
+            -scheme Estantes \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/Estantes.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tail -n 30
+
+      - name: Empacotar o .ipa
+        run: |
+          cd "$RUNNER_TEMP"
+          mkdir -p Payload
+          cp -R Estantes.xcarchive/Products/Applications/Estantes.app Payload/
+          zip -qry Estantes.ipa Payload
+          ls -lh Estantes.ipa
+
+      - name: Publicar o artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: Estantes-ipa
+          path: ${{ runner.temp }}/Estantes.ipa
+          retention-days: 7

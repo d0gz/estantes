@@ -1,0 +1,31 @@
+name: Supabase keepalive
+
+# Projetos gratuitos do Supabase pausam após 7 dias sem uso.
+# Este workflow faz uma consulta leve toda segunda e quinta-feira.
+# Configure em Settings → Secrets and variables → Actions:
+#   SUPABASE_URL       (ex.: https://xxxx.supabase.co)
+#   SUPABASE_ANON_KEY  (chave anônima; a tabela precisa de RLS com leitura pública)
+on:
+  schedule:
+    - cron: "17 12 * * 1,4"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consultar o banco
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "Secrets do Supabase ainda não configurados (Fase 1). Nada a fazer."
+            exit 0
+          fi
+          curl -fsS "$SUPABASE_URL/rest/v1/livros?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY"
+          echo
+          echo "Supabase respondeu."

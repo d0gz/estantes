@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Xcode (o projeto é gerado pelo XcodeGen a partir de ios/project.yml)
+ios/*.xcodeproj/
+ios/Estantes/Info.plist
+xcuserdata/
+DerivedData/
+*.xcuserstate
+*.ipa
+
+# Segredos
+.env
+supabase/.temp/
+
+# Dados grandes do LexML
+data/raw/
+data/*.csv
+!data/livros_lexml.csv.gz
+data/resumo_*.txt
+data/amostra_*.json
+data/*.jsonl
+data/cache_urn/
+data/fichas_urn.jsonl
+cache_urn/

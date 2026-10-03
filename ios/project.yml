@@ -1,0 +1,62 @@
+# Definição do projeto Xcode. O Estantes.xcodeproj é GERADO a partir deste arquivo:
+#   cd ios && xcodegen generate
+# Não edite o .xcodeproj à mão e não o coloque no Git.
+name: Estantes
+
+options:
+  bundleIdPrefix: com.ricardo
+  deploymentTarget:
+    iOS: "16.0"
+  # Formato que o Xcode 14.2 (seu Mac) consegue abrir; o Xcode 26 da CI também abre.
+  projectFormat: xcode14_0
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  Estantes:
+    type: application
+    platform: iOS
+    sources:
+      - path: Estantes
+    info:
+      path: Estantes/Info.plist
+      properties:
+        CFBundleDisplayName: Estantes
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSCameraUsageDescription: "A câmera lê a capa, a ficha catalográfica e o código de barras dos livros."
+        NSPhotoLibraryUsageDescription: "Você pode escolher fotos de livros da galeria para identificá-los."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ricardo.estantes
+        TARGETED_DEVICE_FAMILY: "1"
+
+  EstantesTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: EstantesTests
+    dependencies:
+      - target: Estantes
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ricardo.estantes.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Estantes:
+    build:
+      targets:
+        Estantes: all
+        EstantesTests: [test]
+    test:
+      targets:
+        - EstantesTests
