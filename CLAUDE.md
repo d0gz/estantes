@@ -52,7 +52,7 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 - `docs/guias/fase-N.md` — guia consolidado de cada fase (só Markdown, sem PDF)
 
 ## Fase atual
-Fase 0 — Ambiente. (Atualize esta linha ao abrir uma nova fase.)
+Fase 1 — Dados. (Atualize esta linha ao abrir uma nova fase.)
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que
