@@ -24,7 +24,7 @@ jobs:
             echo "Secrets do Supabase ainda não configurados (Fase 1). Nada a fazer."
             exit 0
           fi
-          curl -fsS "$SUPABASE_URL/rest/v1/livros?select=id&limit=1" \
+          curl -fsS "$SUPABASE_URL/rest/v1/lexml_livros?select=lexml_id&limit=1" \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_ANON_KEY"
           echo

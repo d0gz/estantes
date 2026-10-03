@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - "ios/**"
+      - ".github/workflows/ios.yml"
   workflow_dispatch:
 
 # Um push novo cancela a execução anterior do mesmo branch.
@@ -28,7 +29,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Versões
         run: |
@@ -71,7 +72,7 @@ jobs:
 
       - name: Guardar o log se falhar
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: log-testes
           path: ${{ runner.temp }}/xcodebuild-test.log
@@ -84,7 +85,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Instalar XcodeGen
         run: brew install xcodegen
@@ -115,7 +116,7 @@ jobs:
           ls -lh Estantes.ipa
 
       - name: Publicar o artefato
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Estantes-ipa
           path: ${{ runner.temp }}/Estantes.ipa
