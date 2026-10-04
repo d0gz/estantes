@@ -6,11 +6,14 @@ registre o motivo em "Histórico de decisões", no fim.
 
 ## Objetivo
 
-App iOS que espelha as estantes físicas da casa em estantes virtuais e adiciona livros
-jurídicos por foto. O objetivo principal é **aprender** cada camada, do repositório ao
-deploy; cada fase termina com um guia do subagente teacher.
+App iOS que espelha as estantes físicas da casa em estantes virtuais, adiciona livros
+jurídicos por foto e permite **buscar por assunto** dentro dos livros já catalogados
+(título, sumário com página, CDDir e categorias). O objetivo principal é **aprender** cada
+camada, do repositório ao deploy; cada fase termina com um guia do subagente teacher.
 
-O app funciona offline (Core Data). A internet só entra para identificar um livro novo.
+O app funciona offline (Core Data), inclusive a busca. A internet só entra para identificar
+um livro novo e, como reserva, para estruturar um sumário fotografado (Gemini).
+A busca é só na biblioteca do usuário, sem consultar o catálogo do servidor.
 
 ## Arquitetura
 
@@ -22,9 +25,11 @@ iPhone (offline)                      Supabase (plano grátis)                Ex
 │  OCR capa + ficha     │            │  obras / edicoes (cache)     │
 ├───────────────────────┤            ├─────────────────────────────┤  falhou   ┌──────────────┐
 │ SwiftUI + Core Data   │◀──────────▶│ Edge Functions               │─────────▶│ LexML /urn   │
-│  Estante, Livro       │            │  enriquecer-urn              │          │ Google Books │
-│  export/import JSON   │            │  identificar-livro (secrets) │          │ Gemini       │
-└───────────────────────┘            └─────────────────────────────┘          └──────────────┘
+│  Estante, Livro,      │            │  enriquecer-urn              │          │ Google Books │
+│  Categoria, Sumário   │            │  identificar-livro (secrets) │          │ Gemini       │
+│  busca local (BM25)   │            │  estruturar-sumario          │          └──────────────┘
+│  export/import JSON   │            └─────────────────────────────┘
+└───────────────────────┘
 ```
 
 ## Arquitetura do código (decidida em 03/10)
@@ -46,8 +51,9 @@ função do estado, e o ViewModel faz o papel que o controller tinha no MVC.
 ios/Estantes/
   App/              EstantesApp, Dependencias (montagem)
   Dominio/
-    Entidades/      Livro, Estante, Candidato, FichaExtraida
-    Regras/         ISBN, ParserISBD, Pontuacao, JaroWinkler, Normalizacao
+    Entidades/      Livro, Estante, Categoria (+ CorCategoria), ItemSumario, Candidato, FichaExtraida
+    Regras/         ISBN, ParserISBD, ParserSumario, Pontuacao, JaroWinkler, Normalizacao
+    Busca/          Tokenizador, IndiceInvertido, BM25, FiltroBusca, MotorDeBusca, ResultadoBusca
     CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca
     Portas/         BibliotecaRepositorio, CatalogoServico, OCRServico, LeitorCodigoBarras
   Dados/
@@ -56,7 +62,7 @@ ios/Estantes/
     Visao/          OCRVision, LeitorCodigoBarrasVision
     Exportacao/     BibliotecaExportadaV1 (Codable)
   Apresentacao/
-    Inicio/  Estante/  Scanner/  Confirmacao/  Componentes/
+    Inicio/  Busca/  Estante/  Livro/  Categorias/  Scanner/  Sumario/  Confirmacao/  Componentes/
 ios/EstantesTests/
   Dominio/          testes puros e rápidos
   Dados/            Core Data em memória, ida e volta da exportação
@@ -76,6 +82,11 @@ ios/EstantesTests/
 - **Previews e testes** usam implementações falsas das portas (sem rede nem banco real).
 - **Nomes:** domínio em português (`Estante`, `prateleira`, `IdentificarLivro`); sufixos e convenções do
   Swift em inglês (`ViewModel`, `View`), seguindo as Swift API Design Guidelines.
+- **Busca no Domínio:** `Dominio/Busca/` só usa Foundation. O índice é montado em memória ao abrir o
+  app, a partir do repositório; depois de cada alteração, o livro é removido e reindexado. A
+  normalização reaproveita `Regras/Normalizacao`.
+- **Cor sem SwiftUI no Domínio:** `CorCategoria` é um identificador (enum `String`); a Apresentação o
+  converte num `Color` com os tons claro e escuro.
 - **Fora do app:** Edge Functions com handler HTTP fino e lógica em módulos puros (`deno test`);
   SQL em `supabase/migrations/`; `data/` são ferramentas, fora desta arquitetura.
 
@@ -129,6 +140,9 @@ ios/EstantesTests/
   Leitor pronto e testado: `data/enriquecer_urn.py`.
 - robots.txt: `/urn` permitido com **5 s entre pedidos**; `/busca/` proibido para automação.
 - **Assuntos ficam fora** (só existem em `/busca/`). Usamos a **CDDir**.
+  O assunto do livro chega por outras vias: CDDir, sumário e categorias do usuário.
+- A `descricao` traz o sumário em **24.118 livros** (`Sumário: ...`, itens separados por ` -- `):
+  serve para pré-preencher o `ItemSumario` (Fase 4).
 - Enriquecimento **sob demanda** (um pedido por livro escaneado), nunca em massa.
 - Não fundir registros por título + ano: há 1.683 pares repetidos (ex.: vários "Direito penal" de 2009).
   Edições se agrupam pela ficha /urn (que lista as edições) e pelo ISBN.
@@ -185,7 +199,8 @@ create index edicoes_obra on edicoes (obra_id);
 
 - [ ] Criar projeto Supabase; migration com o esquema acima
 - [ ] Importar o CSV (`COPY`) e conferir contagem (83.612)
-- [ ] RPC `buscar_livro(texto, ano)`: top 10 por similaridade de título sem acento, ano como desempate
+- [ ] RPC `buscar_livro(texto, ano)`: top 10 por similaridade de título sem acento, ano como desempate;
+      devolve também a `descricao` (usada no pré-preenchimento do sumário)
 - [ ] RLS + secrets `SUPABASE_URL` e `SUPABASE_ANON_KEY` no GitHub (ativa o keepalive)
 - [ ] `EXPLAIN ANALYZE` com e sem o índice trigram (exercício do teacher)
 
@@ -196,30 +211,58 @@ create index edicoes_obra on edicoes (obra_id);
 | Entidade | Campos | Regras |
 | --- | --- | --- |
 | `Estante` | id (UUID), nome, criadaEm | `livros` com exclusão em cascata; a interface confirma quantos livros serão apagados e oferece movê-los |
-| `Livro` | id (UUID), titulo, subtitulo, autores, editora, edicao, ano, isbn13, paginas, cddir, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoCapa, adicionadoEm | `estante` obrigatória (a chave fica no livro) |
+| `Livro` | id (UUID), titulo, subtitulo, autores, editora, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoCapa, adicionadoEm | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
+| `ItemSumario` | ordem, nivel, titulo, pagina (opcional), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
+| `Categoria` | id (UUID), nome (único, sem diferenciar maiúsculas/acentos), cor (identificador da paleta) | muitos-para-muitos com `Livro`; apagar a categoria = **nullify** (os livros só perdem a etiqueta) |
 
 - **Prateleira**: etiqueta de texto livre do usuário ("2ª de cima", "caixa azul"); sugerir as
   etiquetas já usadas naquela estante.
-- **Exportar/importar**: `.json` versionado `{"versao": 1, "estantes": [...]}`, via folha de
+- **cddir × cddirCaminho**: `cddir` é o código (filtro por prefixo); `cddirCaminho` são os níveis da
+  hierarquia em texto (entram no índice). No Domínio é `[String]`; no Core Data, uma String com ` > `
+  (evita um Transformable).
+- **Categorias** são as etiquetas manuais de assunto (não há campo `assuntos` à parte). Paleta fixa de
+  ~10 cores com contraste conferido nos modos claro e escuro; no Domínio a cor é um identificador.
+- **Sumário**: só o texto é guardado, nunca as fotos.
+- **Exportar/importar**: `.json` versionado `{"versao": 1, "categorias": [...], "estantes": [...]}`;
+  cada livro leva `cddirCaminho`, `itensSumario` e os UUIDs das suas categorias. Via folha de
   compartilhar e seletor de arquivos; UUIDs permitem **mesclar** ou **substituir** (perguntar).
-  É também o backup contra a expiração do Sideloadly.
+  Na mesclagem, categorias casam pelo UUID (nome igual com outro UUID é reaproveitado) e o sumário
+  de um livro é substituído em bloco. É também o backup contra a expiração do Sideloadly.
+
+### Busca na biblioteca
+
+Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, com testes XCTest.
+
+- **Normalização**: minúsculas, sem acento, sem palavras vazias (de, da, do, e, em, para...).
+- **Índice invertido** em memória, montado ao abrir o app; atualizado livro a livro depois de cada alteração.
+- **Ranking BM25** por livro, com pesos por campo: título (maior), subtítulo, nomes de categoria,
+  `cddirCaminho`, itens do sumário, autor (peso baixo). O item do sumário com a melhor nota é o que
+  aparece no resultado.
+- **Filtros** combináveis: autor, editora, faixa de anos, estante, prefixo de CDDir e categoria (chips coloridas).
+- **Resultado**: livro · item do sumário · página · estante · prateleira.
 
 ### Interface
 
 - Botão da câmera embaixo, centralizado.
 - Estantes em grade; estado vazio com livros esmaecidos `#cbe8f5` e "+" azul-escuro (conferir contraste).
-- Topo: último livro escaneado + campo de busca (`.searchable`): título/autor → "Estante X · prateleira".
-- Exportar/importar num menu (⋯) no canto superior.
+- Topo: último livro escaneado + campo de busca (`.searchable`): título, autor e assunto →
+  "Livro · item do sumário, p. N · Estante X · prateleira". Com a busca ativa, aparecem os chips de filtro.
+- Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
+- Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
+  menu (⋯) no canto superior.
 
 ### Checklist da Fase 2
 
-- [ ] Modelo `Estantes.xcdatamodeld` + `PersistenceController` (com versão em memória)
+- [ ] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória)
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
-- [ ] Busca; exclusão com confirmação
-- [ ] Exportar/importar (mesclar/substituir) + testes XCTest (exportar → importar → comparar)
+- [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
+- [ ] Itens do sumário manuais na tela do livro
+- [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25, filtros) + testes
+- [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
+- [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
 - [ ] Simulador iOS 16, Sideloadly no iPhone, CI verde
 
-## Identificação de livros (Fases 3 e 4)
+## Identificação de livros e sumário (Fases 3 e 4)
 
 ### Ordem das fontes
 
@@ -249,22 +292,36 @@ create index edicoes_obra on edicoes (obra_id);
 Buscar amplo (só título, ~10 candidatos), ordenar com todos os sinais. Alta: pré-seleciona.
 Média: top 3 + "nenhum desses". Baixa: Gemini.
 
+### Sumário
+
+- **Captura**: `VNDocumentCameraViewController` (VisionKit, várias páginas) → `VNRecognizeTextRequest`.
+  Etapa opcional depois da confirmação do livro e também na tela do livro. Só funciona no aparelho
+  (no simulador, `isSupported` é falso); o parser é testado com texto, no Domínio.
+- **Parser algorítmico** (`Regras/ParserSumario`): número no fim da linha = página; numeração
+  (1., 1.1, I, a)) e recuo definem o nível; linhas quebradas são juntadas.
+- **Gemini como reserva** quando o parser falha (Edge Function `estruturar-sumario`).
+- **Pré-preenchimento pela `descricao`** do LexML (`Sumário: ... -- ...`), com `origem = lexml`.
+- Guarda só o texto, não as fotos.
+
 ### Avaliação (decide algoritmo × IA com números)
 
-Conjunto de ~30 livros reais (fotos de capa + ficha) com gabarito anotado à mão; medir acerto por
-campo do parser e do Gemini.
+Conjunto de ~30 livros reais (fotos de capa + ficha) e **~10 sumários** com gabarito anotado à mão;
+medir acerto por campo (livro) e por item/nível/página (sumário), do parser e do Gemini.
 
 ### Checklists
 
-- Fase 3: câmera + `PhotosPicker`; conjunto de avaliação; parser ISBD/regex/layout/NLTagger; script de
-  medição; RPC + pontuação; tela de confirmação (candidatos, "nenhum desses", manual, estante sugerida
-  pela CDDir, prateleira); cache local.
-- Fase 4: Edge Functions `enriquecer-urn` (porta de `data/enriquecer_urn.py`, 5 s entre pedidos) e
-  `identificar-livro` (Google Books, Gemini; chaves como secrets); limite de chamadas por dispositivo.
+- Fase 3: câmera + `PhotosPicker`; conjunto de avaliação (livros + sumários); parser ISBD/regex/layout/
+  NLTagger; script de medição; RPC + pontuação; tela de confirmação (candidatos, "nenhum desses", manual,
+  estante sugerida pela CDDir, prateleira); cache local; scanner de sumário (VisionKit) + `ParserSumario`
+  + avaliação.
+- Fase 4: Edge Functions `enriquecer-urn` (porta de `data/enriquecer_urn.py`, 5 s entre pedidos),
+  `identificar-livro` (Google Books, Gemini) e `estruturar-sumario` (Gemini); chaves como secrets;
+  limite de chamadas por dispositivo; pré-preenchimento do sumário pela `descricao`.
 
 ## Fases 5 e 6
 
-- Fase 5: foto da lombada das estantes, filtros por área/autor/edição, exportação com fotos (.zip),
+- Fase 5: sinônimos jurídicos na busca (ex.: "CDC" ↔ "Código de Defesa do Consumidor"), navegação
+  pela hierarquia da CDDir; foto da lombada das estantes, exportação com fotos (.zip), revisão de
   acessibilidade e modo escuro, ícone. CloudKit só se pagar o Developer Program.
 - Fase 6: Sideloadly (grátis, 7 dias) é o padrão; TestFlight/App Store exigem US$ 99/ano.
 
@@ -294,3 +351,10 @@ campo do parser e do Gemini.
 | 03/10 | MVVM em camadas, structs no domínio, nomes em português | Algoritmos testáveis sem simulador; telas independentes do Core Data |
 | 03/10 | Claude Code no Mac (Monterey), com `./scripts/testar.sh` (xcodegen + xcodebuild test) antes de cada commit | Testa no Xcode 14.2 antes da CI; ciclo mais curto que pela web |
 | 03/10 | Guias de fase só em Markdown (`docs/guias/fase-N.md`), sem PDF, Pandoc nem Typst | O Homebrew não funciona no macOS 12 (Tier 3) e compilaria GHC/LLVM/Rust do código-fonte; o GitHub já mostra o .md formatado, com Mermaid |
+| 03/10 | Nova funcionalidade: busca por assunto nos livros catalogados; o fluxo do app não muda | Achar *onde* um tema é tratado nos livros que já se tem; título e autor não bastam |
+| 03/10 | Busca só local e offline (índice invertido + BM25 no Domínio); nada de busca no catálogo do servidor | A biblioteca cabe em memória; funciona sem rede; algoritmo clássico testável em XCTest |
+| 03/10 | Fontes de assunto: sumário (foto ou `descricao`), CDDir (código + caminho) e categorias | Assuntos do LexML seguem proibidos (`/busca/`); 24.118 `descricao` já trazem sumário |
+| 03/10 | `Categoria` (UUID, nome, cor) muitos-para-muitos com nullify, no lugar de um campo `assuntos` | Etiqueta reutilizável, renomeável e filtrável; apagar não leva livros junto |
+| 03/10 | Cor da categoria como identificador de paleta fixa, não hex | Cada cor tem tom claro e escuro; Domínio sem SwiftUI |
+| 03/10 | Sumário fundido nas Fases 3 (scanner + parser) e 4 (Gemini + `descricao`); sinônimos e CDDir na 5 | Reaproveita câmera, Vision, conjunto de avaliação e Edge Functions sem atrasar a identificação |
+| 03/10 | Sumário guarda só texto, não fotos | Menos espaço e exportação leve; o texto é o que a busca usa |
