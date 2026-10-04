@@ -11,7 +11,8 @@ Este projeto existe para **aprender**, não só para entregar um app. O dono do 
 padrões, funcionamento interno e, principalmente, **o porquê de cada escolha**.
 
 ## Stack
-- iOS: Swift 5, SwiftUI, **Core Data**, Vision (`VNDetectBarcodesRequest`, `VNRecognizeTextRequest`)
+- iOS: Swift 5, SwiftUI, **Core Data**, Vision (`VNDetectBarcodesRequest`, `VNRecognizeTextRequest`),
+  VisionKit (`VNDocumentCameraViewController`, para o sumário)
 - Backend: Supabase (Postgres + `pg_trgm` + `unaccent`, RPC `buscar_livro`, Edge Functions em TypeScript/Deno)
 - Dados: dataset LexML filtrado para registros do tipo "Livro"
 - Fallbacks: Google Books API → Gemini (chaves só nas Edge Functions, nunca no app)
@@ -41,6 +42,7 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 - `NSManagedObject` só existe dentro de `Dados/Persistencia/`; telas e ViewModels usam structs.
 - Dependências entram pelo `init`; a montagem fica em `App/Dependencias`. Sem singletons.
 - Toda regra nova do Domínio nasce com teste XCTest em `EstantesTests/Dominio/`.
+- A busca é **só local** (biblioteca do usuário, offline): índice invertido + BM25 em `Dominio/Busca/`.
 
 ## Estrutura
 - `ios/project.yml` — definição do projeto (XcodeGen)
