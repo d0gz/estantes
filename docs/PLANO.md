@@ -27,7 +27,7 @@ iPhone (offline)                      Supabase (plano grátis)                Ex
 │ SwiftUI + Core Data   │◀──────────▶│ Edge Functions               │─────────▶│ LexML /urn   │
 │  Estante, Livro,      │            │  enriquecer-urn              │          │ Google Books │
 │  Categoria, Sumário   │            │  identificar-livro (secrets) │          │ Gemini       │
-│  busca local (BM25)   │            │  estruturar-sumario          │          └──────────────┘
+│  busca local (BM25F)  │            │  estruturar-sumario          │          └──────────────┘
 │  export/import JSON   │            └─────────────────────────────┘
 └───────────────────────┘
 ```
@@ -53,7 +53,7 @@ ios/Estantes/
   Dominio/
     Entidades/      Livro, Estante, Categoria (+ CorCategoria), ItemSumario, Candidato, FichaExtraida
     Regras/         ISBN, ParserISBD, ParserSumario, Pontuacao, JaroWinkler, Normalizacao
-    Busca/          Tokenizador, IndiceInvertido, BM25, FiltroBusca, MotorDeBusca, ResultadoBusca
+    Busca/          Tokenizador, IndiceInvertido, BM25F, FiltroBusca, MotorDeBusca, ResultadoBusca
     CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca
     Portas/         BibliotecaRepositorio, CatalogoServico, OCRServico, LeitorCodigoBarras
   Dados/
@@ -235,9 +235,14 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 - **Normalização**: minúsculas, sem acento, sem palavras vazias (de, da, do, e, em, para...).
 - **Índice invertido** em memória, montado ao abrir o app; atualizado livro a livro depois de cada alteração.
-- **Ranking BM25** por livro, com pesos por campo: título (maior), subtítulo, nomes de categoria,
-  `cddirCaminho`, itens do sumário, autor (peso baixo). O item do sumário com a melhor nota é o que
-  aparece no resultado.
+- **Ranking BM25F** por livro. Pesos por campo: título (maior), subtítulo, nomes de categoria,
+  `cddirCaminho`, itens do sumário, autor (peso baixo). Cada campo tem o próprio fator de tamanho (`b`).
+  As frequências do termo nos campos são multiplicadas pelos pesos e somadas **antes** da saturação (`k1`),
+  e o IDF é calculado uma vez por termo, sobre o livro inteiro.
+  - Descartado: somar um BM25 por campo. Um termo presente em vários campos satura várias vezes,
+    e o livro ganha nota demais.
+  - O item do sumário mostrado no resultado é o de melhor nota BM25 entre os itens daquele livro.
+  - Pesos e parâmetros ficam em constantes. São ajustados com os testes.
 - **Filtros** combináveis: autor, editora, faixa de anos, estante, prefixo de CDDir e categoria (chips coloridas).
 - **Resultado**: livro · item do sumário · página · estante · prateleira.
 
@@ -257,7 +262,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
 - [ ] Itens do sumário manuais na tela do livro
-- [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25, filtros) + testes
+- [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
 - [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
 - [ ] Simulador iOS 16, Sideloadly no iPhone, CI verde
@@ -352,9 +357,10 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 03/10 | Claude Code no Mac (Monterey), com `./scripts/testar.sh` (xcodegen + xcodebuild test) antes de cada commit | Testa no Xcode 14.2 antes da CI; ciclo mais curto que pela web |
 | 03/10 | Guias de fase só em Markdown (`docs/guias/fase-N.md`), sem PDF, Pandoc nem Typst | O Homebrew não funciona no macOS 12 (Tier 3) e compilaria GHC/LLVM/Rust do código-fonte; o GitHub já mostra o .md formatado, com Mermaid |
 | 03/10 | Nova funcionalidade: busca por assunto nos livros catalogados; o fluxo do app não muda | Achar *onde* um tema é tratado nos livros que já se tem; título e autor não bastam |
-| 03/10 | Busca só local e offline (índice invertido + BM25 no Domínio); nada de busca no catálogo do servidor | A biblioteca cabe em memória; funciona sem rede; algoritmo clássico testável em XCTest |
+| 03/10 | Busca só local e offline (índice invertido + BM25F no Domínio); nada de busca no catálogo do servidor | A biblioteca cabe em memória; funciona sem rede; algoritmo clássico testável em XCTest |
 | 03/10 | Fontes de assunto: sumário (foto ou `descricao`), CDDir (código + caminho) e categorias | Assuntos do LexML seguem proibidos (`/busca/`); 24.118 `descricao` já trazem sumário |
 | 03/10 | `Categoria` (UUID, nome, cor) muitos-para-muitos com nullify, no lugar de um campo `assuntos` | Etiqueta reutilizável, renomeável e filtrável; apagar não leva livros junto |
 | 03/10 | Cor da categoria como identificador de paleta fixa, não hex | Cada cor tem tom claro e escuro; Domínio sem SwiftUI |
 | 03/10 | Sumário fundido nas Fases 3 (scanner + parser) e 4 (Gemini + `descricao`); sinônimos e CDDir na 5 | Reaproveita câmera, Vision, conjunto de avaliação e Edge Functions sem atrasar a identificação |
 | 03/10 | Sumário guarda só texto, não fotos | Menos espaço e exportação leve; o texto é o que a busca usa |
+| 03/10 | Ranking BM25F (frequências ponderadas por campo e somadas antes da saturação) em vez de somar um BM25 por campo | Um termo presente em vários campos saturaria várias vezes e inflaria a nota; o BM25F é o padrão para documentos com campos |
