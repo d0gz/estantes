@@ -666,4 +666,107 @@ A publicável só identifica o projeto e coloca a requisição no papel `anon`. 
 4. O workflow roda verde, mas o repositório ficou 61 dias sem commits. O que acontece com o keepalive e como você detectaria isso antes de o projeto pausar?
 
 ### Minhas respostas
+(sem respostas)
+
+**Correção das respostas:** não há respostas a corrigir. As perguntas seguem em aberto.
+
+---
+
+## Tarefa 1.7 — EXPLAIN ANALYZE com e sem o índice trigram (2026-10-08)
+
+### O que foi feito
+Rodamos `explain (analyze, buffers)` sobre a consulta do corpo da `buscar_livro` (escrita direta, porque o EXPLAIN da função mostra só `Function Scan`) para a busca `'prisao preventiva'`, com e sem o índice GIN trigram `lexml_livros_titulo_trgm`. Cada variante foi rodada duas vezes. O único arquivo do projeto alterado foi `docs/PLANO.md` (medições registradas e tarefa 1.7 marcada). Com isso o checklist da Fase 1 está completo.
+
+```sql
+select l.titulo from public.lexml_livros l
+where lower(public.f_unaccent(l.titulo)) operator(extensions.%) :q
+order by extensions.similarity(lower(public.f_unaccent(l.titulo)), :q) desc
+limit 10;
+```
+
+### Resultados
+
+| | 1ª execução | 2ª execução | Passo dominante |
+| --- | --- | --- | --- |
+| Com índice | 88,8 ms | 87,1 ms | Bitmap Index Scan, depois Bitmap Heap Scan |
+| Sem índice | 757,0 ms | 582,4 ms | Parallel Seq Scan |
+
+Ganho de cerca de 6,7x a 8,5x. Os dois caminhos acham as mesmas 28 linhas.
+
+**Plano com índice** (lê-se de baixo para cima):
+1. `Bitmap Index Scan on lexml_livros_titulo_trgm`: 7 ms, `rows=3522` candidatos, `Buffers: shared hit=94`.
+2. `Bitmap Heap Scan`: `Recheck Cond`; `Rows Removed by Index Recheck: 3494` (sobram 28); `Heap Blocks: exact=1707`; ~80 ms. **É aqui que está o tempo, não no índice.**
+3. `Sort Method: top-N heapsort  Memory: 26kB`.
+4. `Limit 10`.
+
+**Plano sem índice**: `Parallel Seq Scan` com `loops=2` (o líder + 1 worker; `Workers Launched: 1`). Cada processo mostra `Rows Removed by Filter: 41792` e `rows=14`. Depois, `Sort` (quicksort) em cada processo e `Gather Merge` que intercala as duas listas já ordenadas. `Buffers: shared hit=2516`.
+
+```mermaid
+flowchart BT
+  A[GIN: Bitmap Index Scan<br/>3.522 candidatos, 7 ms] --> B[Bitmap Heap Scan<br/>recheck: 3.494 descartados, ~80 ms]
+  B --> C[Sort top-N heapsort]
+  C --> D[Limit 10]
+  E[Seq Scan paralelo x2<br/>83.612 linhas filtradas] --> F[Sort quicksort por processo]
+  F --> G[Gather Merge]
+  G --> H[Limit 10]
+```
+
+### Conceitos envolvidos
+
+**1. Por que o GIN trigram é "lossy".** O índice guarda, para cada trigrama, a lista de linhas que o contêm. Dada a busca, ele sabe quais trigramas da busca cada título tem. Mas não sabe o **total** de trigramas do título. Como `similarity = trigramas em comum ÷ trigramas totais dos dois`, ele não consegue calcular a nota exata. Só consegue uma **estimativa otimista** (assume que o título não tem trigramas além dos que casaram). Consequência: o índice nunca perde um resultado certo (sem falso negativo), mas traz resultados errados junto (falsos positivos): 3.522 candidatos para 28 verdadeiros. Por isso existe o recheck.
+
+**2. Recheck.** O `Bitmap Heap Scan` vai à tabela, lê cada linha candidata, recalcula `lower(f_unaccent(titulo))` e a `similarity` exata, e descarta o que ficou abaixo do limite (3.494 linhas). Esse é o custo dominante: ~80 ms dos ~87 ms. O índice em si custou 7 ms.
+
+**3. Por que não 100x.** Os 3.522 candidatos estão espalhados por 1.707 das 2.516 páginas da tabela (68%). Então o índice não evita ler a maior parte da tabela; evita **calcular a similarity em 83 mil linhas**, calculando só em 3.522. Isso explica um ganho de ~7-8x e não de ordens de grandeza. Corolário importante: **o tempo depende da frequência dos termos da busca**. "direito penal brasileiro" (medido pelo revisor na 1.5) gerou 14.645 candidatos e ~300 ms. Termos comuns geram muitos candidatos, e o índice ajuda menos.
+
+*Bitmap scan x Index Scan comum.* No Index Scan comum, cada entrada do índice leva a uma visita à página da tabela, na ordem do índice, possivelmente revisitando a mesma página várias vezes (acesso aleatório). No Bitmap, o Postgres primeiro junta todos os endereços numa estrutura em memória (um bitmap por página), e depois visita **cada página uma única vez, em ordem física**. Com milhares de candidatos espalhados, isso é muito melhor. O preço: perde a ordem do índice (aqui irrelevante, pois reordenamos por similarity) e o bitmap exige o recheck quando o índice é lossy.
+
+**4. top-N heapsort x quicksort.** Com `ORDER BY ... LIMIT 10`, o Postgres não precisa ordenar tudo: mantém um heap de tamanho 10 com os melhores vistos até agora. Custo ~O(n log 10) e só 26 kB de memória. No plano sem índice cada worker ordena suas ~14 linhas por quicksort (O(n log n), mas n é minúsculo), pois o filtro `%` já reduziu o conjunto antes do sort.
+
+**5. Conta de conferência do seq scan.** (41.792 + 14) x 2 processos = 83.612 = tabela inteira. Cada linha foi lida e o filtro `%` aplicado a todas, sem exceção; é isso que o índice evita.
+
+**6. Paralelismo.** O Postgres dividiu o trabalho entre o processo líder e 1 worker, e o `Gather Merge` intercala as listas ordenadas. Mesmo dividindo o trabalho em dois, ainda ficou 7-8x mais lento que o índice. Paralelizar reduz o tempo por um fator pequeno; o índice reduz o **trabalho**.
+
+**7. Primeira x segunda execução.** Todos os buffers aparecem como `shared hit`, nenhum `read`: as páginas já estavam em cache por consultas anteriores. Então o que se mediu foi CPU, não disco; com cache frio os números seriam piores. `Planning Time` caiu de 17,2 para 1,4 ms: na 1ª vez o planner carregou catálogo (`Planning Buffers: 176`), depois estava em cache. Sem índice, 757 → 582 ms com as mesmas 2.553 páginas: variação de CPU num servidor compartilhado do plano grátis. **Lição: meça mais de uma vez**, e desconfie de uma medição isolada.
+
+**8. `cost` não é tempo.** Os números `cost=61.81..16421.98` estão numa unidade abstrata do planner (baseada em `seq_page_cost`, `cpu_tuple_cost` etc.), útil para comparar planos entre si, não para prever milissegundos. O que se compara com a realidade é a estimativa de linhas: o planner previu `rows=8` e vieram 28. É uma boa estimativa, e isso se deve ao `ANALYZE` feito na tarefa 1.4, que alimenta as estatísticas (`pg_statistic`) usadas pelo planner.
+
+**9. Ligação com a tarefa 1.5.** Só o `where` com o operador `%` consegue usar o índice GIN. A ordenação por `similarity(...)` roda depois, apenas sobre os candidatos. É por isso que a RPC filtra com `%` e ordena com `similarity`, e não o contrário. E o plano só é bom porque as estatísticas da 1.4 existem.
+
+### Por que assim
+- **Consulta do corpo da função, não da RPC.** `EXPLAIN` de uma chamada a função SQL/plpgsql mostra só `Function Scan`; o plano interno fica escondido. Para ver o que o planner faz, copiamos o `select`.
+- **Desligar o índice com `set enable_bitmapscan = off; set enable_indexscan = off;`** em vez de `begin; drop index ...; rollback;` (que o PLANO sugeria). O `drop index` pega lock `ACCESS EXCLUSIVE` na tabela e a trava para todos enquanto a transação estiver aberta. Os `set` valem só para a sessão, o índice permanece intacto e ninguém é afetado. Além disso, comparamos o mesmo banco, com as mesmas estatísticas.
+- **`buffers` junto com `analyze`**: mostra quantas páginas foram tocadas e se vieram do cache, o que explica o tempo melhor que o relógio sozinho.
+- **Rodar duas vezes**: para separar efeito de cache/planejamento do custo real.
+
+### Alternativas descartadas
+- `drop index` em transação com rollback: correto no efeito, mas perigoso em banco compartilhado (lock exclusivo). Em um banco local de testes seria aceitável.
+- Usar `explain` sem `analyze`: só mostra estimativas, sem tempo real nem linhas reais, impossível ver o recheck.
+- Medir uma vez só: a variação de 757 para 582 ms mostra que seria enganoso.
+- Medir só pelo tempo no cliente: inclui latência de rede até o pooler; `Execution Time` do EXPLAIN mede só o servidor.
+
+### Padrões e boas práticas
+- **Meça antes de otimizar** e registre os números (como feito no PLANO).
+- Use `enable_*` apenas como **ferramenta de diagnóstico** na sessão; nunca em produção para "forçar" um plano. Se o planner escolhe mal, corrija estatísticas (`ANALYZE`, `default_statistics_target`) ou o índice.
+- Leia planos **de baixo para cima e de dentro para fora**; compare `rows` estimado x real e `Rows Removed by ...`.
+- Quando NÃO usar índice trigram: tabelas pequenas (o seq scan é mais barato) ou buscas com termos tão comuns que quase todas as linhas são candidatas.
+
+### Armadilhas
+- Concluir "o índice ficou 100x mais rápido" a partir de uma medição só, ou de números com cache quente sem saber que estão quentes.
+- Confundir `cost` com milissegundos.
+- Esquecer que `EXPLAIN ANALYZE` **executa** a consulta de verdade; em `INSERT/UPDATE/DELETE`, envolva em `begin; ... rollback;`.
+- Esquecer de reativar as configurações: os `set` valem até o fim da sessão (`reset enable_bitmapscan;`). Em pooler em modo transação, uma sessão pode ser reaproveitada por outro cliente; verifique.
+- Nos termos frequentes, o ganho encolhe (14.645 candidatos, ~300 ms): teste com buscas representativas, não só com uma.
+
+### Para ir além
+- Documentação do PostgreSQL: "Using EXPLAIN" (capítulo Performance Tips) e "pg_trgm" (apêndice F), incluindo a parte sobre índices GIN/GiST.
+- Documentação do PostgreSQL: "GIN Indexes" (capítulo de tipos de índice) para entender a lista de postings e o motivo do recheck.
+- Site explain.depesz.com (ou explain.dalibo.com) para visualizar planos colando a saída.
+
+### Perguntas
+1. Com suas palavras: por que o índice GIN trigram devolve 3.522 candidatos para 28 resultados verdadeiros, e o que o `Bitmap Heap Scan` faz com eles?
+2. Se a tabela tivesse 10 vezes mais linhas, mas a busca continuasse gerando uma fração parecida de candidatos, o que você esperaria para o tempo com e sem índice? E se a busca fosse "direito" (termo muito frequente)?
+3. Na tarefa 1.7 o plano com índice gastou 7 ms no índice e ~80 ms no recheck. Se você quisesse reduzir o recheck, que mudanças poderia testar (pense em limite de similaridade e no formato da consulta)? Que risco cada uma traz para a qualidade dos resultados?
+
+### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
