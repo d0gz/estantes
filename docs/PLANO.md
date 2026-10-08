@@ -225,6 +225,9 @@ create index edicoes_obra on edicoes (obra_id);
   - (c′) foi descartada ao testar **títulos curtos**, a entrada normal da Fase 3: para "Prisão preventiva",
     "Prisão" (`word_similarity` 1,0, `similarity` 0,44) passava à frente de "A Prisão Preventiva" (0,89).
     A média (c″) mantém os ganhos nas capas longas e devolve a ordem certa nos títulos curtos.
+  - `EXPLAIN ANALYZE` ("prisao preventiva", dados em cache): com índice 87 ms (o GIN devolve 3.522 candidatos
+    em 7 ms; o recheck na tabela descarta 3.494 e leva ~80 ms); sem índice 582–757 ms (Parallel Seq Scan nas
+    83.612 linhas). O tempo cresce com a frequência dos termos: "direito penal brasileiro" gera 14.645 candidatos.
   - O caso perdido ("Teoria Geral do Processo" + 4 autores, nota 0,27) só se resolve mandando o título já
     extraído (Fase 3), não a capa inteira.
 - Projeto grátis pausa após 7 dias sem uso: `supabase-keepalive.yml` faz ping 2x por semana, só com o
@@ -240,7 +243,7 @@ create index edicoes_obra on edicoes (obra_id);
 - [x] 1.5 `[eu escrevo]` RPC `buscar_livro(texto, ano)`: top 10 títulos parecidos (sem acento), filtro
       pelo índice e ordem da opção (c″) abaixo; devolve também a `descricao` (usada no pré-preenchimento do sumário)
 - [x] 1.6 Secrets `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` no GitHub (ativa o keepalive)
-- [ ] 1.7 `EXPLAIN ANALYZE` com e sem o índice trigram (exercício do teacher)
+- [x] 1.7 `EXPLAIN ANALYZE` com e sem o índice trigram (exercício do teacher): 87 ms × 582–757 ms
 
 ## App (Fase 2)
 
