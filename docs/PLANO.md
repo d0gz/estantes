@@ -304,6 +304,10 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 ### Checklist da Fase 2
 
+Ordem das tarefas: 2.1 entidades + porta ✅ · **2.2 Core Data (próxima)** · 2.3 normalização + motor de busca ·
+2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
+2.9 fechamento (simulador + CI; Sideloadly adiado).
+
 - [x] Entidades do Domínio (structs; `Livro` como agregado com o sumário; categorias por id; capa fora da struct) + porta `BibliotecaRepositorio` + regra do nome de categoria
 - [x] `ValidacaoSumario` `[eu escrevo]` (escrita pelo Ricardo; 12 testes)
 - [ ] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória)

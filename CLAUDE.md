@@ -55,6 +55,8 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 
 ## Fase atual
 Fase 2 — App. (Atualize esta linha ao abrir uma nova fase.)
+Concluída: 2.1 (entidades, porta e `ValidacaoSumario`). **Próxima: 2.2 — Core Data**, começando só pela
+explicação (sem código) e esperando o OK do Ricardo. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que
