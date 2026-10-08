@@ -204,3 +204,169 @@ Aqui usamos session mode porque a importação do CSV usa uma tabela temporária
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 1.3 — Migration do esquema inicial (2026-10-07)
+
+### O que foi feito
+Você escreveu a migration `supabase/migrations/20261007120000_esquema_inicial.sql`: extensões `pg_trgm` e `unaccent` no schema `extensions`, a função `f_unaccent`, as tabelas `lexml_livros`, `obras` e `edicoes`, os índices (GIN trigrama no título, GIN em `isbn13`, B-tree em `obra_id`) e RLS de leitura pública. Na revisão entraram os `grant`/`revoke` explícitos e o `set search_path = ''`. O `docs/PLANO.md` foi atualizado para refletir isso. A migration foi aplicada e testada com `set role anon`.
+
+### Conceitos envolvidos
+
+**Migration.** É um arquivo SQL versionado que muda o esquema do banco, aplicado uma vez e em ordem. Pense numa lei que altera o ordenamento: não se reescreve lei já publicada, edita-se por emenda (outra migration). O nome `AAAAMMDDHHMMSS_nome.sql` dá a ordem pela ordenação lexicográfica. O banco é um estado; as migrations são o histórico que reconstrói esse estado do zero em qualquer ambiente.
+
+**Transação e `begin ... commit`.** Todo o arquivo roda como uma unidade: ou o esquema inteiro nasce, ou nada. O DDL do Postgres é transacional (o MySQL, por exemplo, não é), então dá para desfazer um `create table`. Por isso o ensaio com `begin ... rollback` funciona: roda tudo, confere e desfaz.
+
+A armadilha do `psql`: sem `-v ON_ERROR_STOP=1`, quando um comando falha dentro da transação o Postgres a marca como abortada, os comandos seguintes falham com "current transaction is aborted", o `commit` final vira `rollback` e o `psql` ainda sai com código 0. Um script de deploy acharia que deu certo. Com `ON_ERROR_STOP` o `psql` para no primeiro erro e sai com código diferente de zero.
+
+**Índice B-tree x GIN.** O B-tree é a lista telefônica: guarda valores em ordem, serve para `=`, `<`, `>` e prefixo (`like 'abc%'`), e é inútil para "parecido com". O GIN (Generalized Inverted Index) é o índice remissivo no fim do livro: mapeia cada *chave* para a lista de linhas que a contêm. Em `isbn13 text[]`, as chaves são os elementos do array; em `titulo` com `gin_trgm_ops`, as chaves são trigramas.
+
+**Trigramas.** O `pg_trgm` quebra o texto (com espaços de preenchimento) em sequências de 3 caracteres. "penal" vira `"  p"`, `" pe"`, `"pen"`, `"ena"`, `"nal"`, `"al "`. Um OCR errado, "pena1", vira `"  p"`, `" pe"`, `"pen"`, `"ena"`, `"na1"`, `"a1 "`. Compartilham 4 de 8 trigramas distintos no total, similaridade 0,5. Um erro de um caractere destrói só 3 trigramas, o resto sobrevive. Por isso a busca tolera erro de OCR, e o GIN encontra rápido as linhas que compartilham trigramas com a consulta.
+
+**`f_unaccent` e índice por expressão.** O índice é sobre `lower(f_unaccent(titulo))`, não sobre `titulo`. O Postgres só usa esse índice se a consulta contiver a *mesma expressão*. Isso será decisivo na tarefa 1.5.
+
+**`set search_path = ''`.** O linter do Supabase (`function_search_path_mutable`) avisa quando uma função depende do `search_path` de quem a chama, o que permite a um usuário malicioso criar um objeto homônimo em um schema que apareça antes. Com `''`, nada é resolvido implicitamente. Funciona aqui porque tudo está qualificado (`extensions.unaccent(...)`). Não atrapalha o índice por expressão; o efeito colateral é que funções SQL com `SET` não sofrem *inlining* pelo planejador (o corpo não é "colado" na consulta), um custo pequeno aqui.
+
+**RLS e GRANT são camadas independentes.** Para ler uma linha, o papel precisa passar por duas portas:
+1. **GRANT**: pode usar a tabela? (privilégio de objeto: SELECT, INSERT, TRUNCATE...)
+2. **RLS**: quais linhas? (política por linha)
+
+```mermaid
+flowchart LR
+  A[app com chave anon] --> B{GRANT SELECT na tabela?}
+  B -- não --> X[permission denied]
+  B -- sim --> C{RLS: política permite a linha?}
+  C -- não --> Y[0 linhas]
+  C -- sim --> Z[linhas]
+```
+
+Verificamos com `pg_default_acl` que, neste projeto, tabelas criadas pelo papel `postgres` dão ao `anon` só `Dxtm` (TRUNCATE, REFERENCES, TRIGGER, MAINTAIN) e **não** dão SELECT. Resultado sem o `grant`: "permission denied" mesmo com a política correta. Pior: TRUNCATE **não é controlado por RLS**, então o `anon` poderia apagar a tabela inteira. O `revoke all` + `grant select` fecha as duas falhas. Analogia: a política é a autorização escrita na portaria; o GRANT é o crachá que deixa você chegar até a portaria. A chave pública (`anon`) vai dentro do `.ipa` e qualquer um a extrai, portanto a segurança tem de estar no banco, não no segredo da chave.
+
+**Sintaxe da política.** `create policy nome on tabela for select to anon, authenticated using (true)`. `using` é o filtro de linhas visíveis; `true` = todas. Sem política de `insert/update/delete`, essas operações são negadas por padrão. A service role tem `BYPASSRLS`, e é por ela que a Edge Function escreve.
+
+**Modelo de dados e o fluxo.**
+- `lexml_livros`: catálogo importado, só leitura, usado na busca por título.
+- `obras` + `edicoes`: *cache* preenchido de uma vez pela Edge Function `enriquecer-urn` (1 obra + N edições da ficha `/urn`), depois que o usuário confirma o candidato.
+- A comparação de autores acontece no app (`Pontuacao`), não no banco.
+- O ISBN lido do código de barras é consultado primeiro em `edicoes.isbn13`.
+- `local` não é palavra reservada no Postgres (é *keyword* não reservada); o editor só a colore.
+- `on delete cascade` em `edicoes.obra_id`: apagar a obra apaga suas edições, evitando órfãs.
+
+### Por que assim
+- **Migration em transação:** esquema atômico, sem estado meio criado.
+- **Extensões em `extensions`:** padrão do Supabase, fora da API REST.
+- **`ficha jsonb` bruta:** permite reprocessar sem chamar a fonte de novo.
+- **`isbn13 text[]` + GIN:** uma edição pode ter vários ISBNs; GIN indexa os elementos.
+- **`urn` como PK de `edicoes`:** é a chave natural, estável.
+- **Grants explícitos:** não depender de defaults da plataforma, que mudam e variam por papel criador.
+- **`alter policy ... rename` em vez de nova migration:** a migration já estava aplicada, mas ainda não commitada. Renomeamos no banco e no arquivo para ficarem iguais. Depois do commit (e do merge), mudar seria uma migration nova.
+
+### Alternativas descartadas
+- **Criar a política "para todos" sem `to`:** valeria para `public` (todos os papéis); preferimos nomear os papéis.
+- **Desligar o RLS e só usar GRANT:** funcionaria para leitura, mas RLS é a defesa que continua valendo se alguém conceder um privilégio a mais por engano; o Supabase também recomenda RLS em tudo que fica exposto.
+- **Chave natural única em `obras`:** não existe uma; veja armadilhas.
+- **B-tree em `titulo`:** não atende "parecido com".
+
+### Padrões e boas práticas
+- **Menor privilégio e defesa em profundidade:** GRANT mínimo + RLS + sem política de escrita.
+- **Ensaio com `begin ... rollback`:** teste destrutivo sem risco; só vale para DDL transacional (Postgres).
+- **Migration imutável depois de publicada.** Quando NÃO seguir: antes do commit/aplicação em ambientes compartilhados, ajustar o arquivo é aceitável, desde que banco e arquivo fiquem idênticos.
+- **Verificar com o papel real:** `set role anon` e tentar `select`, `insert`, `truncate`. Testar como superusuário não prova nada sobre permissões.
+
+### Armadilhas
+- **Índice por expressão só é usado se a consulta repetir a expressão.** Na 1.5, `similarity(...) > 0.3` no `WHERE` faz *seq scan*; o índice é usado com o operador `%`: `lower(f_unaccent(titulo)) % lower(f_unaccent($1))`. Diagnostique com `explain analyze`.
+- **Operadores de array:** `isbn13 @> array['978...']` usa o GIN; `'978...' = any(isbn13)` não.
+- **`obras` não tem chave natural única:** a Fase 4 precisa evitar duplicar a mesma obra ao enriquecer duas edições dela.
+- **Default privileges variam por projeto/papel:** confira com `\ddp` ou `pg_default_acl` em vez de presumir.
+- **Esquecer `ON_ERROR_STOP`** (ver acima).
+
+### Para ir além
+- PostgreSQL docs: "pg_trgm" e "GIN Index Types"; "Row Security Policies" e "GRANT".
+- Supabase docs: "Row Level Security" e a seção sobre privilégios das tabelas / Database Linter.
+- *Designing Data-Intensive Applications* (Kleppmann), cap. 3, sobre estruturas de índice.
+
+### Perguntas
+1. Com suas palavras: por que a RLS sozinha não bastava para o app ler `lexml_livros`? Qual a diferença entre GRANT e uma política?
+2. Se amanhã quisermos buscar por autor com tolerância a erro, usando `autores text[]` em `obras`, que tipo de índice você criaria e que cuidado teria para o planejador realmente usá-lo?
+3. Você descobre um erro na migration já mergeada (esqueceu um `not null` numa coluna). Você edita o arquivo e reaplica? Por quê, e o que faz em vez disso?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+## Tarefa 1.4 — Importação do catálogo LexML (2026-10-07)
+
+### O que foi feito
+Antes de carregar, o CSV foi perfilado em Python (unicidade, anos, nulos, tipo de `descricao`). Depois foi escrito `data/importar_lexml.sh`, que carrega as 83.612 linhas em `lexml_livros` com `\copy` por uma tabela temporária de staging, numa transação única, e confere os totais no fim. O `docs/PLANO.md` foi corrigido: a contagem de "livros com sumário" estava errada.
+
+### Conceitos envolvidos
+
+**Perfilar antes de carregar.** O perfil mostrou: 83.612 `lexml_id` e `urn` únicos (as chaves primária/única da tabela vão funcionar), anos todos numéricos entre 1556 e 2017 (o cast para `smallint` não vai falhar), 2 registros sem título, 24.118 com `descricao`, 1.235 com `outros_tipos`. O achado mais valioso: o PLANO afirmava "24.118 livros com sumário", mas a `descricao` é de dois tipos: 19.936 começam com `Sumário: ...` e 4.182 com `Resumo: ...` (uma sinopse; 1.749 delas também têm a palavra "Sumário" no meio). Se a Fase 4 tivesse tentado extrair itens de sumário de todas as 24.118, teria processado sinopses como se fossem sumários. A lição é metodológica: uma afirmação sobre dados só vale depois de medida; o número no PLANO era uma suposição que virou "fato" por estar escrito.
+
+**`COPY` x `\copy` (confirmando o que a 1.2 previu).** `COPY t FROM '/arquivo'` é executado pelo processo do servidor, que lê o arquivo no disco do servidor. Por isso exige superusuário ou o papel `pg_read_server_files`. O `postgres` do Supabase não é superusuário, e o erro apareceu exatamente assim: "Only roles with privileges of pg_read_server_files may COPY from a file". O `\copy` é um comando do `psql` (não é SQL): ele lê o arquivo no cliente e o envia pela conexão como `COPY ... FROM STDIN`, que qualquer papel com INSERT na tabela pode usar. Aqui o arquivo "entra" pela entrada padrão do `psql` (`pstdin`).
+
+**Staging e ELT.** Carregar os dados brutos numa área intermediária e transformar dentro do banco é o padrão ELT (extract, load, transform), em oposição ao ETL, que transforma antes de carregar. A tabela temporária tem as 7 colunas do CSV, todas `text`: nada pode falhar na leitura por causa de tipo. A conversão (`ano::smallint`) acontece no `insert ... select`, em SQL, onde um erro é fácil de localizar. `on commit drop` faz a tabela sumir sozinha. Temp table pertence à sessão, por isso funciona no pooler em session mode (porta 5432), como a 1.2 antecipou.
+
+**Transação atômica.** `begin; ... commit;` com `ON_ERROR_STOP=1`: se qualquer comando falhar, o psql para e a transação é abortada; nada fica pela metade. Sem a transação, uma falha na linha 60.000 deixaria 59.999 livros no banco e um estado difícil de raciocinar. O Postgres garante isso via MVCC e WAL: as linhas inseridas só se tornam visíveis aos outros no commit.
+
+**Idempotência x guarda explícita.** Idempotente é uma operação que, repetida, produz o mesmo estado. O jeito comum seria `insert ... on conflict do nothing`. Foi descartado porque ele esconde um problema: se alguém rodar o script com um CSV diferente, as linhas novas entram, as antigas ficam, e o banco passa a ser uma mistura que ninguém planejou, sem nenhum erro. Em vez disso, o bloco `do $$ ... raise exception` recusa a carga se a tabela já tiver linhas. É fail-fast: melhor parar com mensagem clara do que seguir em silêncio. Verificado: a segunda execução foi recusada com exit code 3.
+
+**NULL x string vazia.** No CSV, campo vazio chega como `''`. Mas "não sabemos o título" e "o título é um texto vazio" são coisas diferentes, e `NULL` é o modo do SQL de dizer "ausência de dado". `nullif(x, '')` devolve NULL se `x = ''`, senão devolve `x`. Consequências práticas: `count(titulo)` ignora NULL, `titulo is null` acha os 2 sem título, e `coalesce` funciona. Com `''`, essas consultas mentiriam. Atenção: `nullif(ano,'')::smallint` converte o resultado do `nullif`, por precedência do `::`; o cast de `''` direto falharia.
+
+**Process substitution.** `-f <(cat <<'SQL' ... SQL)` faz o shell criar um descritor (algo como `/dev/fd/63`) cujo conteúdo é a saída do comando. O psql lê o SQL dali como se fosse um arquivo, e a entrada padrão fica livre para o CSV (`< "$csv"`). O delimitador `'SQL'` entre aspas impede o shell de expandir `$$` (que seria o PID do shell!) dentro do bloco `do $$`. Process substitution é recurso do bash/zsh, não do `sh` POSIX; o shebang `#!/usr/bin/env bash` garante isso.
+
+**Códigos de saída do psql.** 0 = ok; 1 = erro fatal do próprio psql (ex.: falta de memória); 2 = falha de conexão; 3 = erro num script com `ON_ERROR_STOP` ligado. Um script que chama este deve olhar `$?`.
+
+**`pipefail`.** Em `cmd | tail`, o `$?` é o do último comando do pipe (o `tail`, quase sempre 0), mascarando o erro de `cmd`. `set -o pipefail` faz o pipeline falhar se qualquer etapa falhar. `set -e` encerra o script no primeiro erro; `set -u`, no uso de variável não definida. Combinados: `set -euo pipefail`, o "modo estrito" do bash.
+
+**BOM e CRLF.** O BOM (bytes EF BB BF) fica no início do arquivo, portanto dentro da linha de cabeçalho, que `header true` descarta; se estivesse numa linha de dados, grudaria no primeiro valor. O modo CSV do Postgres aceita CRLF como fim de linha; foi checado que nenhum `\r` sobrou nos dados. Acentos foram conferidos (sem "Ã" de mojibake), o que confirma que `encoding 'UTF8'` bate com o arquivo.
+
+**Índice antes ou depois da carga.** Aqui o GIN trigram já existia (criado na 1.3), e a carga levou cerca de 1 minuto, boa parte montando/atualizando o índice. Em cargas grandes costuma ser mais rápido criar o índice depois: o Postgres constrói de uma vez, ordenando os dados, em vez de inserir entradas uma a uma. (Em GIN, parte disso é amenizada pela `fastupdate`, uma lista pendente, mas o princípio geral permanece.) Contrapartida: exigiria `drop index` + `create index` no script, mais um passo que pode falhar e deixar a tabela sem índice. Para 83 mil linhas e 1 minuto, a simplicidade ganha. Com milhões de linhas, a conta mudaria.
+
+**`ANALYZE`.** Coleta estatísticas (distribuição de valores, quantidade de linhas) em `pg_statistic`. O planner usa isso para estimar quantas linhas cada filtro devolve e escolher entre varredura sequencial e índice. Sem estatísticas após uma carga grande, ele pode escolher planos ruins. O autovacuum eventualmente rodaria, mas só depois de algum tempo; chamar manualmente garante o plano certo já na tarefa 1.7 (medição de buscas). Fica fora da transação aqui por clareza, não por obrigação.
+
+### Por que assim
+- **`\copy` + staging:** é a única rota de carga em massa permitida ao papel que temos, e o staging absorve a diferença entre 7 colunas do CSV e 6 da tabela.
+- **Transação única:** tudo ou nada.
+- **Guarda em vez de `on conflict`:** falha ruidosa vale mais que sucesso parcial silencioso.
+- **`nullif`:** ausência de dado representada como NULL.
+- **Conferência no fim do script, com valores esperados impressos:** a verificação fica junto da carga e pode ser repetida por qualquer um.
+- **Correção do PLANO como linha nova no histórico:** o histórico é um registro do que se pensava em cada data; reescrever a linha antiga apagaria o rastro do erro.
+
+### Alternativas descartadas
+- **`COPY` no servidor:** negado por permissão (testado).
+- **`insert` linha a linha (script Python):** 83 mil round-trips pela rede e mais código; o `COPY` usa um protocolo de streaming muito mais rápido.
+- **`on conflict do nothing`:** discutido acima.
+- **Apagar o índice antes e recriar:** ganho pequeno aqui, risco e complexidade maiores.
+- **Importar o CSV pelo painel do Supabase:** não é versionável nem repetível.
+
+### Padrões e boas práticas
+- **Staging table / ELT:** use quando o formato da fonte difere do destino ou a validação precisa de SQL. Não use se o arquivo já casa com a tabela: `\copy` direto é mais simples.
+- **Fail-fast e verificação pós-carga:** conte e compare com o que o perfil previu.
+- **Script em modo estrito (`set -euo pipefail`)**, mensagens de erro em `stderr` (`>&2`), código de saída diferente de 0 em falha.
+- **Não perfilar = descobrir em produção.** Medir primeiro é barato.
+
+### Armadilhas
+- Rodar o script duas vezes: agora é recusado de propósito; para reimportar, esvazie com `delete from lexml_livros` (ou `truncate`, com o papel certo).
+- `$?` depois de pipe sem `pipefail` mostra o status do último comando.
+- Esquecer as aspas em `<<'SQL'`: o shell expande `$$` e variáveis dentro do SQL.
+- `source .env` sem `set -a`: a variável não é exportada para o psql (já visto na 1.2).
+- Cast de `ano` sem `nullif`: `''::smallint` dá "invalid input syntax" e a transação inteira é desfeita.
+- Confiar em números escritos num documento: foi o caso do "24.118 sumários".
+
+### Para ir além
+- PostgreSQL docs: "COPY" e, no manual do psql, "\copy" e a seção "Exit Status".
+- PostgreSQL docs: "Populating a Database" (dicas de carga em massa: COPY, índices depois, ANALYZE).
+- GNU Bash Manual: "Process Substitution" e a descrição de `set -o pipefail`.
+
+### Perguntas
+1. Com suas palavras: por que o `COPY` falhou e o `\copy` funciona, se os dois acabam fazendo uma operação `COPY` no servidor?
+2. Se você precisasse rodar a importação de novo com um CSV atualizado (por exemplo, com 90 mil livros, incluindo os 83.612 de antes), o que mudaria no script? Compare "esvaziar e recarregar" com um upsert (`on conflict (lexml_id) do update`) e diga quando cada um é melhor.
+3. Suponha que a coluna `ano` tivesse um valor `"s.d."` na linha 40.000. O que acontece com a transação e com o banco? Em qual comando do script o erro aparece, e com qual código de saída o script termina?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
