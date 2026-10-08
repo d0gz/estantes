@@ -253,7 +253,7 @@ create index edicoes_obra on edicoes (obra_id);
 | --- | --- | --- |
 | `Estante` | id (UUID), nome, criadaEm | `livros` com exclusão em cascata; a interface confirma quantos livros serão apagados e oferece movê-los |
 | `Livro` | id (UUID), titulo, subtitulo, autores, editora, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoCapa, adicionadoEm | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
-| `ItemSumario` | ordem, nivel, titulo, pagina (opcional), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
+| `ItemSumario` | ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3"), titulo, pagina (opcional), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
 | `Categoria` | id (UUID), nome (único, sem diferenciar maiúsculas/acentos), cor (identificador da paleta) | muitos-para-muitos com `Livro`; apagar a categoria = **nullify** (os livros só perdem a etiqueta) |
 
 - **Prateleira**: etiqueta de texto livre do usuário ("2ª de cima", "caixa azul"); sugerir as
@@ -264,6 +264,11 @@ create index edicoes_obra on edicoes (obra_id);
 - **Categorias** são as etiquetas manuais de assunto (não há campo `assuntos` à parte). Paleta fixa de
   ~10 cores com contraste conferido nos modos claro e escuro; no Domínio a cor é um identificador.
 - **Sumário**: só o texto é guardado, nunca as fotos.
+- **Formato único do sumário**: toda origem (foto, LexML, Gemini, manual) grava o mesmo `ItemSumario`,
+  com a numeração impressa em `numeracao`, separada do `titulo` (que fica limpo para a busca). A regra
+  `ValidacaoSumario` (Domínio) vale para todas: nível ≥ 1; o nível sobe no máximo 1 em relação ao item
+  anterior; título não vazio; página menor que a anterior gera aviso, não erro. A entrada manual é
+  item a item (numeração, título, página, recuo ↑↓); colar texto fica para a Fase 3, com o parser.
 - **Exportar/importar**: `.json` versionado `{"versao": 1, "categorias": [...], "estantes": [...]}`;
   cada livro leva `cddirCaminho`, `itensSumario` e os UUIDs das suas categorias. Via folha de
   compartilhar e seletor de arquivos; UUIDs permitem **mesclar** ou **substituir** (perguntar).
@@ -302,11 +307,11 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 - [ ] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória)
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
-- [ ] Itens do sumário manuais na tela do livro
+- [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
 - [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
-- [ ] Simulador iOS 16, Sideloadly no iPhone, CI verde
+- [ ] Simulador iOS 16 e CI verde (Sideloadly no iPhone adiado até haver aparelho)
 
 ## Identificação de livros e sumário (Fases 3 e 4)
 
@@ -345,8 +350,12 @@ Média: top 3 + "nenhum desses". Baixa: Gemini.
 - **Captura**: `VNDocumentCameraViewController` (VisionKit, várias páginas) → `VNRecognizeTextRequest`.
   Etapa opcional depois da confirmação do livro e também na tela do livro. Só funciona no aparelho
   (no simulador, `isSupported` é falso); o parser é testado com texto, no Domínio.
+- **Alternativa sem câmera**: `PhotosPicker` com várias páginas, sempre disponível (e a única no
+  simulador). Fotos vão do Mac para o simulador arrastando para a janela ou com
+  `xcrun simctl addmedia booted foto.jpg`.
 - **Parser algorítmico** (`Regras/ParserSumario`): número no fim da linha = página; numeração
-  (1., 1.1, I, a)) e recuo definem o nível; linhas quebradas são juntadas.
+  (1., 1.1, I, a)) e recuo definem o nível e vão para `numeracao`; linhas quebradas são juntadas.
+  A saída passa pela `ValidacaoSumario`, como a entrada manual.
 - **Gemini como reserva** quando o parser falha (Edge Function `estruturar-sumario`).
 - **Pré-preenchimento pela `descricao`** do LexML (`Sumário: ... -- ...`), com `origem = lexml`.
 - Guarda só o texto, não as fotos.
@@ -360,8 +369,9 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 
 - Fase 3: câmera + `PhotosPicker`; conjunto de avaliação (livros + sumários); parser ISBD/regex/layout/
   NLTagger; script de medição; RPC + pontuação; tela de confirmação (candidatos, "nenhum desses", manual,
-  estante sugerida pela CDDir, prateleira); cache local; scanner de sumário (VisionKit) + `ParserSumario`
-  + avaliação.
+  estante sugerida pela CDDir, prateleira); cache local; scanner de sumário (VisionKit e `PhotosPicker`)
+  + `ParserSumario` + avaliação. Fotos do conjunto de avaliação como recursos do alvo de testes
+  (`EstantesTests/Recursos/`, no `project.yml`), com o OCR rodando em XCTest no simulador.
 - Fase 4: Edge Functions `enriquecer-urn` (porta de `data/enriquecer_urn.py`, 5 s entre pedidos),
   `identificar-livro` (Google Books, Gemini) e `estruturar-sumario` (Gemini); chaves como secrets;
   limite de chamadas por dispositivo; pré-preenchimento do sumário pela `descricao`.
@@ -414,3 +424,5 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 07/10 | Correção: dos 24.118 livros com `descricao`, 19.936 trazem sumário e 4.182 trazem resumo | Contagem feita na importação; a linha de 03/10 contava toda `descricao` como sumário |
 | 08/10 | `buscar_livro` na opção (c″): filtra com `%` (índice) e ordena pela média de `word_similarity` e `similarity`, depois ano e `lexml_id` | Mesmo custo da `similarity` pura e ordem melhor quando o OCR traz texto a mais; a (c′) (`word_similarity` primeiro) favorecia títulos curtos; a (c), com `OU <%`, perde o índice (2,9 s) |
 | 08/10 | Keepalive com o secret `SUPABASE_PUBLISHABLE_KEY` só no cabeçalho `apikey`, falhando quando faltam secrets | O projeto usa a chave nova `sb_publishable_` (não é JWT); um ping que sai verde sem consultar o banco esconde a pausa do projeto |
+| 08/10 | `ItemSumario.numeracao` separada do título + regra `ValidacaoSumario` para todas as origens | Sumário por foto e por escrita fica no mesmo formato; título limpo para a busca |
+| 08/10 | Toda captura com alternativa `PhotosPicker` (inclusive o sumário); testes de fotos no simulador; Sideloadly adiado | Sem iPhone por enquanto; câmera e VisionKit não funcionam no simulador, Vision e `PhotosPicker` sim |
