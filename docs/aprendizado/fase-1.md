@@ -573,4 +573,97 @@ A (c″) dá o mesmo resultado da (c′) nas capas longas. O caso 3 só se resol
 4. Por que a métrica "posição do título exato" não percebeu o defeito da (c′)? Proponha uma métrica ou um procedimento que o teria percebido.
 
 ### Minhas respostas
+(sem respostas)
+
+**Correção das respostas:** não há respostas a corrigir. As perguntas seguem em aberto e podem ser respondidas a qualquer momento.
+
+---
+
+## Tarefa 1.6 — Secrets no GitHub e keepalive do Supabase (2026-10-08)
+
+### O que foi feito
+O workflow `.github/workflows/supabase-keepalive.yml` passou a usar os secrets `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` (criados com `gh secret set`, lendo do `.env`). Ele agora falha quando falta secret, em vez de sair verde. A API REST foi testada com `curl` do jeito que o app fará (só cabeçalho `apikey`), e o workflow foi validado numa branch antes do merge (PR #14). `.env.example` ganhou os moldes das duas variáveis.
+
+### Conceitos envolvidos
+
+**Keepalive.** Projetos gratuitos do Supabase pausam após 7 dias sem atividade. O workflow agendado faz um `GET` leve (`limit=1`) na API REST, o que conta como uso. Custo: segundos de CPU do runner e uma linha lida.
+
+**Cron, os 5 campos.** `17 12 * * 1,4` é `minuto hora dia-do-mês mês dia-da-semana`:
+- `17` minuto 17; `12` hora 12 (UTC, sempre; o GitHub não usa fuso local);
+- `*` qualquer dia do mês; `*` qualquer mês;
+- `1,4` segunda e quinta (0 = domingo).
+Resultado: segunda e quinta às 12:17 UTC. Dois pings por semana dão folga contra os 7 dias. O minuto 17 (e não 0) evita o horário "redondo", em que todo mundo agenda e o GitHub atrasa mais.
+
+**A falha do run #1 (05/10).** Mensagem: "The job was not acquired by Runner of type hosted even after multiple attempts". O GitHub não alocou uma máquina (esperou ~15 min); o script nem começou. É falha de infraestrutura, não de código. Mesmo que tivesse rodado, o script antigo sairia com `exit 0` sem secrets, ou seja, verde sem verificar nada.
+
+**Fail loud.** Sem secrets, o job agora imprime `::error::...` (comando de workflow que vira anotação vermelha na interface) e sai com `exit 1`. Princípio: um monitor que fica verde sem verificar nada é pior que um vermelho, porque esconde justamente o problema que deveria denunciar (a pausa do projeto). Em geral, o estado "não configurado" de um verificador deve ser erro, não sucesso.
+
+**Chaves do Supabase.**
+
+| Chave | Pode ir no app? | Papel no Postgres | Formato |
+| --- | --- | --- | --- |
+| `sb_publishable_...` | sim | `anon` | não é JWT |
+| `sb_secret_...` | nunca (só painel e Edge Functions, Fase 4) | privilegiado | não é JWT |
+| `anon` legada | sim | `anon` | JWT `eyJ...` |
+
+A publicável só identifica o projeto e coloca a requisição no papel `anon`. Quem protege os dados é **GRANT + RLS** (lição da 1.3), não o sigilo da chave. Como não é JWT, ela vai só no cabeçalho `apikey`; a `anon` legada, sendo JWT, ia também em `Authorization: Bearer`. Mandar a publicável em `Bearer` falharia porque o gateway tentaria validá-la como JWT.
+
+**PostgREST.** O Supabase expõe o Postgres via PostgREST: cada tabela/visão vira um endpoint (`/rest/v1/lexml_livros`), filtros vão na query string com operador (`?lexml_id=eq.008040208`, `select=colunas`, `limit=1`), e funções ficam em `/rest/v1/rpc/nome` (POST com JSON dos parâmetros). O PostgREST troca para o papel do Postgres indicado pela chave e executa SQL normal, então as permissões são as do banco.
+
+**Testes feitos (como o app fará, só com `apikey`):**
+- `GET /rest/v1/lexml_livros?select=lexml_id,titulo&limit=1`: 200.
+- `POST /rest/v1/rpc/buscar_livro` com `{"p_texto":"prisao preventiva","p_ano":2004}`: 200, 10 resultados, o primeiro "Prisão preventiva" de 2004. O desempate por ano da 1.5 funciona pela API.
+- `POST` (insert) e `DELETE` em `lexml_livros`: HTTP 401 com `42501 permission denied for table lexml_livros`. O contador seguiu em 83.612.
+
+**GRANT antes de RLS.** O erro `42501` ("permission denied for table") vem da primeira camada: o papel `anon` nem tem o privilégio de INSERT/DELETE, então o Postgres recusa antes de consultar qualquer política RLS. Se o GRANT existisse e a RLS bloqueasse, o erro seria outro (violação de política ou zero linhas afetadas). Isso confirma, na prática, o `revoke all` + `grant select` da 1.3: duas camadas independentes.
+
+**Secrets do GitHub.** Criados com `set -a; source .env; set +a` (exporta tudo que o `.env` define) e `gh secret set NOME --body "$VAR"`. A chave nunca aparece na tela nem no chat. Nos logs da Actions, valores de secrets são mascarados (`***`). O mascaramento é por correspondência de texto, então não é garantia contra transformações (base64, por exemplo).
+
+**Testar o workflow antes do merge.** `gh workflow run supabase-keepalive.yml --ref fase1/keepalive` dispara o `workflow_dispatch` usando o arquivo da branch indicada, desde que o workflow já exista no default branch. Run 37733444457: success em 8 s; o log mostrou `[{"lexml_id":"008040208"}]` e "Supabase respondeu.". Detalhe didático: o log exibe o bloco do script inteiro, inclusive a linha do `::error::`, mas isso é só a exibição do código; a linha não foi executada (o `if` deu falso).
+
+### Por que assim
+- **Secret `SUPABASE_PUBLISHABLE_KEY`:** o nome reflete o tipo real da chave; `ANON_KEY` induziria a erro.
+- **Só `apikey`:** é o que o app fará; testar igual evita descobrir diferença na Fase 3.
+- **Falhar sem secrets:** ver "fail loud"; a notificação de falha do GitHub vira o alarme.
+- **Testar na branch:** valida o YAML e os secrets antes de depender do cron, que só dispara dias depois.
+- **`.env.example` com molde:** documenta quais variáveis existem sem expor valores.
+
+### Alternativas descartadas
+- **Manter `exit 0` sem secrets:** verde enganoso.
+- **Ping por outro serviço (cron externo, UptimeRobot):** mais uma conta e dependência; a Actions já está no projeto.
+- **Usar a `secret` key no keepalive:** poder desnecessário; a publicável basta para um `SELECT` público.
+- **Esperar o cron para testar:** feedback de dias em vez de segundos.
+
+### Padrões e boas práticas
+- **Fail loud / fail fast** em automações de monitoramento. Quando NÃO usar: tarefas opcionais, em que a ausência de config é um estado válido (aí prefira um `if` explícito ou desligar o workflow).
+- **Privilégio mínimo:** a chave mais fraca que resolve o problema.
+- **Segredos fora do repositório:** `.env` ignorado, `.env.example` versionado, secrets do CI.
+- **Testar a automação por disparo manual** antes de confiar no agendamento.
+
+### Armadilhas
+- O GitHub **desativa workflows agendados após 60 dias sem commits** no repositório (anotado no comentário do workflow e no PLANO). Sintoma: nenhuma execução aparece; reative na aba Actions.
+- O cron do GitHub pode **atrasar** em horários de pico, ou até pular uma execução; por isso dois pings por semana.
+- `schedule` só roda a partir do **default branch**; editar o cron numa branch não tem efeito até o merge.
+- Mandar a chave `sb_publishable_` em `Authorization: Bearer` pode dar erro de JWT.
+- `curl -f` faz o comando falhar em HTTP >= 400; sem ele, um 401 sairia como sucesso (`-sS` mostra o erro mesmo em modo silencioso).
+- Aspas: `"$VAR"` no `gh secret set --body` evita quebra por espaços ou caracteres especiais.
+
+**Incidente de segurança da sessão (lição).** Ao diagnosticar um `psql` travado, listei processos com `ps -Ao pid,etime,command`. A coluna `command` mostra a linha de comando inteira, que continha a connection string com a **senha do banco**, e ela foi parar na conversa. O Ricardo trocou a senha e atualizou o `.env`. Lições:
+- Argumentos de linha de comando são **visíveis a qualquer usuário da máquina** via `ps`. Segredos devem ir por variável de ambiente ou arquivo: `PGPASSWORD`, `~/.pgpass`, `PGSERVICEFILE`.
+- Ao listar processos, use `comm` (só o nome do executável) em vez de `command`.
+- Um segredo exposto é um segredo comprometido: **rotacione**, não "espere que ninguém viu". A rotação foi a resposta certa.
+- Observação técnica: a conexão longa pelo pooler caiu sem aviso e o `psql` ficou parado. Use `statement_timeout` (e, se preciso, `timeout` no shell) em consultas pesadas.
+
+### Para ir além
+- Documentação do GitHub Actions: "Events that trigger workflows" (seções `schedule` e `workflow_dispatch`) e "Workflow commands" (`::error::`).
+- Documentação do PostgREST (postgrest.org): "Tables and Views", "Stored Procedures" e "Authentication".
+- Documentação do Supabase: "API keys" e "Row Level Security" (verifique os nomes atuais das chaves no painel).
+
+### Perguntas
+1. Explique com suas palavras cada um dos 5 campos de `17 12 * * 1,4`. Qual expressão rodaria todo dia útil às 9h de Brasília (UTC-3)?
+2. Se o time decidisse colocar a `sb_secret_` no app "porque é mais fácil", o que um atacante poderia fazer e que camada de proteção deixaria de valer? Por que a publicável não tem esse problema?
+3. O `DELETE` retornou `42501`. Se tivéssemos dado `grant delete` ao `anon` mas mantido a RLS sem política de delete, o que você esperaria como resultado? E por que o erro atual prova que o GRANT foi a camada que barrou?
+4. O workflow roda verde, mas o repositório ficou 61 dias sem commits. O que acontece com o keepalive e como você detectaria isso antes de o projeto pausar?
+
+### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
