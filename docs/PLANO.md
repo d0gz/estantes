@@ -215,7 +215,7 @@ create index edicoes_obra on edicoes (obra_id);
     `lower(f_unaccent(titulo))`, a mesma expressão do índice: o GIN entrega os candidatos (~0,1 s).
   - **Ordem**: média de `word_similarity` (o título do catálogo aparece dentro do texto lido?) e `similarity`
     (os dois textos inteiros se parecem?) ↓, `abs(ano - p_ano)` com `nulls last`, `lexml_id` (ordem estável).
-    A coluna `similaridade` devolvida é essa média. A ordenação roda só sobre os candidatos do filtro, então
+    A coluna `media_similaridade` devolvida é essa média. A ordenação roda só sobre os candidatos do filtro, então
     pode usar funções sem índice.
   - Texto com menos de 3 caracteres devolve vazio sem varrer a tabela.
   - Medido com 7 "capas" (título + autor + edição): (a) `similarity` pura acertou 4 em 1º lugar, 2 em 2º/3º
