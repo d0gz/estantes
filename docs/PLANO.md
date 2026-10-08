@@ -141,8 +141,9 @@ ios/EstantesTests/
 - robots.txt: `/urn` permitido com **5 s entre pedidos**; `/busca/` proibido para automação.
 - **Assuntos ficam fora** (só existem em `/busca/`). Usamos a **CDDir**.
   O assunto do livro chega por outras vias: CDDir, sumário e categorias do usuário.
-- A `descricao` traz o sumário em **24.118 livros** (`Sumário: ...`, itens separados por ` -- `):
-  serve para pré-preencher o `ItemSumario` (Fase 4).
+- **24.118 livros têm `descricao`**: em **19.936** ela é o sumário (`Sumário: ...`, itens separados
+  por ` -- `), que serve para pré-preencher o `ItemSumario` (Fase 4); em **4.182** é uma sinopse
+  (`Resumo: ...`), e 1.749 destas também trazem um "Sumário" no meio do texto.
 - Enriquecimento **sob demanda** (um pedido por livro escaneado), nunca em massa.
 - Não fundir registros por título + ano: há 1.683 pares repetidos (ex.: vários "Direito penal" de 2009).
   Edições se agrupam pela ficha /urn (que lista as edições) e pelo ISBN.
@@ -195,8 +196,10 @@ create index edicoes_obra on edicoes (obra_id);
   `ON_ERROR_STOP`, um erro no meio desfaz a transação mas o `psql` termina como se tivesse dado certo).
   `SUPABASE_DB_URL` fica no `.env` (fora do Git) e usa o *Session pooler* (IPv4, porta 5432); a conexão
   direta só tem IPv6. O CLI entra na Fase 4, com as Edge Functions; o nome no padrão evita renomear.
-- Importar `livros_lexml.csv` (CSV, UTF-8 com BOM, CRLF, cabeçalho) com `data/importar_lexml.sh`.
-  O JSONL fica fora do banco.
+- Importar `livros_lexml.csv` (CSV, UTF-8 com BOM, CRLF, cabeçalho) com
+  `./data/importar_lexml.sh [caminho do CSV]`. O JSONL fica fora do banco. Usa `\copy` (o arquivo sai
+  do Mac pela conexão): o `COPY` comum lê o disco do servidor e exige `pg_read_server_files`, que o
+  `postgres` do Supabase não tem. Transação única; recusa rodar se a tabela já tiver linhas.
 - O CSV tem 7 colunas (`lexml_id, urn, titulo, autores, ano, descricao, outros_tipos`), mas `lexml_livros`
   não tem `autores`: o dataset não traz autor (a coluna vem vazia) e os autores chegam pelo enriquecimento
   da /urn, em `obras`. Por isso o `\copy` vai para uma tabela temporária de staging com as 7 colunas, e um
@@ -215,7 +218,7 @@ create index edicoes_obra on edicoes (obra_id);
 - [x] Criar projeto Supabase
 - [x] 1.2 Conexão por `psql` (`.env` com `SUPABASE_DB_URL`)
 - [x] 1.3 `[eu escrevo]` Migration com o esquema acima (extensões, `f_unaccent`, tabelas, índices, RLS)
-- [ ] 1.4 Importar o CSV e conferir contagem (83.612)
+- [x] 1.4 Importar o CSV e conferir contagem (83.612)
 - [ ] 1.5 `[eu escrevo]` RPC `buscar_livro(texto, ano)`: top 10 por similaridade de título sem acento,
       ano como desempate; devolve também a `descricao` (usada no pré-preenchimento do sumário)
 - [ ] 1.6 Secrets `SUPABASE_URL` e chave pública no GitHub (ativa o keepalive)
@@ -385,3 +388,4 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 07/10 | Extensões `pg_trgm` e `unaccent` no schema `extensions` | Padrão do Supabase; ficam fora da API REST |
 | 07/10 | Importação por tabela de staging, em script fora das migrations | O CSV tem a coluna `autores` vazia que a tabela não tem; dado não é esquema |
 | 07/10 | Grants explícitos (`revoke all` + `grant select`) além do RLS | O padrão do projeto não dava SELECT ao `anon` e dava TRUNCATE, que o RLS não controla |
+| 07/10 | Correção: dos 24.118 livros com `descricao`, 19.936 trazem sumário e 4.182 trazem resumo | Contagem feita na importação; a linha de 03/10 contava toda `descricao` como sumário |
