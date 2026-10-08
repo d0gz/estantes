@@ -209,6 +209,24 @@ create index edicoes_obra on edicoes (obra_id);
 - Grants explícitos: `revoke all` e `grant select` para `anon` e `authenticated`. O padrão do Supabase
   para tabelas criadas pelo `postgres` dá TRUNCATE ao `anon` e **não** dá SELECT. GRANT (pode usar a
   tabela?) e RLS (quais linhas?) são camadas independentes: ler exige as duas.
+- **RPC `buscar_livro(p_texto, p_ano)`** (`security invoker`, `stable`, `search_path = ''`; execução só para
+  `anon` e `authenticated`). Opção **(c″)**, decidida com medições em 08/10:
+  - **Filtro** com o operador `%` (`similarity` ≥ `pg_trgm.similarity_threshold`, padrão 0,3) sobre
+    `lower(f_unaccent(titulo))`, a mesma expressão do índice: o GIN entrega os candidatos (~0,1 s).
+  - **Ordem**: média de `word_similarity` (o título do catálogo aparece dentro do texto lido?) e `similarity`
+    (os dois textos inteiros se parecem?) ↓, `abs(ano - p_ano)` com `nulls last`, `lexml_id` (ordem estável).
+    A coluna `similaridade` devolvida é essa média. A ordenação roda só sobre os candidatos do filtro, então
+    pode usar funções sem índice.
+  - Texto com menos de 3 caracteres devolve vazio sem varrer a tabela.
+  - Medido com 7 "capas" (título + autor + edição): (a) `similarity` pura acertou 4 em 1º lugar, 2 em 2º/3º
+    e perdeu 1; (c′) `word_similarity` e depois `similarity` acertou 6 em 1º e perdeu o mesmo; (c) `%` **ou**
+    `<%` acertou os 7, mas o `OU` com `<%` (sem índice nessa direção) força Seq Scan: 2,9 s, no limite do
+    `statement_timeout` do `anon`.
+  - (c′) foi descartada ao testar **títulos curtos**, a entrada normal da Fase 3: para "Prisão preventiva",
+    "Prisão" (`word_similarity` 1,0, `similarity` 0,44) passava à frente de "A Prisão Preventiva" (0,89).
+    A média (c″) mantém os ganhos nas capas longas e devolve a ordem certa nos títulos curtos.
+  - O caso perdido ("Teoria Geral do Processo" + 4 autores, nota 0,27) só se resolve mandando o título já
+    extraído (Fase 3), não a capa inteira.
 - Projeto grátis pausa após 7 dias sem uso: `supabase-keepalive.yml` faz ping 2x por semana, só com o
   cabeçalho `apikey` (serve para a chave `anon` legada e para a `sb_publishable_`, que não é JWT).
   Armadilha: o GitHub desativa workflows agendados após 60 dias sem commits no repositório.
@@ -219,8 +237,8 @@ create index edicoes_obra on edicoes (obra_id);
 - [x] 1.2 Conexão por `psql` (`.env` com `SUPABASE_DB_URL`)
 - [x] 1.3 `[eu escrevo]` Migration com o esquema acima (extensões, `f_unaccent`, tabelas, índices, RLS)
 - [x] 1.4 Importar o CSV e conferir contagem (83.612)
-- [ ] 1.5 `[eu escrevo]` RPC `buscar_livro(texto, ano)`: top 10 por similaridade de título sem acento,
-      ano como desempate; devolve também a `descricao` (usada no pré-preenchimento do sumário)
+- [ ] 1.5 `[eu escrevo]` RPC `buscar_livro(texto, ano)`: top 10 títulos parecidos (sem acento), filtro
+      pelo índice e ordem da opção (c″) abaixo; devolve também a `descricao` (usada no pré-preenchimento do sumário)
 - [ ] 1.6 Secrets `SUPABASE_URL` e chave pública no GitHub (ativa o keepalive)
 - [ ] 1.7 `EXPLAIN ANALYZE` com e sem o índice trigram (exercício do teacher)
 
@@ -303,6 +321,8 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   `Local : Editora, Ano`; `ISBN ...`. Parser por pontuação + regex.
 - Regex de ISBN (com dígito verificador; ISBN-10 → 13) e ano.
 - Capa: maior texto (altura da caixa do Vision) = candidato a título.
+- Mandar a `buscar_livro` **só o título extraído**, nunca o texto inteiro da capa: autor e editora no texto
+  derrubam a `similarity` abaixo do limiar (Fase 1, opção (c″)). Medir no conjunto de avaliação.
 - NLTagger (`.personalName`) para autor; NLGazetteer com editoras jurídicas para editora.
 
 ### Pontuação
@@ -389,3 +409,4 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 07/10 | Importação por tabela de staging, em script fora das migrations | O CSV tem a coluna `autores` vazia que a tabela não tem; dado não é esquema |
 | 07/10 | Grants explícitos (`revoke all` + `grant select`) além do RLS | O padrão do projeto não dava SELECT ao `anon` e dava TRUNCATE, que o RLS não controla |
 | 07/10 | Correção: dos 24.118 livros com `descricao`, 19.936 trazem sumário e 4.182 trazem resumo | Contagem feita na importação; a linha de 03/10 contava toda `descricao` como sumário |
+| 08/10 | `buscar_livro` na opção (c″): filtra com `%` (índice) e ordena pela média de `word_similarity` e `similarity`, depois ano e `lexml_id` | Mesmo custo da `similarity` pura e ordem melhor quando o OCR traz texto a mais; a (c′) (`word_similarity` primeiro) favorecia títulos curtos; a (c), com `OU <%`, perde o índice (2,9 s) |

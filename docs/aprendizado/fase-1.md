@@ -370,3 +370,207 @@ Antes de carregar, o CSV foi perfilado em Python (unicidade, anos, nulos, tipo d
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+## Tarefa 1.5 — RPC buscar_livro (2026-10-08)
+
+### O que foi feito
+Tarefa `[eu escrevo]`: o Ricardo escreveu a função `public.buscar_livro(p_texto text, p_ano smallint default null)` em `supabase/migrations/20261007130000_buscar_livro.sql`; o Claude revisou e mediu. A função devolve até 10 livros (`lexml_id, urn, titulo, ano, descricao, media_similaridade`), filtrando por trigramas (índice GIN) e ordenando pela média entre `word_similarity` e `similarity`, depois pela proximidade do ano e por `lexml_id`. A decisão (c″) foi registrada no `docs/PLANO.md` (PR #13). A escolha da fórmula foi feita por medição, com uma correção de rota no meio (seção 4).
+
+### Conceitos envolvidos
+
+#### 1. Funções no Postgres e a RPC
+
+**RPC.** Uma função SQL guardada no banco, que o Supabase publica como `POST /rest/v1/rpc/buscar_livro`. O app (ou uma Edge Function) chama a função pelo HTTP e a lógica fica perto dos dados.
+
+**`security invoker` x `security definer`.**
+- `invoker` (o padrão): a função roda com as permissões de quem chama. RLS e grants valem normalmente.
+- `definer`: roda como o dono da função (`postgres`), que ignora RLS. É uma procuração com plenos poderes.
+
+Escolhemos `invoker`: o catálogo é público e a função não precisa de poder extra. `definer` seria risco gratuito. Ricardo trouxe da doc do Supabase o trecho sobre definer, `search_path` e execute, e o aplicou bem no comentário do topo da migration.
+
+**As três camadas de proteção** (formulação do Ricardo, refinada):
+
+| Mecanismo | Responde a |
+|---|---|
+| `revoke`/`grant execute` | QUEM pode chamar |
+| `security invoker` | COM QUAIS permissões ela roda |
+| `set search_path = ''` | QUAIS objetos ela usa |
+
+O `search_path` protege contra o "impostor". Se ele não for fixado, um nome sem schema (`f_unaccent`) é procurado nos schemas em ordem, e alguém com permissão de criar objetos poderia pôr uma função falsa num schema anterior. Somado a `definer`, o caso fica grave: a função falsa rodaria com poderes do dono. Com `''`, todo nome precisa ser qualificado: `public.lexml_livros`, `public.f_unaccent`, `extensions.similarity` e o operador, que vira `operator(extensions.%)`.
+
+**Volatilidade** (uma promessa ao planner):
+- `immutable`: mesma entrada, mesma saída, para sempre. Só essas entram em índice de expressão (`lower`, `f_unaccent`).
+- `stable`: constante dentro de uma consulta; lê o banco, mas não altera (`buscar_livro`, `now()`).
+- `volatile` (o padrão): pode mudar a qualquer chamada (`random()`, funções que fazem `insert`).
+
+Mentir na promessa não gera erro, gera resultado errado (por exemplo, um índice com valores desatualizados).
+
+**As linhas da 1.3 que ele pediu para entender:**
+- `create extension ... with schema extensions`: instala um pacote no banco, dentro do schema `extensions`. O `pg_trgm` traz `similarity`, `%`, `show_trgm` e `gin_trgm_ops`. O `unaccent` traz a função e o dicionário de troca (á vira a).
+- `f_unaccent(text)`: `$1` é o primeiro argumento; `$$ ... $$` são aspas do corpo da função (evitam escapar apóstrofos); `parallel safe` permite usar a função em planos paralelos. A versão de 2 argumentos (que nomeia o dicionário por completo) pode ser `immutable`, porque não depende do `search_path`. A de 1 argumento depende dele e só poderia ser `stable`, o que a impediria de entrar no índice.
+
+**Ordem de execução lógica de um SELECT:** `FROM`/`WHERE` → `SELECT` → `ORDER BY` → `LIMIT`.
+
+```mermaid
+flowchart LR
+  A[FROM + WHERE<br/>83 mil linhas<br/>precisa de índice] --> B[SELECT<br/>calcula colunas e apelidos]
+  B --> C[ORDER BY<br/>só ~950 candidatos<br/>pode usar função sem índice]
+  C --> D[LIMIT 10<br/>corta DEPOIS de ordenar]
+```
+
+Consequências:
+- O `where` é o único que olha as 83 mil linhas, então é ele que precisa do índice.
+- O `order by` roda só sobre os ~950 candidatos e pode usar funções sem índice.
+- O apelido criado no SELECT pode ser usado no `ORDER BY`, mas só como nome sozinho (não dentro de uma conta), e NÃO pode ser usado no `WHERE`. Analogia: em "média de notas de alunos" com `as media`, `order by media desc` funciona; `where media > 7` não.
+
+**`abs(l.ano - p_ano) nulls last`:** conta com `null` dá `null`.
+- `p_ano` nulo: todas as linhas empatam nesse critério, o ano não influencia e isso sai de graça.
+- `l.ano` nulo: só aquela linha vai para o fim.
+- `limit` corta depois de ordenar.
+
+**Desempate final `l.lexml_id`:** há 138 livros titulados exatamente "Direito penal" (contado). Sem desempate, a ordem entre eles pode variar entre execuções. Uma ordenação determinística é uma propriedade que se quer em API.
+
+#### 2. similarity x word_similarity (o núcleo da tarefa)
+
+Ambas comparam **trigramas** (pedaços de 3 letras) depois de minúsculas e sem acento.
+
+- **`similarity(A, B)`** = trigramas em comum ÷ todos os trigramas dos dois juntos (índice de Jaccard). É simétrica. Pergunta: "os dois textos inteiros se parecem?". Pune qualquer diferença, dos dois lados.
+- **`word_similarity(A, B)`** = procura em B o trecho mais parecido com A e compara só com ele; o resto de B é ignorado. É assimétrica. No nosso código, A é o título do catálogo e B é o texto buscado. Pergunta: "A aparece dentro de B?". Não pune B por ter texto a mais, nem A por ser curto.
+
+**O que cada uma pune:**
+
+| | Título com palavras a MENOS ("Prisão" x "prisão preventiva") | Capa com palavras a MAIS ("A falência..." x capa com autor e edição) |
+|---|---|---|
+| `similarity` | pune: 0,44 (correto) | pune: 0,43 (injusto) |
+| `word_similarity` | não pune: 1,00 (injusto) | não pune: 1,00 (correto) |
+
+Cada uma acerta onde a outra erra.
+
+**Por que a média funciona.** Um título só fica alto se for bom nas DUAS perguntas ("aparece no texto?" e "cobre o texto?"). Um único 1,0 não basta.
+
+| título | texto buscado | sim | wsim | média |
+|---|---|---|---|---|
+| prisão preventiva | Prisão preventiva | 1,00 | 1,00 | 1,00 |
+| a prisão preventiva | Prisão preventiva | 0,89 | 0,89 | 0,89 |
+| prisão | Prisão preventiva | 0,44 | 1,00 | 0,72 (desce) |
+| a falência da pena de prisão | capa longa | 0,43 | 1,00 | 0,72 (sobe) |
+
+Os dois casos difíceis empatam em 0,72 por motivos opostos. O que decide é contra quem eles disputam: "Prisão" perde para títulos bons nas duas notas; "A falência..." ganha de títulos que não aparecem inteiros na capa (wsim baixa).
+
+Comparando as combinações possíveis:
+- **Máximo** das duas: comportamento da (c′), em que um 1,0 basta.
+- **Mínimo**: comportamento da (a), em que a capa longa é punida.
+- **Média**: meio-termo, em que nenhuma das duas decide sozinha.
+
+**Limite remanescente:** "A Prisão" (0,58) ainda passa "Conceito da Prisão Preventiva" (0,57). É aceitável: a RPC só precisa pôr o livro certo entre os 10; a ordem fina é da Pontuação da Fase 3 (autor, ano, editora).
+
+**Onde usar cada uma: porteiro x nota.**
+- `%` (baseado em `similarity`) como FILTRO, porque tem índice. É o porteiro: "passa de 0,3?".
+- `word_similarity` e combinações na ORDENAÇÃO, porque rodam só sobre os candidatos. É a nota.
+
+#### 3. Índice e a direção do `<%`
+
+O GIN de trigramas atende:
+- `%` ("compartilham trigramas?");
+- `texto <% titulo` ("o título contém o texto buscado?").
+
+Ele NÃO atende `titulo <% texto` ("o título está contido no texto buscado?"), que é justamente a direção que nos serviria no filtro. O `EXPLAIN` mostrou Seq Scan (1,3 s).
+
+Um OU (`% or <%`) só usa índice se os DOIS lados puderem (BitmapOr). Como um lado exige ler a tabela inteira, o Postgres lê tudo uma vez: Parallel Seq Scan, 2,9 s. Isso encosta no `statement_timeout` típico de 3 s do papel `anon` no Supabase (valor padrão da plataforma; não foi conferido neste projeto).
+
+#### 4. A decisão medida, em ordem cronológica
+
+| opção | filtro | ordenação | índice? |
+|---|---|---|---|
+| (a) | `%` | similarity (enunciado original) | sim |
+| (b) | word_similarity | word_similarity | não |
+| (c) | `%` OU `<%` | wsim, depois sim | não (2,9 s) |
+| (c′) | `%` | wsim, depois sim | sim (~0,1 s) |
+| (c″) | `%` | MÉDIA de wsim e sim | sim (escolhida) |
+
+A (c′) nasceu de uma pergunta do Ricardo ("a (c) usa o índice só em parte?"), que levou a separar QUEM entra (filtro) de EM QUE ORDEM (ordenação).
+
+Teste com 7 "capas" longas (título + autor + edição): posição do livro certo.
+
+| caso | (a) | (c′) | (c) |
+|---|---|---|---|
+| 1 Curso de Direito Civil Brasileiro... Saraiva | 3º | 1º | 1º |
+| 2 Hely Lopes Meirelles Direito Administrativo Brasileiro... | 1º | 1º | 1º |
+| 3 Teoria Geral do Processo + 4 autores | some (sim 0,27) | some | 1º |
+| 4 José Afonso da Silva Curso de Direito Constitucional Positivo | 1º | 1º | 1º |
+| 5 A falência da pena de prisão: causas e alternativas 5a ed. | 2º | 1º | 1º |
+| 6 Responsabilidade civil | 1º | 1º | 1º |
+| 7 Instituições de Direito Processual Civil... Dinamarco | 1º | 1º | 1º |
+
+A (c″) dá o mesmo resultado da (c′) nas capas longas. O caso 3 só se resolve mandando o título já extraído (Fase 3), não a capa inteira; isso está registrado no PLANO.
+
+**Lição de método (erro do Claude, vale ler com atenção).** Escolhemos a (c′) com base só em capas longas. O Ricardo aplicou a mudança e, por iniciativa própria, comparou as saídas antes e depois. Viu que "Prisão" e "A Prisão" passavam "A Prisão Preventiva" na consulta curta `'prisao preventiva'`, que é justamente a entrada normal prevista no PLANO. A métrica usada (posição do título exato) não via o problema, porque o exato continuava em 1º; o defeito estava do 2º ao 10º lugar. Lições:
+- O conjunto de teste precisa cobrir os tipos de entrada reais (curta e longa).
+- Uma métrica só de "posição do alvo" esconde a qualidade do resto da lista.
+- Olhar a saída lado a lado pegou o que a métrica não pegava.
+
+#### 5. Erros do Ricardo e correções (com o porquê)
+
+- `set search path` → o nome é `search_path` (com sublinhado).
+- `begin;`/`end;` DENTRO do `$$`: confusão entre a transação da migration (fica FORA, no arquivo) e o bloco `begin/end` do plpgsql. Uma função `language sql` não tem esse bloco e roda na transação de quem chama.
+- `public.lexml_livros.l.lexml_id`: depois de `from public.lexml_livros l`, a tabela passa a se chamar só `l` ("doravante denominado"). Schema só aparece onde o Postgres procura por nome: tabelas, funções, operadores.
+- `similarity((a, b) as similaridade)`: parênteses extras viram um valor composto (row). O apelido vem depois da expressão inteira.
+- `case when p_ano is not null ...` era redundante (nulo já se comporta bem no `abs`), e havia um typo `lexlm_livros`.
+- `revoke on function` sem `execute` na forma correta, e `public_buscar_livro` com sublinhado no lugar do ponto (`public.buscar_livro`).
+- **Na média:** ele somou `word_similarity(...) + titulo operator(extensions.%) texto`. `%` devolve boolean (o porteiro), `similarity()` devolve real (a nota); só a nota entra em conta. Além disso, um operador escrito com `operator(...)` tem a precedência mais baixa de todas, então o Postgres leu `(wsim + titulo) % texto`, ou seja, somar número com texto, e o erro "No operator matches" apontou o `+`.
+- **Renomear a coluna de saída** (`similaridade` → `media_similaridade`) exige `drop function` antes: `create or replace` não muda o formato do resultado. Ele fez o drop corretamente.
+
+**Técnica de teste: ensaio com rollback.** `sed 's/^commit;$/rollback;/' arquivo | psql ...` aplica tudo e desfaz. O Postgres para no primeiro erro, por isso corrigir um revela o próximo.
+
+**Revisão (revisor).** Sem bloqueantes. Confirmou com `explain` e plano genérico (`plan_cache_mode = force_generic_plan`) que o índice é usado DE DENTRO da função; `set search_path` impede o inlining da função SQL, mas não o uso do índice. Achados aplicados: desempate por `lexml_id`, `parallel safe` e `comment on function`, e guarda contra texto curto (texto vazio não tem trigramas e fazia Parallel Seq Scan de ~0,6 s). Pendentes de estilo, a cargo do Ricardo antes do merge: alinhamento e quebra de linha do comentário do topo; um comentário dizendo que o limiar 0,3 do `%` depende de `pg_trgm.similarity_threshold` da sessão.
+
+**Detalhe de processo.** A branch nasceu de um `main` local desatualizado (sem o PR #12). Corrigido com fast-forward. Lição: `git pull` no main antes de criar a branch.
+
+### Por que assim
+- **Filtro `%` com índice GIN:** só o porteiro precisa olhar 83 mil linhas, e só `%` (direção simétrica) é atendido pelo índice.
+- **Ordenação pela média:** pune diferenças nos dois sentidos sem deixar uma nota sozinha decidir; roda só sobre ~950 candidatos.
+- **Desempate por ano e depois `lexml_id`:** a ordem fica determinística.
+- **`invoker` + `search_path = ''` + grants explícitos:** privilégio mínimo em três camadas independentes.
+- **Guarda `length(trim(p_texto)) >= 3`:** texto sem trigramas não deve disparar leitura da tabela inteira.
+- **Escopo da RPC:** pôr o livro certo entre os 10; a ordem fina fica para a Fase 3.
+
+### Alternativas descartadas
+- **(a) filtro e ordem por `similarity`:** pune capas longas injustamente.
+- **(b) filtro por word_similarity:** sem índice.
+- **(c) `%` OU `<%`:** 2,9 s, no limite do timeout.
+- **(c′) ordem por wsim e depois sim:** deixa "Prisão" e "A Prisão" passarem títulos melhores na consulta curta.
+- **`security definer`:** poder desnecessário.
+- **Mandar a capa inteira como entrada:** o caso 3 não se resolve na RPC; a Fase 3 enviará o título extraído.
+
+### Padrões e boas práticas
+- **Porteiro e nota (filter then rank):** filtro barato e indexável, ordenação cara só nos candidatos. Não vale se o filtro cortar candidatos bons demais (recall); por isso medimos.
+- **Privilégio mínimo e defesa em camadas:** grant, invoker, `search_path`.
+- **Migration como arquivo versionado e transacional**, testada com ensaio em rollback.
+- **Ordenação determinística** em qualquer API paginada ou limitada.
+- **Teste com entradas representativas**, não só com os casos que motivaram a mudança.
+
+### Armadilhas
+- Usar o apelido do SELECT dentro do `WHERE`, ou dentro de uma conta no `ORDER BY`.
+- Somar booleano com número: `%` é porteiro, `similarity()` é nota.
+- Esquecer que `operator(...)` tem a menor precedência: use parênteses.
+- `create or replace` não troca colunas de saída: `drop function` antes.
+- Marcar uma função como `immutable` sem ser: o índice fica errado, sem erro.
+- Escolher uma métrica que só olha o alvo (1º lugar) e ignorar o resto da lista.
+- O limiar do `%` (0,3) vem de `pg_trgm.similarity_threshold`, configurável por sessão.
+- Para diagnosticar índice: `explain (analyze)` e, para dentro de funções, `plan_cache_mode = force_generic_plan`.
+
+### Para ir além
+- PostgreSQL docs: "F.35. pg_trgm" (similarity, word_similarity, operadores `%` e `<%`, suporte a índices GIN/GiST).
+- PostgreSQL docs: "CREATE FUNCTION" (seções sobre volatilidade, SECURITY DEFINER e "Writing SECURITY DEFINER Functions Safely").
+- Documentação do Supabase: "Database Functions" e "Postgres Roles / Row Level Security".
+
+### Perguntas
+1. Com suas palavras: o que `similarity` mede e o que `word_similarity` mede? Dê um exemplo em que cada uma erra sozinha e explique por que a média corrige parte do erro.
+2. O que mudaria se o filtro do `where` fosse `word_similarity(...) > 0.5` em vez de `%`? Pense no índice, no tempo e em quais livros entrariam como candidatos.
+3. Caso novo: o usuário digita só "penal" (uma palavra, 5 letras). Qual das três opções (`similarity`, `word_similarity`, média) você usaria para ordenar, e por quê? E se o usuário colar a capa inteira de um livro? Justifique cada escolha com o que a nota pune.
+4. Por que a métrica "posição do título exato" não percebeu o defeito da (c′)? Proponha uma métrica ou um procedimento que o teria percebido.
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
