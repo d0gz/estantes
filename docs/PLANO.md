@@ -237,9 +237,9 @@ create index edicoes_obra on edicoes (obra_id);
 - [x] 1.2 Conexão por `psql` (`.env` com `SUPABASE_DB_URL`)
 - [x] 1.3 `[eu escrevo]` Migration com o esquema acima (extensões, `f_unaccent`, tabelas, índices, RLS)
 - [x] 1.4 Importar o CSV e conferir contagem (83.612)
-- [ ] 1.5 `[eu escrevo]` RPC `buscar_livro(texto, ano)`: top 10 títulos parecidos (sem acento), filtro
+- [x] 1.5 `[eu escrevo]` RPC `buscar_livro(texto, ano)`: top 10 títulos parecidos (sem acento), filtro
       pelo índice e ordem da opção (c″) abaixo; devolve também a `descricao` (usada no pré-preenchimento do sumário)
-- [ ] 1.6 Secrets `SUPABASE_URL` e chave pública no GitHub (ativa o keepalive)
+- [x] 1.6 Secrets `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` no GitHub (ativa o keepalive)
 - [ ] 1.7 `EXPLAIN ANALYZE` com e sem o índice trigram (exercício do teacher)
 
 ## App (Fase 2)
@@ -410,3 +410,4 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 07/10 | Grants explícitos (`revoke all` + `grant select`) além do RLS | O padrão do projeto não dava SELECT ao `anon` e dava TRUNCATE, que o RLS não controla |
 | 07/10 | Correção: dos 24.118 livros com `descricao`, 19.936 trazem sumário e 4.182 trazem resumo | Contagem feita na importação; a linha de 03/10 contava toda `descricao` como sumário |
 | 08/10 | `buscar_livro` na opção (c″): filtra com `%` (índice) e ordena pela média de `word_similarity` e `similarity`, depois ano e `lexml_id` | Mesmo custo da `similarity` pura e ordem melhor quando o OCR traz texto a mais; a (c′) (`word_similarity` primeiro) favorecia títulos curtos; a (c), com `OU <%`, perde o índice (2,9 s) |
+| 08/10 | Keepalive com o secret `SUPABASE_PUBLISHABLE_KEY` só no cabeçalho `apikey`, falhando quando faltam secrets | O projeto usa a chave nova `sb_publishable_` (não é JWT); um ping que sai verde sem consultar o banco esconde a pausa do projeto |

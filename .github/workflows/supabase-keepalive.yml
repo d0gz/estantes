@@ -3,8 +3,10 @@ name: Supabase keepalive
 # Projetos gratuitos do Supabase pausam após 7 dias sem uso.
 # Este workflow faz uma consulta leve toda segunda e quinta-feira.
 # Configure em Settings → Secrets and variables → Actions:
-#   SUPABASE_URL       (ex.: https://xxxx.supabase.co)
-#   SUPABASE_ANON_KEY  (chave anônima; a tabela precisa de RLS com leitura pública)
+#   SUPABASE_URL              (ex.: https://xxxx.supabase.co)
+#   SUPABASE_PUBLISHABLE_KEY  (sb_publishable_...; a leitura de lexml_livros é pública pelo RLS)
+# A chave publicável não é um JWT: vai só no cabeçalho apikey, nunca em "Authorization: Bearer".
+# Atenção: o GitHub desativa workflows agendados após 60 dias sem commits no repositório.
 on:
   schedule:
     - cron: "17 12 * * 1,4"
@@ -18,14 +20,13 @@ jobs:
       - name: Consultar o banco
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
-          if [ -z "$SUPABASE_URL" ]; then
-            echo "Secrets do Supabase ainda não configurados (Fase 1). Nada a fazer."
-            exit 0
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::error::Secrets SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY não configurados; o projeto vai pausar."
+            exit 1
           fi
           curl -fsS "$SUPABASE_URL/rest/v1/lexml_livros?select=lexml_id&limit=1" \
-            -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY"
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY"
           echo
           echo "Supabase respondeu."
