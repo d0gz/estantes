@@ -150,12 +150,12 @@ ios/EstantesTests/
 ### Esquema no Supabase
 
 ```sql
-create extension if not exists pg_trgm;
-create extension if not exists unaccent;
+create extension if not exists pg_trgm  with schema extensions;
+create extension if not exists unaccent with schema extensions;
 
 create or replace function f_unaccent(text) returns text
 language sql immutable parallel safe as
-$$ select public.unaccent('public.unaccent', $1) $$;
+$$ select extensions.unaccent('extensions.unaccent', $1) $$;
 
 create table lexml_livros (            -- importado do CSV
   lexml_id     text primary key,
@@ -188,21 +188,34 @@ create index edicoes_isbn13 on edicoes using gin (isbn13);
 create index edicoes_obra on edicoes (obra_id);
 ```
 
-- Importar `livros_lexml.csv` com `COPY` (CSV, UTF-8 com BOM, cabeçalho). O JSONL fica fora do banco.
+- Extensões no schema `extensions`, não em `public`: é o padrão do Supabase (o linter do painel acusa
+  extensão em `public`) e as funções delas ficam fora da API REST.
+- **Migrations com `psql`**, sem o Supabase CLI nesta fase: arquivos em `supabase/migrations/` com o nome
+  no padrão do CLI (`AAAAMMDDHHMMSS_nome.sql`), aplicados com `psql "$SUPABASE_DB_URL" -f <arquivo>`.
+  `SUPABASE_DB_URL` fica no `.env` (fora do Git) e usa o *Session pooler* (IPv4, porta 5432); a conexão
+  direta só tem IPv6. O CLI entra na Fase 4, com as Edge Functions; o nome no padrão evita renomear.
+- Importar `livros_lexml.csv` (CSV, UTF-8 com BOM, CRLF, cabeçalho) com `data/importar_lexml.sh`.
+  O JSONL fica fora do banco.
 - O CSV tem 7 colunas (`lexml_id, urn, titulo, autores, ano, descricao, outros_tipos`), mas `lexml_livros`
   não tem `autores`: o dataset não traz autor (a coluna vem vazia) e os autores chegam pelo enriquecimento
-  da /urn, em `obras`. O `COPY` da Fase 1 precisa levar essa coluna vazia em conta.
-- RLS: leitura pública; escrita só pelas Edge Functions (service role).
-- Projeto grátis pausa após 7 dias sem uso: `supabase-keepalive.yml` faz ping 2x por semana.
+  da /urn, em `obras`. Por isso o `\copy` vai para uma tabela temporária de staging com as 7 colunas, e um
+  `insert ... select` leva só as 6 úteis. A importação é dado, não esquema: não é migration.
+- RLS nas três tabelas: `select` para `anon` e `authenticated`; nenhuma política de escrita (só a
+  service role escreve, e ela ignora o RLS).
+- Projeto grátis pausa após 7 dias sem uso: `supabase-keepalive.yml` faz ping 2x por semana, só com o
+  cabeçalho `apikey` (serve para a chave `anon` legada e para a `sb_publishable_`, que não é JWT).
+  Armadilha: o GitHub desativa workflows agendados após 60 dias sem commits no repositório.
 
 ### Checklist da Fase 1
 
-- [ ] Criar projeto Supabase; migration com o esquema acima
-- [ ] Importar o CSV (`COPY`) e conferir contagem (83.612)
-- [ ] RPC `buscar_livro(texto, ano)`: top 10 por similaridade de título sem acento, ano como desempate;
-      devolve também a `descricao` (usada no pré-preenchimento do sumário)
-- [ ] RLS + secrets `SUPABASE_URL` e `SUPABASE_ANON_KEY` no GitHub (ativa o keepalive)
-- [ ] `EXPLAIN ANALYZE` com e sem o índice trigram (exercício do teacher)
+- [x] Criar projeto Supabase
+- [ ] 1.2 Conexão por `psql` (`.env` com `SUPABASE_DB_URL`)
+- [ ] 1.3 `[eu escrevo]` Migration com o esquema acima (extensões, `f_unaccent`, tabelas, índices, RLS)
+- [ ] 1.4 Importar o CSV e conferir contagem (83.612)
+- [ ] 1.5 `[eu escrevo]` RPC `buscar_livro(texto, ano)`: top 10 por similaridade de título sem acento,
+      ano como desempate; devolve também a `descricao` (usada no pré-preenchimento do sumário)
+- [ ] 1.6 Secrets `SUPABASE_URL` e chave pública no GitHub (ativa o keepalive)
+- [ ] 1.7 `EXPLAIN ANALYZE` com e sem o índice trigram (exercício do teacher)
 
 ## App (Fase 2)
 
@@ -364,3 +377,6 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 03/10 | Sumário fundido nas Fases 3 (scanner + parser) e 4 (Gemini + `descricao`); sinônimos e CDDir na 5 | Reaproveita câmera, Vision, conjunto de avaliação e Edge Functions sem atrasar a identificação |
 | 03/10 | Sumário guarda só texto, não fotos | Menos espaço e exportação leve; o texto é o que a busca usa |
 | 03/10 | Ranking BM25F (frequências ponderadas por campo e somadas antes da saturação) em vez de somar um BM25 por campo | Um termo presente em vários campos saturaria várias vezes e inflaria a nota; o BM25F é o padrão para documentos com campos |
+| 07/10 | Migrations aplicadas com `psql`; Supabase CLI só na Fase 4 | `psql` já está no Mac; o CLI só é necessário para as Edge Functions |
+| 07/10 | Extensões `pg_trgm` e `unaccent` no schema `extensions` | Padrão do Supabase; ficam fora da API REST |
+| 07/10 | Importação por tabela de staging, em script fora das migrations | O CSV tem a coluna `autores` vazia que a tabela não tem; dado não é esquema |

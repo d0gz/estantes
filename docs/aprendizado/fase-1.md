@@ -136,3 +136,71 @@ Com `b > 0` o cálculo muda só em um ponto: cada `f_campo` é dividido por seu 
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+## Tarefa 1.2 — Conexão com o Supabase e ajustes do plano (2026-10-07)
+
+### O que foi feito
+Conectamos ao Postgres do Supabase (projeto vazio) pelo `psql` 14 já instalado, usando a connection string do Session pooler em `SUPABASE_DB_URL` (arquivo `.env`, ignorado pelo Git; `.env.example` versionado, sem segredo). O teste `select version()` devolveu PostgreSQL 17.11. Em `docs/PLANO.md` foram registradas as decisões de migrations, extensões, importação, RLS e keepalive, e o checklist foi renumerado em 1.2 a 1.7. Também diagnosticamos a falha do workflow "Supabase keepalive #1".
+
+### Conceitos envolvidos
+
+**IPv4 x IPv6 e o pooler.** A conexão direta do Supabase (`db.<ref>.supabase.co:5432`) só tem endereço IPv6. Redes e máquinas sem IPv6 (comum em provedores residenciais) não alcançam. O Supavisor, pooler de conexões do Supabase, tem endereço IPv4 e fica na frente do Postgres. Um pooler existe porque cada conexão Postgres é um processo do sistema operacional (modelo process-per-connection), caro em memória; centenas de clientes abrindo conexões esgotam o servidor. O pooler multiplexa muitos clientes em poucas conexões reais.
+
+**Session mode (5432) x transaction mode (6543).**
+
+| | Session | Transaction |
+| --- | --- | --- |
+| Conexão real | dedicada enquanto o cliente está conectado | emprestada só durante uma transação |
+| `SET`, prepared statements, `LISTEN`, tabelas temporárias | funcionam | podem quebrar (a próxima transação pode cair em outra conexão real) |
+| Bom para | `psql`, migrations, `\copy` | serverless / muitas conexões curtas |
+
+Aqui usamos session mode porque a importação do CSV usa uma tabela temporária de staging, que vive na sessão. Em transaction mode ela poderia sumir entre comandos.
+
+**Schemas e extensões.** Um schema é um namespace dentro do banco. O PostgREST (API REST do Supabase) expõe por padrão o schema `public`. Extensões instaladas em `public` despejam suas funções lá, ficando visíveis pela API. Em `extensions`, não. Daí `create extension ... with schema extensions`.
+
+**`f_unaccent` e `IMMUTABLE`.** `unaccent` é declarada `STABLE` (depende do dicionário), e índices por expressão exigem função `IMMUTABLE`. O embrulho `f_unaccent` declara `immutable` para poder indexar `f_unaccent(titulo)` com trigram. Chamar `extensions.unaccent('extensions.unaccent', $1)` com o dicionário qualificado fixa qual dicionário é usado, sem depender do `search_path` da sessão; é isso que torna a promessa de imutabilidade razoavelmente honesta. Se o dicionário mudasse, o índice ficaria inconsistente.
+
+**RLS (Row Level Security).** Política por linha avaliada pelo Postgres. Com RLS ligado e sem política, nada passa. Fizemos `select` para `anon`/`authenticated` e nenhuma política de escrita: escrever é negado por padrão. A service role tem o atributo `BYPASSRLS` e ignora tudo, por isso só as Edge Functions escrevem.
+
+**Staging.** `\copy` é comando do `psql` (lê o arquivo no cliente), diferente de `COPY` (lê no servidor, onde não temos acesso no Supabase). Ele exige que as colunas do arquivo casem com as da tabela de destino; como o CSV tem 7 colunas e a tabela tem 6, carregamos numa tabela temporária com as 7 e depois `insert ... select` das 6 úteis.
+
+**Keepalive e agendamento.** O projeto grátis pausa após 7 dias sem atividade; o workflow agendado faz um ping HTTP. O header `apikey` basta; a chave `sb_publishable_` não é JWT, então não vai em `Authorization: Bearer`.
+
+**A falha do keepalive #1.** A mensagem `The job was not acquired by Runner of type hosted even after multiple attempts` significa que o GitHub não alocou nenhuma máquina; o job foi cancelado após ~15 min na fila. Nenhuma linha do nosso script rodou, logo não é bug nosso. Mesmo se rodasse, sairia com exit 0 por falta dos secrets (a tarefa 1.6 resolve).
+
+### Por que assim
+- **psql em vez do CLI:** já está instalado; o CLI só é necessário para Edge Functions (Fase 4). Nomear os arquivos `AAAAMMDDHHMMSS_nome.sql` evita renomear depois. A ordem lexicográfica do nome é a ordem de aplicação.
+- **`.env` + `.env.example`:** o exemplo documenta a variável sem expor a senha; o real nunca entra no Git.
+- **Importação fora das migrations:** migration descreve esquema e deve ser repetível em qualquer ambiente; dado de 83 mil linhas é outra natureza.
+
+### Alternativas descartadas
+- **Supabase CLI agora:** mais uma ferramenta no macOS Monterey sem benefício até a Fase 4.
+- **SQL Editor do painel:** não tem `\copy` e deixa o repositório divergir do banco (esquema que ninguém versionou).
+- **Reescrever o CSV em Python para tirar a coluna `autores`:** mais código para manter e outro arquivo gerado; o staging resolve em SQL.
+- **Conexão direta:** não funciona sem IPv6.
+
+### Padrões e boas práticas
+- **Migrations versionadas e imutáveis:** nunca edite uma já aplicada; crie outra. Quando NÃO usar: protótipos descartáveis.
+- **Segredo fora do repositório, exemplo dentro:** padrão `.env.example`.
+- **Menor privilégio:** o app só lê; escrita só com a service role, que nunca vai ao app.
+
+### Armadilhas
+- **Senha com caracteres especiais** (`@`, `/`, `#`) na URL precisa de percent-encoding, ou o `psql` interpreta o host errado.
+- **`source .env` com `set -a`:** sem exportar, `$SUPABASE_DB_URL` fica vazia no `psql`. Diagnostique com `echo ${SUPABASE_DB_URL:+definida}`.
+- **Workflows agendados são desativados após 60 dias sem commits** no repositório; o keepalive pararia sem aviso e o projeto seria pausado.
+- **Rodar prepared statements/`SET` no porta 6543** e ver comportamento estranho.
+- **`COPY` x `\copy`:** o primeiro falha por permissão no Supabase.
+
+### Para ir além
+- Documentação do Supabase: "Connecting to your database" (direct, session e transaction pooler).
+- PostgreSQL docs: "Row Security Policies" e "Volatility Categories" (IMMUTABLE/STABLE/VOLATILE) em CREATE FUNCTION.
+
+### Perguntas
+1. Com suas palavras: por que a conexão direta falhou e o pooler funciona? Qual a diferença prática entre session e transaction mode?
+2. Se a importação fosse feita pela porta 6543, o que poderia dar errado com a tabela de staging temporária? Por quê?
+3. Alguém marca `f_unaccent` como `IMMUTABLE` mas ela chama `unaccent` sem qualificar o dicionário, e o `search_path` de um usuário é diferente. Que bug pode aparecer no índice trigram?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
