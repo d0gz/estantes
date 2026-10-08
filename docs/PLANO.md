@@ -154,7 +154,7 @@ create extension if not exists pg_trgm  with schema extensions;
 create extension if not exists unaccent with schema extensions;
 
 create or replace function f_unaccent(text) returns text
-language sql immutable parallel safe as
+language sql immutable parallel safe set search_path = '' as
 $$ select extensions.unaccent('extensions.unaccent', $1) $$;
 
 create table lexml_livros (            -- importado do CSV
@@ -166,7 +166,7 @@ create table lexml_livros (            -- importado do CSV
   outros_tipos text
 );
 create index lexml_livros_titulo_trgm
-  on lexml_livros using gin (lower(f_unaccent(titulo)) gin_trgm_ops);
+  on lexml_livros using gin (lower(f_unaccent(titulo)) extensions.gin_trgm_ops);
 
 create table obras (                   -- enriquecimento sob demanda
   id               bigint generated always as identity primary key,
@@ -191,7 +191,8 @@ create index edicoes_obra on edicoes (obra_id);
 - Extensões no schema `extensions`, não em `public`: é o padrão do Supabase (o linter do painel acusa
   extensão em `public`) e as funções delas ficam fora da API REST.
 - **Migrations com `psql`**, sem o Supabase CLI nesta fase: arquivos em `supabase/migrations/` com o nome
-  no padrão do CLI (`AAAAMMDDHHMMSS_nome.sql`), aplicados com `psql "$SUPABASE_DB_URL" -f <arquivo>`.
+  no padrão do CLI (`AAAAMMDDHHMMSS_nome.sql`), aplicados com `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <arquivo>` (sem o
+  `ON_ERROR_STOP`, um erro no meio desfaz a transação mas o `psql` termina como se tivesse dado certo).
   `SUPABASE_DB_URL` fica no `.env` (fora do Git) e usa o *Session pooler* (IPv4, porta 5432); a conexão
   direta só tem IPv6. O CLI entra na Fase 4, com as Edge Functions; o nome no padrão evita renomear.
 - Importar `livros_lexml.csv` (CSV, UTF-8 com BOM, CRLF, cabeçalho) com `data/importar_lexml.sh`.
@@ -202,6 +203,9 @@ create index edicoes_obra on edicoes (obra_id);
   `insert ... select` leva só as 6 úteis. A importação é dado, não esquema: não é migration.
 - RLS nas três tabelas: `select` para `anon` e `authenticated`; nenhuma política de escrita (só a
   service role escreve, e ela ignora o RLS).
+- Grants explícitos: `revoke all` e `grant select` para `anon` e `authenticated`. O padrão do Supabase
+  para tabelas criadas pelo `postgres` dá TRUNCATE ao `anon` e **não** dá SELECT. GRANT (pode usar a
+  tabela?) e RLS (quais linhas?) são camadas independentes: ler exige as duas.
 - Projeto grátis pausa após 7 dias sem uso: `supabase-keepalive.yml` faz ping 2x por semana, só com o
   cabeçalho `apikey` (serve para a chave `anon` legada e para a `sb_publishable_`, que não é JWT).
   Armadilha: o GitHub desativa workflows agendados após 60 dias sem commits no repositório.
@@ -209,8 +213,8 @@ create index edicoes_obra on edicoes (obra_id);
 ### Checklist da Fase 1
 
 - [x] Criar projeto Supabase
-- [ ] 1.2 Conexão por `psql` (`.env` com `SUPABASE_DB_URL`)
-- [ ] 1.3 `[eu escrevo]` Migration com o esquema acima (extensões, `f_unaccent`, tabelas, índices, RLS)
+- [x] 1.2 Conexão por `psql` (`.env` com `SUPABASE_DB_URL`)
+- [x] 1.3 `[eu escrevo]` Migration com o esquema acima (extensões, `f_unaccent`, tabelas, índices, RLS)
 - [ ] 1.4 Importar o CSV e conferir contagem (83.612)
 - [ ] 1.5 `[eu escrevo]` RPC `buscar_livro(texto, ano)`: top 10 por similaridade de título sem acento,
       ano como desempate; devolve também a `descricao` (usada no pré-preenchimento do sumário)
@@ -380,3 +384,4 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 07/10 | Migrations aplicadas com `psql`; Supabase CLI só na Fase 4 | `psql` já está no Mac; o CLI só é necessário para as Edge Functions |
 | 07/10 | Extensões `pg_trgm` e `unaccent` no schema `extensions` | Padrão do Supabase; ficam fora da API REST |
 | 07/10 | Importação por tabela de staging, em script fora das migrations | O CSV tem a coluna `autores` vazia que a tabela não tem; dado não é esquema |
+| 07/10 | Grants explícitos (`revoke all` + `grant select`) além do RLS | O padrão do projeto não dava SELECT ao `anon` e dava TRUNCATE, que o RLS não controla |
