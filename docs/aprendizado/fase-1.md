@@ -204,3 +204,94 @@ Aqui usamos session mode porque a importação do CSV usa uma tabela temporária
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 1.3 — Migration do esquema inicial (2026-10-07)
+
+### O que foi feito
+Você escreveu a migration `supabase/migrations/20261007120000_esquema_inicial.sql`: extensões `pg_trgm` e `unaccent` no schema `extensions`, a função `f_unaccent`, as tabelas `lexml_livros`, `obras` e `edicoes`, os índices (GIN trigrama no título, GIN em `isbn13`, B-tree em `obra_id`) e RLS de leitura pública. Na revisão entraram os `grant`/`revoke` explícitos e o `set search_path = ''`. O `docs/PLANO.md` foi atualizado para refletir isso. A migration foi aplicada e testada com `set role anon`.
+
+### Conceitos envolvidos
+
+**Migration.** É um arquivo SQL versionado que muda o esquema do banco, aplicado uma vez e em ordem. Pense numa lei que altera o ordenamento: não se reescreve lei já publicada, edita-se por emenda (outra migration). O nome `AAAAMMDDHHMMSS_nome.sql` dá a ordem pela ordenação lexicográfica. O banco é um estado; as migrations são o histórico que reconstrói esse estado do zero em qualquer ambiente.
+
+**Transação e `begin ... commit`.** Todo o arquivo roda como uma unidade: ou o esquema inteiro nasce, ou nada. O DDL do Postgres é transacional (o MySQL, por exemplo, não é), então dá para desfazer um `create table`. Por isso o ensaio com `begin ... rollback` funciona: roda tudo, confere e desfaz.
+
+A armadilha do `psql`: sem `-v ON_ERROR_STOP=1`, quando um comando falha dentro da transação o Postgres a marca como abortada, os comandos seguintes falham com "current transaction is aborted", o `commit` final vira `rollback` e o `psql` ainda sai com código 0. Um script de deploy acharia que deu certo. Com `ON_ERROR_STOP` o `psql` para no primeiro erro e sai com código diferente de zero.
+
+**Índice B-tree x GIN.** O B-tree é a lista telefônica: guarda valores em ordem, serve para `=`, `<`, `>` e prefixo (`like 'abc%'`), e é inútil para "parecido com". O GIN (Generalized Inverted Index) é o índice remissivo no fim do livro: mapeia cada *chave* para a lista de linhas que a contêm. Em `isbn13 text[]`, as chaves são os elementos do array; em `titulo` com `gin_trgm_ops`, as chaves são trigramas.
+
+**Trigramas.** O `pg_trgm` quebra o texto (com espaços de preenchimento) em sequências de 3 caracteres. "penal" vira `"  p"`, `" pe"`, `"pen"`, `"ena"`, `"nal"`, `"al "`. Um OCR errado, "pena1", vira `"  p"`, `" pe"`, `"pen"`, `"ena"`, `"na1"`, `"a1 "`. Compartilham 4 de 8 trigramas distintos no total, similaridade 0,5. Um erro de um caractere destrói só 3 trigramas, o resto sobrevive. Por isso a busca tolera erro de OCR, e o GIN encontra rápido as linhas que compartilham trigramas com a consulta.
+
+**`f_unaccent` e índice por expressão.** O índice é sobre `lower(f_unaccent(titulo))`, não sobre `titulo`. O Postgres só usa esse índice se a consulta contiver a *mesma expressão*. Isso será decisivo na tarefa 1.5.
+
+**`set search_path = ''`.** O linter do Supabase (`function_search_path_mutable`) avisa quando uma função depende do `search_path` de quem a chama, o que permite a um usuário malicioso criar um objeto homônimo em um schema que apareça antes. Com `''`, nada é resolvido implicitamente. Funciona aqui porque tudo está qualificado (`extensions.unaccent(...)`). Não atrapalha o índice por expressão; o efeito colateral é que funções SQL com `SET` não sofrem *inlining* pelo planejador (o corpo não é "colado" na consulta), um custo pequeno aqui.
+
+**RLS e GRANT são camadas independentes.** Para ler uma linha, o papel precisa passar por duas portas:
+1. **GRANT**: pode usar a tabela? (privilégio de objeto: SELECT, INSERT, TRUNCATE...)
+2. **RLS**: quais linhas? (política por linha)
+
+```mermaid
+flowchart LR
+  A[app com chave anon] --> B{GRANT SELECT na tabela?}
+  B -- não --> X[permission denied]
+  B -- sim --> C{RLS: política permite a linha?}
+  C -- não --> Y[0 linhas]
+  C -- sim --> Z[linhas]
+```
+
+Verificamos com `pg_default_acl` que, neste projeto, tabelas criadas pelo papel `postgres` dão ao `anon` só `Dxtm` (TRUNCATE, REFERENCES, TRIGGER, MAINTAIN) e **não** dão SELECT. Resultado sem o `grant`: "permission denied" mesmo com a política correta. Pior: TRUNCATE **não é controlado por RLS**, então o `anon` poderia apagar a tabela inteira. O `revoke all` + `grant select` fecha as duas falhas. Analogia: a política é a autorização escrita na portaria; o GRANT é o crachá que deixa você chegar até a portaria. A chave pública (`anon`) vai dentro do `.ipa` e qualquer um a extrai, portanto a segurança tem de estar no banco, não no segredo da chave.
+
+**Sintaxe da política.** `create policy nome on tabela for select to anon, authenticated using (true)`. `using` é o filtro de linhas visíveis; `true` = todas. Sem política de `insert/update/delete`, essas operações são negadas por padrão. A service role tem `BYPASSRLS`, e é por ela que a Edge Function escreve.
+
+**Modelo de dados e o fluxo.**
+- `lexml_livros`: catálogo importado, só leitura, usado na busca por título.
+- `obras` + `edicoes`: *cache* preenchido de uma vez pela Edge Function `enriquecer-urn` (1 obra + N edições da ficha `/urn`), depois que o usuário confirma o candidato.
+- A comparação de autores acontece no app (`Pontuacao`), não no banco.
+- O ISBN lido do código de barras é consultado primeiro em `edicoes.isbn13`.
+- `local` não é palavra reservada no Postgres (é *keyword* não reservada); o editor só a colore.
+- `on delete cascade` em `edicoes.obra_id`: apagar a obra apaga suas edições, evitando órfãs.
+
+### Por que assim
+- **Migration em transação:** esquema atômico, sem estado meio criado.
+- **Extensões em `extensions`:** padrão do Supabase, fora da API REST.
+- **`ficha jsonb` bruta:** permite reprocessar sem chamar a fonte de novo.
+- **`isbn13 text[]` + GIN:** uma edição pode ter vários ISBNs; GIN indexa os elementos.
+- **`urn` como PK de `edicoes`:** é a chave natural, estável.
+- **Grants explícitos:** não depender de defaults da plataforma, que mudam e variam por papel criador.
+- **`alter policy ... rename` em vez de nova migration:** a migration já estava aplicada, mas ainda não commitada. Renomeamos no banco e no arquivo para ficarem iguais. Depois do commit (e do merge), mudar seria uma migration nova.
+
+### Alternativas descartadas
+- **Criar a política "para todos" sem `to`:** valeria para `public` (todos os papéis); preferimos nomear os papéis.
+- **Desligar o RLS e só usar GRANT:** funcionaria para leitura, mas RLS é a defesa que continua valendo se alguém conceder um privilégio a mais por engano; o Supabase também recomenda RLS em tudo que fica exposto.
+- **Chave natural única em `obras`:** não existe uma; veja armadilhas.
+- **B-tree em `titulo`:** não atende "parecido com".
+
+### Padrões e boas práticas
+- **Menor privilégio e defesa em profundidade:** GRANT mínimo + RLS + sem política de escrita.
+- **Ensaio com `begin ... rollback`:** teste destrutivo sem risco; só vale para DDL transacional (Postgres).
+- **Migration imutável depois de publicada.** Quando NÃO seguir: antes do commit/aplicação em ambientes compartilhados, ajustar o arquivo é aceitável, desde que banco e arquivo fiquem idênticos.
+- **Verificar com o papel real:** `set role anon` e tentar `select`, `insert`, `truncate`. Testar como superusuário não prova nada sobre permissões.
+
+### Armadilhas
+- **Índice por expressão só é usado se a consulta repetir a expressão.** Na 1.5, `similarity(...) > 0.3` no `WHERE` faz *seq scan*; o índice é usado com o operador `%`: `lower(f_unaccent(titulo)) % lower(f_unaccent($1))`. Diagnostique com `explain analyze`.
+- **Operadores de array:** `isbn13 @> array['978...']` usa o GIN; `'978...' = any(isbn13)` não.
+- **`obras` não tem chave natural única:** a Fase 4 precisa evitar duplicar a mesma obra ao enriquecer duas edições dela.
+- **Default privileges variam por projeto/papel:** confira com `\ddp` ou `pg_default_acl` em vez de presumir.
+- **Esquecer `ON_ERROR_STOP`** (ver acima).
+
+### Para ir além
+- PostgreSQL docs: "pg_trgm" e "GIN Index Types"; "Row Security Policies" e "GRANT".
+- Supabase docs: "Row Level Security" e a seção sobre privilégios das tabelas / Database Linter.
+- *Designing Data-Intensive Applications* (Kleppmann), cap. 3, sobre estruturas de índice.
+
+### Perguntas
+1. Com suas palavras: por que a RLS sozinha não bastava para o app ler `lexml_livros`? Qual a diferença entre GRANT e uma política?
+2. Se amanhã quisermos buscar por autor com tolerância a erro, usando `autores text[]` em `obras`, que tipo de índice você criaria e que cuidado teria para o planejador realmente usá-lo?
+3. Você descobre um erro na migration já mergeada (esqueceu um `not null` numa coluna). Você edita o arquivo e reaplica? Por quê, e o que faz em vez disso?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
