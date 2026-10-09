@@ -1055,6 +1055,94 @@ Revisão (Ricardo aprovou 1, 2, 4, 5, 6; recusou 3 e 7):
 
 (sem respostas)
 
+## Tarefa 2.3g — Planejamento a partir das fotos reais: o plano muda (2026-10-09)
+
+### O que foi feito
+Sem código. Depois de fotografar 4 livros reais, `docs/PLANO.md` e `CLAUDE.md` foram atualizados: nova ordem de confiança das fontes de identificação, três parsers sobre uma struct `LinhaOCR`, modelo de `Livro` ampliado para obras em vários volumes (nova tarefa 2.3b, antes do passo 6 da busca), `pagina` como texto, hífen no tokenizador e `numeracao`/`parte` indexados. Fotos ficam fora do Git; o OCR é gravado em JSON e commitado.
+
+### Conceitos envolvidos
+
+**1. Validar o plano contra dados reais.** O plano de 03/10 supunha ISBN e ficha CIP na maioria dos livros. As fotos mostraram o contrário: nenhum dos 4 tem ISBN (o ISBN só existe desde ~1970 e se generalizou depois), 3 são de 1954–1972 e só têm folha de rosto. Quatro livros não são estatística, mas bastam para derrubar uma suposição. Por isso o plano passou a medir acerto num conjunto de avaliação em vez de confiar na intuição.
+
+**2. Ordem de confiança.** Cada fonte tem uma taxa de erro diferente: código de barras (determinístico, dígito verificador) > ficha CIP (formato padronizado, ISBD) > folha de rosto (layout livre, mas semântico) > capa (decorativa) > Gemini (generativo, pode alucinar) > manual (sempre disponível). A ordem vai do mais verificável ao menos verificável; o Gemini fica depois dos algoritmos porque seu erro é silencioso.
+
+**3. `LinhaOCR` e a porta do Domínio.** O Vision devolve `VNRecognizedTextObservation` com `boundingBox` (CGRect normalizado 0–1, origem no canto inferior esquerdo). O Domínio só importa Foundation, então ele define sua própria struct:
+
+```swift
+struct LinhaOCR { let texto: String; let x, y, largura, altura: Double; let confianca: Double }
+```
+
+`Dados/Visao` converte Vision para `LinhaOCR`. Isso é a mesma inversão de dependência do resto do projeto: a regra (parser) não conhece o detalhe (framework). Benefício concreto: o parser vira função pura `[LinhaOCR] -> Resultado`, testável com JSON gravado, inclusive na CI sem Vision nem fotos. Cuidado com o eixo y: no Vision, y=0 é a base da página; se o Domínio adotar "y cresce para baixo", a conversão tem de acontecer em um só lugar (a fronteira) e estar documentada.
+
+**4. Geometria como sinal.** OCR puro devolve linhas de texto sem hierarquia. Mas a altura da caixa aproxima o tamanho da fonte, e na folha de rosto o tamanho da fonte diz o papel: maiores linhas = título; médias = subtítulo/parte; pequenas no rodapé = editora, local, ano. No sumário, a geometria resolve outro problema: uma entrada pode ocupar várias linhas e o número da página nem sempre está na última. A regra "a página é o número da coluna da direita (x > ~85%) cujo y cai dentro do bloco da entrada" substitui "número no fim da linha". Isso é uma troca de unidade de análise: da linha para o bloco (entrada), definido por âncoras ("§ 5.108.", "Art. 1.710 —", "1.", "I"). Fica mais robusto, mas depende de calibrar limiares (85%, tolerância de y) com dados; daí o conjunto de avaliação.
+
+**5. `rotulo` × `numeracao` (a discussão com o Ricardo).** Semanticamente diferem: "Capítulo II" ou "1.2.3" é posição estrutural no livro; "Art. 1.710" ou "§ 5.108" é referência externa (a lei), que é o que o advogado procura. Mas cada item impresso tem um único prefixo, então um campo não perde dado. A diferença real é de busca: antes, `numeracao` não era indexada (só o título do item). Opções:
+
+| | Um campo indexado | Dois campos |
+| --- | --- | --- |
+| Ruído | pequeno: "1.2.3" vira o termo `123` | nenhum (só a âncora jurídica indexada) |
+| Tipo explícito | não | sim |
+| Custo | zero | campo extra em tela, Core Data, export, validação |
+
+Escolhido um campo. Regra geral: não modele distinções que nenhum comportamento usa (YAGNI); se algum dia a interface precisar tratá-las diferente, separar é uma migração localizada.
+
+**6. Página como `String?` e sequências.** Prefácios usam romanos ("XII"); o corpo, arábicos. `Int?` perde os romanos; só `String` perde a ordem (e o aviso "página menor que a anterior"). Solução: guardar o texto impresso e ter uma regra pura que converte romano/arábico em número. A `ValidacaoSumario` compara só dentro da mesma sequência: "XII" → "1" é troca de sequência, não regressão. Romano -> inteiro: percorre os símbolos somando; se um símbolo é menor que o seguinte, subtrai (IV = 5 - 1). É O(n) no tamanho da string. Descartado `Int` + flag `ehRomano`: não representa "XI-XII" nem "245-246".
+
+**7. Tokenizador e o hífen.** Duas situações com o mesmo caractere:
+- entre letras ("sub-rogação"): remover, juntando em `subrogacao`, para casar com quem digita sem hífen;
+- entre dígitos ("1.710-1.779"): continua separando. Se fosse removido, o intervalo viraria um termo só (`17101779`) e "art 1710" nunca o acharia.
+
+A proposta original ("remover hífens") teria introduzido esse bug. Já "art. 1.710" → `art 1710` funcionava porque o ponto entre dígitos some; e a ortografia antiga ("sôbre", "emprêsa") já casa com a atual porque o Tokenizador remove acentos (normalização Unicode NFD e descarte de marcas combinantes). A lição: antes de adicionar regra, testar o que a regra existente já faz.
+
+**8. Mudar o esquema antes de haver dados.** Core Data exige migração (leve ou mapeada) quando o modelo muda com dados gravados. Como ainda não há dados em aparelho e o export v1 (2.8) não existe, editar o `.xcdatamodeld` direto é de graça; depois da 2.4 e do export, cada campo novo custaria migração e versão do JSON. Daí a ordem: 2.3b antes de tudo isso. Pela mesma lógica, a 2.3b vem antes do passo 6: o conjunto de consultas de referência precisa incluir "art 1710", parte e hífens, senão os pesos do BM25F seriam ajustados duas vezes.
+
+**9. Dados de teste com direitos autorais.** Fotos de livros ficam fora do Git (direitos e tamanho de binários, que o Git guarda para sempre). O que se versiona é o OCR em JSON (texto, caixa, confiança) e o gabarito. É o padrão "golden files": entrada gravada, saída esperada anotada à mão. Limite: o JSON não testa o Vision em si, apenas os parsers; mudanças no OCR da Apple (iOS 16 no Xcode 14 × iOS 26 na CI) não aparecem aí, e isso é aceitável porque o JSON é determinístico.
+
+### Por que assim
+- Ordem de confiança refinada, não revertida: a decisão de 03/10 (algoritmo antes de IA) continua valendo; o "algoritmo" apenas virou três fontes.
+- Parsers sobre `LinhaOCR`: testáveis e independentes do Vision.
+- Modelo ampliado agora: custo de mudança mínimo hoje, alto depois.
+- CDD e assuntos da ficha CIP fora do `Livro`: mantém a decisão de 03/10 (categorias no lugar de assuntos); os assuntos viram sugestão de categorias na confirmação.
+- LexML: volume/edição/ano entram na pontuação como desempate de títulos iguais, mas só depois de conferir como o LexML registra volumes (pode ser no título ou um registro por tomo). Planejar sem verificar seria chute.
+
+### Alternativas descartadas
+- Dois campos `rotulo` e `numeracao`: ver conceito 5.
+- `pagina` só `String` ou `Int` + flag: ver conceito 6.
+- Fotos como recursos do alvo de testes (ideia anterior): pesadas, com direitos autorais, e obrigariam rodar Vision na CI.
+- Remover todos os hífens: ver conceito 7.
+- Parser por linha para o sumário: falha com entradas de várias linhas e página fora da última.
+- Migrar o Core Data depois: custo evitável.
+
+### Padrões e boas práticas
+- Inversão de dependência na fronteira (`LinhaOCR`): use quando a regra é valiosa e o framework volátil; não vale para um detalhe de uso único.
+- Golden files / gabarito: bom para parsers heurísticos; ruim se o gabarito for tão grande que ninguém o mantém.
+- Decidir com métrica (acerto por campo) em vez de opinião.
+- YAGNI no modelo de dados: só crie campos que mudam algum comportamento.
+- Registrar a decisão com o motivo (tabela do PLANO), inclusive o que foi refinado e não revertido.
+
+### Armadilhas
+- Eixo y do Vision (origem embaixo) versus a lógica "topo da página" dos parsers: bug clássico que inverte título e rodapé.
+- Limiares geométricos (85%, tolerâncias) calibrados em 4 livros: podem não generalizar; por isso ampliar para ~30.
+- Foto com a página curva ou com transparência do verso: o OCR gera lixo; filtrar por confiança.
+- Romano ambíguo: "MIX" ou "CIVIL" parecem romanos; só aplique a conversão em campos onde romano é esperado (volume, página).
+- `edicao` guardando reimpressão: ao comparar edições, "3.ª ed., 2.ª reimpr." não é igual a "3.ª ed."; o gabarito separa para medir, o app junta.
+- Indexar `numeracao` aumenta o índice com termos como `123`: ruído aceito, mas observe no passo 6.
+
+### Para ir além
+- Documentação Apple: `VNRecognizedTextObservation` e `VNRectangleObservation.boundingBox` (sistema de coordenadas normalizado).
+- Manning, Raghavan e Schütze, *Introduction to Information Retrieval*, cap. 2 (tokenização e normalização).
+- Documentação Apple, "Core Data Model Versioning and Data Migration".
+
+### Perguntas
+1. Com suas palavras: por que `LinhaOCR` é definida no Domínio em vez de usar `VNRecognizedTextObservation` direto no parser? O que se ganha nos testes?
+2. Aplicação: o hífen entre letras é removido e entre dígitos separa. Como o `Tokenizador` trataria "sub-rogação nos arts. 1.710-1.779" e quais termos sairiam? E por que "remover todos os hífens" quebraria a busca por "art 1710"?
+3. Raciocínio: um tomo tem as páginas "XI", "XII", "1", "2", ... "245". Descreva como a `ValidacaoSumario` por sequência trataria cada transição e o que aconteceria com `Int?` simples. Depois diga quando separar `rotulo` e `numeracao` em dois campos passaria a valer a pena.
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
 ---
 
 ## Tarefa 2.3b — Obras em vários volumes: modelo, página como texto, numeração/parte no índice e hífen (2026-10-09)
