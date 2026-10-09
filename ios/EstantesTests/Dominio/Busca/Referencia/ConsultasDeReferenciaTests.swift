@@ -28,6 +28,41 @@ final class ConsultasDeReferenciaTests: XCTestCase {
         }
     }
 
+    // MARK: - Pisos
+
+    /// Os valores com o `padrao` ajustado no passo 6, arredondados para baixo. Como num teste de
+    /// snapshot: se cair, ou se reverte a mudança, ou se baixa o piso num commit que diz por quê.
+    /// Uma consulta nova que já entra errando também exige mexer aqui, de propósito.
+    private static let pisoTop1 = 0.94
+    private static let pisoTop3 = 1.0
+    private static let pisoMRR = 0.96
+
+    /// Posição de cada consulta (na ordem de `ConsultasDeReferencia.todas`) quando os pisos foram
+    /// gravados; só serve para a mensagem de falha dizer quem piorou.
+    private static let posicoesGravadas: [Int?] = [
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, // ajuste #1–#19
+        nil, nil, 2, nil, nil, nil                              // sondas #20–#25
+    ]
+
+    func testMetricasNaoCaemAbaixoDoPiso() {
+        let avaliacao = MetricasDeBusca.avaliar(
+            ConsultasDeReferencia.todas, motor: motor, ids: BibliotecaDeReferencia.ids
+        )
+        let pioraram = avaliacao.medicoes.enumerated().compactMap { indice, medicao -> String? in
+            guard indice < Self.posicoesGravadas.count else { return "#\(indice + 1) nova" }
+            let antes = Self.posicoesGravadas[indice] ?? .max
+            let agora = medicao.posicao ?? .max
+            guard agora > antes else { return nil }
+            return "#\(indice + 1) \"\(medicao.consulta.texto)\" \(antes)º→\(medicao.posicao.map { "\($0)º" } ?? "ausente")"
+        }
+        let detalhe = pioraram.isEmpty ? "" : " · pioraram: " + pioraram.joined(separator: ", ")
+
+        XCTAssertGreaterThanOrEqual(avaliacao.top1, Self.pisoTop1, "top 1" + detalhe)
+        XCTAssertGreaterThanOrEqual(avaliacao.top3, Self.pisoTop3, "top 3" + detalhe)
+        XCTAssertGreaterThanOrEqual(avaliacao.mrr, Self.pisoMRR, "MRR" + detalhe)
+        XCTAssertEqual(avaliacao.itemCerto ?? 0, 1, accuracy: 1e-9, "item certo" + detalhe)
+    }
+
     // MARK: - Relatório
 
     /// Só imprime: uma linha por consulta e os agregados das consultas de ajuste.
