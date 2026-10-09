@@ -16,8 +16,40 @@ final class TokenizadorTests: XCTestCase {
         XCTAssertEqual(Tokenizador.termos("3ª edição"), ["3", "edicao"])
     }
 
-    func testHifenETravessaoSeparam() {
-        XCTAssertEqual(Tokenizador.termos("Pós-graduação – Direito"), ["pos", "graduacao", "direito"])
+    func testHifenEntreLetrasJuntaETravessaoSepara() {
+        XCTAssertEqual(Tokenizador.termos("Pós-graduação – Direito"), ["posgraduacao", "direito"])
+        XCTAssertEqual(Tokenizador.termos("Pós-graduação—Direito"), ["posgraduacao", "direito"])
+    }
+
+    // MARK: - Hífen (2.3b)
+
+    func testHifenEntreLetrasEhRemovido() {
+        XCTAssertEqual(Tokenizador.termos("Sub-rogação"), ["subrogacao"])
+        XCTAssertEqual(Tokenizador.termos("Sub-rogação"), Tokenizador.termos("subrogação"))
+    }
+
+    func testHifenEntreDigitosSepara() {
+        XCTAssertEqual(Tokenizador.termos("Arts. 1.710-1.779"), ["arts", "1710", "1779"])
+    }
+
+    func testHifenEntreLetraEDigitoSepara() {
+        XCTAssertEqual(Tokenizador.termos("CPC-2015"), ["cpc", "2015"])
+        XCTAssertEqual(Tokenizador.termos("2015-CPC"), ["2015", "cpc"])
+    }
+
+    func testHifenNasPontasOuEntreEspacosSepara() {
+        XCTAssertEqual(Tokenizador.termos("-sub rogação-"), ["sub", "rogacao"])
+        XCTAssertEqual(Tokenizador.termos("sub - rogação"), ["sub", "rogacao"])
+    }
+
+    func testHifensUnicodeValemComoHifenComum() {
+        XCTAssertEqual(Tokenizador.termos("sub\u{2010}rogação"), ["subrogacao"])
+        XCTAssertEqual(Tokenizador.termos("sub\u{2011}rogação"), ["subrogacao"])
+    }
+
+    func testHifenInvisivelSome() {
+        XCTAssertEqual(Tokenizador.termos("sub\u{00AD}rogação"), ["subrogacao"])
+        XCTAssertEqual(Tokenizador.termos("1\u{00AD}710"), ["1710"])
     }
 
     func testPontoEntreDigitosNaoSepara() {

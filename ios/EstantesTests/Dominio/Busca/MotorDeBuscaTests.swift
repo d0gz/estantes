@@ -377,4 +377,12 @@ final class MotorDeBuscaTests: XCTestCase {
 
         XCTAssertEqual(ids(motor.buscar("sucessoes")), [tomo.id])
     }
+
+    func testConsultaSemHifenAchaTituloComHifen() {
+        let livro = Livro(estanteId: estante1, titulo: "Da sub-rogação")
+        let motor = MotorDeBusca(livros: [livro, livroC], categorias: [])
+
+        XCTAssertEqual(ids(motor.buscar("subrogacao")), [livro.id])
+        XCTAssertEqual(ids(motor.buscar("sub-rogação")), [livro.id])
+    }
 }
