@@ -325,7 +325,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 norma
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
-  (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F · 4 filtros · 5 motor e resultado ·
+  (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ·
   6 conjunto de consultas de referência e ajuste dos pesos)
 - [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
@@ -450,3 +450,4 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 08/10 | `ItemSumario` ganha `id` (UUID) no Core Data | A struct já tem `id`; sem ele a ida e volta não preserva a igualdade |
 | 08/10 | `apagarEstante` com destino igual à própria estante lança `destinoInvalido`; ids inexistentes: apagar ignora, ler devolve vazio, gravar lança erro | Revisão da 2.2: o destino igual pulava o "mover" e a cascata apagava os livros |
 | 09/10 | Pesos do BM25F ajustados por um conjunto de consultas de referência (passo 6 da 2.3, depois do motor), não testando o app | Uma métrica (top 1/top 3, MRR) mostra o efeito de cada ajuste em todas as consultas; no olho, consertar uma busca piora outras sem ninguém ver |
+| 09/10 | Filtros (`FiltroBusca`): E entre dimensões, OU dentro de estantes e categorias; aplicados depois do BM25F; autor por palavras (prefixo, qualquer ordem, mesmo autor); livro sem ano/CDDir sai quando o filtro está ligado | Filtrar antes mudaria o IDF ao ligar uma chip; "contém" no texto inteiro não achava "José Afonso Silva" em "Silva, José Afonso da" |
