@@ -55,8 +55,8 @@ enum ConsultasDeReferencia {
         ConsultaDeReferencia("tratado 48", esperado: "tratado-t48", caso: .tomo),
         // 22 os dois tomos empatam; o desempate é pelo título e depois pelo UUID.
         ConsultaDeReferencia("tratado direito privado", esperado: "tratado-t1", caso: .tomo, tipo: .sonda),
-        // 23 plural, sem stemming.
-        ConsultaDeReferencia("prisoes cautelares", esperado: "fernandes", caso: .prefixo, tipo: .sonda),
+        // 23 plural, sem stemming. Era sonda: com o plural (2.3i) um peso passou a consertá-la, e ela virou ajuste.
+        ConsultaDeReferencia("prisoes cautelares", esperado: "fernandes", caso: .prefixo),
         // 24 erro de digitação, com E entre os termos. Era sonda: virou ajuste na 2.3i, com a correção.
         ConsultaDeReferencia("procesos penal", esperado: "badaro", caso: .titulo),
         // 25 grafia da capa ("Lassalle") × ficha CIP ("Lassale"). Era sonda: virou ajuste na 2.3i.
@@ -69,6 +69,16 @@ enum ConsultasDeReferencia {
         // 26 plural ao contrário: a consulta no singular, o título no plural ("Inventários e partilhas").
         ConsultaDeReferencia("inventario partilha", esperado: "mendes", caso: .plural),
         // 27 o rótulo do volume em romanos, como impresso na folha de rosto.
-        ConsultaDeReferencia("tomo xlviii", esperado: "tratado-t48", caso: .tomo)
+        ConsultaDeReferencia("tomo xlviii", esperado: "tratado-t48", caso: .tomo),
+        // 28 OU de reserva: "stf" não está em nenhum livro (e é curto demais para corrigir).
+        ConsultaDeReferencia("prisao cautelar stf", esperado: "fernandes", caso: .ou),
+        // 29–30 risco inverso do peso do sumário: o termo está no sumário do livro certo e num campo de
+        // peso maior de outro ("liberdade" no CDDir do Fernandes; "contrato" e "individuais" no
+        // subtítulo do T48). Escritas antes de medir o peso 0,25.
+        ConsultaDeReferencia(
+            "direito fundamental liberdade", esperado: "capez",
+            item: "O direito fundamental de liberdade", caso: .sumario
+        ),
+        ConsultaDeReferencia("contrato individual", esperado: "mello", caso: .sumario)
     ]
 }

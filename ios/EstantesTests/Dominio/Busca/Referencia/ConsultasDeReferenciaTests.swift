@@ -30,18 +30,21 @@ final class ConsultasDeReferenciaTests: XCTestCase {
 
     // MARK: - Pisos
 
-    /// Os valores com o `padrao` ajustado no passo 6, arredondados para baixo. Como num teste de
-    /// snapshot: se cair, ou se reverte a mudança, ou se baixa o piso num commit que diz por quê.
-    /// Uma consulta nova que já entra errando também exige mexer aqui, de propósito.
-    private static let pisoTop1 = 0.94
+    /// Como num teste de snapshot: se cair, ou se reverte a mudança, ou se baixa o piso num commit que
+    /// diz por quê. Uma consulta nova que já entra errando também exige mexer aqui, de propósito.
+    /// Na 2.3i todas as 29 de ajuste ficaram em 1º; os pisos ficam um pouco abaixo de 1 para tolerar
+    /// uma troca 1º↔2º (top 1 28/29 = 0,966; MRR (28 + 0,5)/29 = 0,983), como os da 2.3h, e nunca
+    /// abaixo deles (0,94 e 0,96).
+    private static let pisoTop1 = 0.96
     private static let pisoTop3 = 1.0
-    private static let pisoMRR = 0.96
+    private static let pisoMRR = 0.98
 
     /// Posição de cada consulta (na ordem de `ConsultasDeReferencia.todas`) quando os pisos foram
     /// gravados; só serve para a mensagem de falha dizer quem piorou.
     private static let posicoesGravadas: [Int?] = [
-        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, // ajuste #1–#19
-        nil, nil, 2, nil, nil, nil                              // sondas #20–#25
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // ajuste #1–#19
+        1, 1, 2, 1, 1, 1,                                       // #20–#25 (só a #22 continua sonda)
+        1, 1, 1, 1, 1                                           // ajuste da 2.3i #26–#30
     ]
 
     func testMetricasNaoCaemAbaixoDoPiso() {

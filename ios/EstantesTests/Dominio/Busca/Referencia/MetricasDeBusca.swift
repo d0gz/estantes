@@ -4,7 +4,7 @@ import Foundation
 /// Uma consulta do conjunto de referência e a resposta que um usuário esperaria.
 struct ConsultaDeReferencia {
     enum Caso: String {
-        case titulo, autor, categoria, cddir, sumario, prefixo, ortografiaAntiga, ancora, parte, hifen, tomo, plural
+        case titulo, autor, categoria, cddir, sumario, prefixo, ortografiaAntiga, ancora, parte, hifen, tomo, plural, ou
     }
 
     /// `ajuste` conta nas métricas que guiam os pesos; `sonda` é um caso que nenhum peso conserta
