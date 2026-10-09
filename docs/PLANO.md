@@ -295,7 +295,10 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   - Descartado: somar um BM25 por campo. Um termo presente em vários campos satura várias vezes,
     e o livro ganha nota demais.
   - O item do sumário mostrado no resultado é o de melhor nota BM25 entre os itens daquele livro.
-  - Pesos e parâmetros ficam em constantes. São ajustados com os testes.
+  - Pesos e parâmetros ficam em constantes (`ParametrosBM25F.padrao`), ajustados com um **conjunto de
+    consultas de referência**: 20–30 fichas reais e 15–20 consultas, cada uma com o livro esperado,
+    medidas num teste XCTest (top 1/top 3 e MRR). Mudar um peso mostra o efeito em todas as consultas
+    de uma vez; o app (2.7) só confere a sensação de uso e sugere consultas novas para o conjunto.
 - **Filtros** combináveis: autor, editora, faixa de anos, estante, prefixo de CDDir e categoria (chips coloridas).
 - **Resultado**: livro · item do sumário · página · estante · prateleira.
 
@@ -321,7 +324,9 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 norma
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
-- [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F `[eu escrevo]`, filtros) + testes
+- [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
+  (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F · 4 filtros · 5 motor e resultado ·
+  6 conjunto de consultas de referência e ajuste dos pesos)
 - [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
 - [ ] Simulador iOS 16 e CI verde (Sideloadly no iPhone adiado até haver aparelho)
@@ -444,3 +449,4 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 08/10 | Sumário com atributo `ordem` em vez de relação ordenada (`NSOrderedSet`) | Mais simples de substituir em bloco; relação ordenada é frágil e não funciona com CloudKit |
 | 08/10 | `ItemSumario` ganha `id` (UUID) no Core Data | A struct já tem `id`; sem ele a ida e volta não preserva a igualdade |
 | 08/10 | `apagarEstante` com destino igual à própria estante lança `destinoInvalido`; ids inexistentes: apagar ignora, ler devolve vazio, gravar lança erro | Revisão da 2.2: o destino igual pulava o "mover" e a cascata apagava os livros |
+| 09/10 | Pesos do BM25F ajustados por um conjunto de consultas de referência (passo 6 da 2.3, depois do motor), não testando o app | Uma métrica (top 1/top 3, MRR) mostra o efeito de cada ajuste em todas as consultas; no olho, consertar uma busca piora outras sem ninguém ver |
