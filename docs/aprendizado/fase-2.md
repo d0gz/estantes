@@ -1055,88 +1055,87 @@ Revisão (Ricardo aprovou 1, 2, 4, 5, 6; recusou 3 e 7):
 
 (sem respostas)
 
-## Tarefa 2.3g — Planejamento a partir das fotos reais: o plano muda (2026-10-09)
+---
+
+## Tarefa 2.3b — Obras em vários volumes: modelo, página como texto, numeração/parte no índice e hífen (2026-10-09)
 
 ### O que foi feito
-Sem código. Depois de fotografar 4 livros reais, `docs/PLANO.md` e `CLAUDE.md` foram atualizados: nova ordem de confiança das fontes de identificação, três parsers sobre uma struct `LinhaOCR`, modelo de `Livro` ampliado para obras em vários volumes (nova tarefa 2.3b, antes do passo 6 da busca), `pagina` como texto, hífen no tokenizador e `numeracao`/`parte` indexados. Fotos ficam fora do Git; o OCR é gravado em JSON e commitado.
+O modelo e a busca foram ajustados aos achados das fotos reais (tomos, páginas em romanos, âncoras como "Art. 1.710"), em cinco passos com um commit cada. Nasceu `Dominio/Regras/NumeroDePagina.swift`; `ItemSumario.pagina` virou `String?` e a `ValidacaoSumario` passou a comparar páginas por sequência; o `Livro` ganhou `local`, `volume`, `volumeRotulo`, `parte`, `serie`, `artigosInicio`/`artigosFim` (com Core Data e `Conversao.swift`); o `IndiceInvertido` passou a indexar `numeracao` e `parte`; o `Tokenizador` passou a juntar hífen entre letras. Testes: 144 → 171, todos verdes no Xcode 14.2.
 
 ### Conceitos envolvidos
 
-**1. Validar o plano contra dados reais.** O plano de 03/10 supunha ISBN e ficha CIP na maioria dos livros. As fotos mostraram o contrário: nenhum dos 4 tem ISBN (o ISBN só existe desde ~1970 e se generalizou depois), 3 são de 1954–1972 e só têm folha de rosto. Quatro livros não são estatística, mas bastam para derrubar uma suposição. Por isso o plano passou a medir acerto num conjunto de avaliação em vez de confiar na intuição.
+**1. Ordem das mudanças: dependências, não gosto.** A sequência foi regra pura → tipo do Domínio que a usa → persistência → índice, e o hífen por último (mexe na busca, como o índice). Cada commit compila e passa nos testes; isso permite `git bisect` útil se algo quebrar depois. Trocar o tipo de `pagina` no Domínio quebra a compilação de `Conversao.swift`, por isso Domínio e Core Data entraram no mesmo commit: o critério é "cada commit deixa o projeto verde", não "uma camada por commit".
 
-**2. Ordem de confiança.** Cada fonte tem uma taxa de erro diferente: código de barras (determinístico, dígito verificador) > ficha CIP (formato padronizado, ISBD) > folha de rosto (layout livre, mas semântico) > capa (decorativa) > Gemini (generativo, pode alucinar) > manual (sempre disponível). A ordem vai do mais verificável ao menos verificável; o Gemini fica depois dos algoritmos porque seu erro é silencioso.
-
-**3. `LinhaOCR` e a porta do Domínio.** O Vision devolve `VNRecognizedTextObservation` com `boundingBox` (CGRect normalizado 0–1, origem no canto inferior esquerdo). O Domínio só importa Foundation, então ele define sua própria struct:
+**2. Enum com valor associado como modelo de "sequência + número".**
 
 ```swift
-struct LinhaOCR { let texto: String; let x, y, largura, altura: Double; let confianca: Double }
+enum NumeroDePagina: Equatable { case arabico(Int), romano(Int) }
 ```
 
-`Dados/Visao` converte Vision para `LinhaOCR`. Isso é a mesma inversão de dependência do resto do projeto: a regra (parser) não conhece o detalhe (framework). Benefício concreto: o parser vira função pura `[LinhaOCR] -> Resultado`, testável com JSON gravado, inclusive na CI sem Vision nem fotos. Cuidado com o eixo y: no Vision, y=0 é a base da página; se o Domínio adotar "y cresce para baixo", a conversão tem de acontecer em um só lugar (a fronteira) e estar documentada.
+O *caso* diz a sequência; o valor diz a posição nela. Compare com `Int` + `Bool ehRomano`: o enum não admite estados incoerentes e o compilador obriga a tratar os dois casos num `switch`. Na `ValidacaoSumario`, o padrão `case let (.arabico(a), .arabico(b)), let (.romano(a), .romano(b))` casa a tupla `(anterior, atual)` só quando as sequências são iguais; qualquer outra combinação cai no `default` (troca de sequência, sem aviso).
 
-**4. Geometria como sinal.** OCR puro devolve linhas de texto sem hierarquia. Mas a altura da caixa aproxima o tamanho da fonte, e na folha de rosto o tamanho da fonte diz o papel: maiores linhas = título; médias = subtítulo/parte; pequenas no rodapé = editora, local, ano. No sumário, a geometria resolve outro problema: uma entrada pode ocupar várias linhas e o número da página nem sempre está na última. A regra "a página é o número da coluna da direita (x > ~85%) cujo y cai dentro do bloco da entrada" substitui "número no fim da linha". Isso é uma troca de unidade de análise: da linha para o bloco (entrada), definido por âncoras ("§ 5.108.", "Art. 1.710 —", "1.", "I"). Fica mais robusto, mas depende de calibrar limiares (85%, tolerância de y) com dados; daí o conjunto de avaliação.
+**3. Romano estrito: soma + ida e volta.**
+- Conversão romano → inteiro, O(n): percorre da esquerda para a direita; se o símbolo é menor que o seguinte, subtrai (IV = −1 + 5), senão soma. "XLVIII" = −10 + 50 + 5 + 1 + 1 + 1 = 48.
+- Só isso aceitaria lixo: "IIIII" daria 5, "IC" daria 99, "VX" daria 5. Em vez de uma lista de regras ("I só antes de V e X", "V nunca se repete"...), converte-se o total de volta para o romano canônico e compara-se com a entrada: se não for idêntica, não era um romano válido.
+- A volta é um algoritmo guloso sobre a tabela ordenada `M, CM, D, CD, C, XC, L, XL, X, IX, V, IV, I`: enquanto o resto comporta o maior valor, anota o símbolo e subtrai. Funciona porque a tabela inclui os pares subtrativos como "moedas" próprias (é o problema do troco com um sistema de moedas em que o guloso é ótimo). Faixa 1–3999, o que sete símbolos representam.
+- Vale como propriedade: o teste converte de 1 a 3999 e volta, e exige igualdade (teste "de ida e volta" é uma forma barata de teste de propriedade).
+- Ao contrário de uma regex de romanos (correta, mas ilegível), a verificação reaproveita a função de conversão que já era necessária.
 
-**5. `rotulo` × `numeracao` (a discussão com o Ricardo).** Semanticamente diferem: "Capítulo II" ou "1.2.3" é posição estrutural no livro; "Art. 1.710" ou "§ 5.108" é referência externa (a lei), que é o que o advogado procura. Mas cada item impresso tem um único prefixo, então um campo não perde dado. A diferença real é de busca: antes, `numeracao` não era indexada (só o título do item). Opções:
+**4. Página como texto e valor derivado.** O dado persistido é o que está impresso ("XI", "245–246", "s/n"). O número é calculado (`numeroDaPagina`), não guardado. Dois campos com a mesma informação podem divergir (alguém muda um e esquece o outro); derivar custa O(tamanho do texto), irrelevante. Regra geral: guarde a fonte da verdade, derive o resto, a menos que a derivação seja cara.
 
-| | Um campo indexado | Dois campos |
-| --- | --- | --- |
-| Ruído | pequeno: "1.2.3" vira o termo `123` | nenhum (só a âncora jurídica indexada) |
-| Tipo explícito | não | sim |
-| Custo | zero | campo extra em tela, Core Data, export, validação |
+**5. Comparar com o item anterior imediato.** A `ValidacaoSumario` compara cada página com a do item anterior que tenha página interpretável, e só avisa se for da mesma sequência e maior. "s/n" é pulado (nem avisa nem interrompe). Exemplo: `20, s/n, 10` avisa no índice 2, porque o "s/n" não conta. Alternativa descartada: comparar com o último item *da mesma sequência*. Num índice remissivo em romanos no fim do livro ("I"), isso avisaria contra o "XII" do prefácio, um falso alarme. Falso positivo em validação é pior do que parece: o usuário aprende a ignorar os avisos.
 
-Escolhido um campo. Regra geral: não modele distinções que nenhum comportamento usa (YAGNI); se algum dia a interface precisar tratá-las diferente, separar é uma migração localizada.
+**6. Modelo plano.** Campos novos do `Livro`: `local`, `volume: Int?` (número, para ordenar tomos e desempatar no LexML), `volumeRotulo` (o texto impresso que a tela mostra), `parte` (texto médio da folha de rosto), `serie` (da ficha CIP), `artigosInicio`/`artigosFim`. Todos opcionais, com padrão `nil` no `init`: por isso as chamadas existentes não mudaram (parâmetros com valor padrão são a forma de evoluir um `init` sem quebrar quem o usa). `volume` e `volumeRotulo` parecem redundantes, mas têm papéis distintos: um é para a máquina ordenar, outro para a pessoa ler ("Tomo XLVIII"). No Core Data, `Int?` vira `Integer 32` com `NSNumber?`; é por isso que o repositório testa que o livro mínimo volta com `nil` e não `0` ou `""`: o Core Data confunde fácil "ausente" e "zero".
 
-**6. Página como `String?` e sequências.** Prefácios usam romanos ("XII"); o corpo, arábicos. `Int?` perde os romanos; só `String` perde a ordem (e o aviso "página menor que a anterior"). Solução: guardar o texto impresso e ter uma regra pura que converte romano/arábico em número. A `ValidacaoSumario` compara só dentro da mesma sequência: "XII" → "1" é troca de sequência, não regressão. Romano -> inteiro: percorre os símbolos somando; se um símbolo é menor que o seguinte, subtrai (IV = 5 - 1). É O(n) no tamanho da string. Descartado `Int` + flag `ehRomano`: não representa "XI-XII" nem "245-246".
+**7. Sem migração, mas com uma armadilha.** Como não há dados gravados, o `.xcdatamodel` foi editado direto, sem criar versão de modelo. Quem já rodou o app no simulador tem um banco com `pagina` Integer; o Core Data não abre esse arquivo com o modelo novo (falha ao carregar a store). Solução: apagar o app do simulador. Os testes usam store em memória e não sofrem. Isso só é aceitável antes da 2.4 e do export v1; depois, cada mudança custaria migração.
 
-**7. Tokenizador e o hífen.** Duas situações com o mesmo caractere:
-- entre letras ("sub-rogação"): remover, juntando em `subrogacao`, para casar com quem digita sem hífen;
-- entre dígitos ("1.710-1.779"): continua separando. Se fosse removido, o intervalo viraria um termo só (`17101779`) e "art 1710" nunca o acharia.
+**8. O que entra em qual campo do índice.** O índice invertido guarda, por campo, a frequência de cada termo. Agora, os termos de cada item do sumário são `termos(numeracao) + termos(titulo)`, tanto no campo `sumario` do livro quanto nas frequências de cada `ItemSumarioIndexado` (de onde o motor tira o item mostrado no resultado). Assim, "art 1710" acha o livro e destaca o item "Art. 1.710" (e não o "Art. 1.709", que não tem o termo `1710`). A `parte` entra no campo `subtitulo`, com o mesmo peso: tem o papel de um subtítulo. O custo é ruído: "1.2.3" vira o termo `123`, aceito.
 
-A proposta original ("remover hífens") teria introduzido esse bug. Já "art. 1.710" → `art 1710` funcionava porque o ponto entre dígitos some; e a ortografia antiga ("sôbre", "emprêsa") já casa com a atual porque o Tokenizador remove acentos (normalização Unicode NFD e descarte de marcas combinantes). A lição: antes de adicionar regra, testar o que a regra existente já faz.
-
-**8. Mudar o esquema antes de haver dados.** Core Data exige migração (leve ou mapeada) quando o modelo muda com dados gravados. Como ainda não há dados em aparelho e o export v1 (2.8) não existe, editar o `.xcdatamodeld` direto é de graça; depois da 2.4 e do export, cada campo novo custaria migração e versão do JSON. Daí a ordem: 2.3b antes de tudo isso. Pela mesma lógica, a 2.3b vem antes do passo 6: o conjunto de consultas de referência precisa incluir "art 1710", parte e hífens, senão os pesos do BM25F seriam ajustados duas vezes.
-
-**9. Dados de teste com direitos autorais.** Fotos de livros ficam fora do Git (direitos e tamanho de binários, que o Git guarda para sempre). O que se versiona é o OCR em JSON (texto, caixa, confiança) e o gabarito. É o padrão "golden files": entrada gravada, saída esperada anotada à mão. Limite: o JSON não testa o Vision em si, apenas os parsers; mudanças no OCR da Apple (iOS 16 no Xcode 14 × iOS 26 na CI) não aparecem aí, e isso é aceitável porque o JSON é determinístico.
+**9. Hífen no tokenizador.** A regra: hífen entre duas letras é pulado, como o ponto entre dígitos. "sub-rogação" → `subrogacao`, igual a quem digita "subrogacao". Em qualquer outra posição continua separando: "1.710-1.779" → `1710`, `1779`; "CPC-2015" → `cpc`, `2015`. Detalhes:
+- Contam como hífen U+002D, U+2010 e U+2011 (o PDF/OCR traz variantes). O travessão (–, —) é pontuação entre palavras e continua separando.
+- O hífen invisível U+00AD (*soft hyphen*) sempre some: é uma marca de onde quebrar a linha, que vem junto em texto copiado.
+- O ponto e o hífen compartilham uma função `entre(caracteres, i, teste)`, chamada com `isNumber` ou `isLetter`: duas regras quase iguais viraram uma regra parametrizada pelo predicado.
+- Como índice e consulta passam pelo mesmo tokenizador, "sub-rogação", "subrogação" e "sub-rogacao" produzem o mesmo termo. Essa simetria é o que torna qualquer normalização segura.
 
 ### Por que assim
-- Ordem de confiança refinada, não revertida: a decisão de 03/10 (algoritmo antes de IA) continua valendo; o "algoritmo" apenas virou três fontes.
-- Parsers sobre `LinhaOCR`: testáveis e independentes do Vision.
-- Modelo ampliado agora: custo de mudança mínimo hoje, alto depois.
-- CDD e assuntos da ficha CIP fora do `Livro`: mantém a decisão de 03/10 (categorias no lugar de assuntos); os assuntos viram sugestão de categorias na confirmação.
-- LexML: volume/edição/ano entram na pontuação como desempate de títulos iguais, mas só depois de conferir como o LexML registra volumes (pode ser no título ou um registro por tomo). Planejar sem verificar seria chute.
+- Mudar o modelo agora, antes das telas (2.4) e do export (2.8): é o momento de custo mínimo.
+- Antes do passo 6: o conjunto de consultas de referência precisa conter "art 1710", parte e hífens, senão os pesos do BM25F seriam ajustados duas vezes.
+- Derivar `numeroDaPagina` em vez de guardar: ver conceito 4.
+- `parte` no campo `subtitulo` e `numeracao` no `sumario`: reaproveita os pesos existentes. Um `CampoBusca.parte` novo seria mais um parâmetro a calibrar no passo 6 sem comportamento diferente.
+- Sem validar `artigosInicio ≤ artigosFim` ainda: nenhuma tela grava esses campos antes da 2.4 (YAGNI); a validação nasce junto com quem os grava.
 
 ### Alternativas descartadas
-- Dois campos `rotulo` e `numeracao`: ver conceito 5.
-- `pagina` só `String` ou `Int` + flag: ver conceito 6.
-- Fotos como recursos do alvo de testes (ideia anterior): pesadas, com direitos autorais, e obrigariam rodar Vision na CI.
-- Remover todos os hífens: ver conceito 7.
-- Parser por linha para o sumário: falha com entradas de várias linhas e página fora da última.
-- Migrar o Core Data depois: custo evitável.
+- `pagina: Int?`: perde romanos. `Int` + flag `ehRomano`: não representa "XI-XII" e exigiria dois atributos no Core Data e no export.
+- Soma de romanos sem conferência: aceita "IIIII". Regex de romanos: correta, porém ilegível; a ida e volta reaproveita código.
+- Struct `Volume` aninhada no `Livro`: Core Data e JSON são planos, a conversão ganharia um nível sem ganho de comportamento.
+- Indexar `volumeRotulo` e `serie`: fica para o passo 6 se alguma consulta de referência pedir.
+- Remover todos os hífens: criaria `17101779` e "art 1710" não acharia o intervalo.
+- Indexar as duas formas (`sub`, `rogacao` e `subrogacao`): o BM25F contaria o conceito duas vezes e inflaria o comprimento do campo, distorcendo a normalização por comprimento.
 
 ### Padrões e boas práticas
-- Inversão de dependência na fronteira (`LinhaOCR`): use quando a regra é valiosa e o framework volátil; não vale para um detalhe de uso único.
-- Golden files / gabarito: bom para parsers heurísticos; ruim se o gabarito for tão grande que ninguém o mantém.
-- Decidir com métrica (acerto por campo) em vez de opinião.
-- YAGNI no modelo de dados: só crie campos que mudam algum comportamento.
-- Registrar a decisão com o motivo (tabela do PLANO), inclusive o que foi refinado e não revertido.
+- Tipos que tornam estados inválidos irrepresentáveis (enum com valor associado). Não vale quando as variantes não mudam o comportamento.
+- Fonte da verdade + valor derivado (conceito 4).
+- Teste como especificação: o teste antigo `testHifenETravessaoSeparam` ("Pós-graduação" → `pos`, `graduacao`) descrevia a regra anterior. Foi reescrito para `posgraduacao`, porque a decisão mudou. Se um teste antigo falha depois de uma decisão deliberada, o certo é atualizar a especificação, mas só depois de ter certeza de que a decisão é intencional (aqui, estava na explicação aprovada).
+- Teste de ida e volta (round trip) para conversões e para persistência (tomo completo no repositório).
+- Commits que compilam individualmente.
 
 ### Armadilhas
-- Eixo y do Vision (origem embaixo) versus a lógica "topo da página" dos parsers: bug clássico que inverte título e rodapé.
-- Limiares geométricos (85%, tolerâncias) calibrados em 4 livros: podem não generalizar; por isso ampliar para ~30.
-- Foto com a página curva ou com transparência do verso: o OCR gera lixo; filtrar por confiança.
-- Romano ambíguo: "MIX" ou "CIVIL" parecem romanos; só aplique a conversão em campos onde romano é esperado (volume, página).
-- `edicao` guardando reimpressão: ao comparar edições, "3.ª ed., 2.ª reimpr." não é igual a "3.ª ed."; o gabarito separa para medir, o app junta.
-- Indexar `numeracao` aumenta o índice com termos como `123`: ruído aceito, mas observe no passo 6.
+- Banco antigo no simulador não abre depois de mudar o tipo de um atributo: apague o app do simulador (sintoma: erro ao carregar a persistent store, ou crash na inicialização).
+- `NSNumber?` no Core Data: `0` e ausente são coisas diferentes; teste o `nil`.
+- Romano ambíguo: "MIX" e "CIVIL" parecem romanos; só interprete como romano em campos onde ele é esperado (página, volume).
+- Limite aceito do hífen: "sub rogação" (com espaço) não casa com "sub-rogação"; e a quebra de linha com hífen do OCR ("sub-\nrogação") é problema do parser, na Fase 3, pois o tokenizador vê o caractere de nova linha e separa.
+- O intervalo de página "245–246" usa travessão; por isso `interpretar` trata hífens e travessões como separadores de intervalo (e o tokenizador, não).
+- Comparar sempre com o último item: um "s/n" no meio não pode quebrar a cadeia de comparação.
 
 ### Para ir além
-- Documentação Apple: `VNRecognizedTextObservation` e `VNRectangleObservation.boundingBox` (sistema de coordenadas normalizado).
-- Manning, Raghavan e Schütze, *Introduction to Information Retrieval*, cap. 2 (tokenização e normalização).
-- Documentação Apple, "Core Data Model Versioning and Data Migration".
+- Manning, Raghavan e Schütze, *Introduction to Information Retrieval*, cap. 2 (tokenização e normalização; o trecho sobre hífens discute exatamente esse dilema).
+- Documentação Apple, "Core Data Model Versioning and Data Migration" (o que seria necessário se já houvesse dados).
+- *The Swift Programming Language*, capítulo "Enumerations" (valores associados) e "Patterns" (padrões em tuplas e `case let`).
 
 ### Perguntas
-1. Com suas palavras: por que `LinhaOCR` é definida no Domínio em vez de usar `VNRecognizedTextObservation` direto no parser? O que se ganha nos testes?
-2. Aplicação: o hífen entre letras é removido e entre dígitos separa. Como o `Tokenizador` trataria "sub-rogação nos arts. 1.710-1.779" e quais termos sairiam? E por que "remover todos os hífens" quebraria a busca por "art 1710"?
-3. Raciocínio: um tomo tem as páginas "XI", "XII", "1", "2", ... "245". Descreva como a `ValidacaoSumario` por sequência trataria cada transição e o que aconteceria com `Int?` simples. Depois diga quando separar `rotulo` e `numeracao` em dois campos passaria a valer a pena.
+1. Com suas palavras: por que `NumeroDePagina.interpretar("IIIII")` devolve `nil`, se a soma dos símbolos dá 5? Descreva a conferência de ida e volta.
+2. Aplicação: o advogado quer buscar "arts 1710 1779" e achar o tomo cujos artigos vão de 1.710 a 1.779. Que termos o tokenizador gera para "Arts. 1.710-1.779" e por que a busca funciona? O que mudaria se o hífen entre dígitos fosse removido?
+3. Raciocínio: um sumário tem as páginas "XI", "XII", "s/n", "1", "2", "XIV". Quais avisos a `ValidacaoSumario` emite, e em que índice? Depois diga por que comparar com "o último item da mesma sequência" geraria um falso alarme num índice remissivo em romanos no fim do livro.
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
