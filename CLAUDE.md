@@ -58,7 +58,7 @@ Fase 2 — App. (Atualize esta linha ao abrir uma nova fase.)
 Concluídas: 2.1 (entidades, porta e `ValidacaoSumario`), 2.2 (Core Data e repositório) e 2.3 (motor de busca:
 passos 1–6, 2.3b obras em vários volumes e 2.3i sondas — plural, volume/artigos no índice, correção de digitação,
 OU de reserva, peso do sumário 0,25; 224 testes). PR da branch `fase2/busca` aberto para revisão (merge quando o Ricardo mandar).
-**Próximo: 2.4 — telas principais**, começando só pela explicação. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
+**Em andamento: 2.4 — telas principais** (branch `fase2/telas`; forma de trabalho em `docs/PLANO.md`, "Forma de trabalho nas telas"). Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que

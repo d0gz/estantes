@@ -354,6 +354,26 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
   menu (⋯) no canto superior.
 
+### Forma de trabalho nas telas (2.4 em diante)
+
+- **Primeiro a lógica, depois o estilo.** A 2.4 faz todas as telas funcionarem com componentes nativos do SwiftUI, sem
+  decisões visuais (2.4a montagem e tela inicial · 2.4b apagar estante com confirmação · 2.4c estante → livros (agrupados
+  por prateleira) → detalhe · 2.4d adicionar/editar livro à mão · 2.4e prateleira com sugestões). Depois vem o estilo,
+  **uma tela por vez** (Inicio → Estante → Detalhe → Formulário → Apagar estante). A tela só fecha com a aprovação do Ricardo.
+- **Estilo:** a direção é um app moderno, "smooth" e "seamless". A cada captura, o Claude traz de 2 a 4 perguntas de estilo
+  numeradas, com opções e uma recomendação (cartões, cores, tipografia, animações, SF Symbols, modo escuro).
+  O estilo comum fica em `Apresentacao/Componentes/` (cores, fontes, espaçamentos), e cada tela mantém
+  identidade própria. As escolhas são registradas na seção Interface. Só APIs do iOS 16, sem `if #available`.
+- **Capturas:** `docs/capturas/<Tela>/<Tela>_<versão>.png` (ex.: `Inicio/Inicio_1.2.png`), **só locais** (no `.gitignore`).
+  Versão: o primeiro número é a rodada (0 = lógica, 1, 2… = estilo); o segundo, o ajuste dentro dela.
+  Feitas com `xcodebuild build` + `xcrun simctl boot/install/launch` + `xcrun simctl io booted screenshot`. O `simctl`
+  não toca na tela; para telas internas, o app aceita **só em DEBUG** o argumento `-captura <Tela>`, que abre a tela
+  direto com dados de exemplo em memória (sem tocar no banco real).
+- **Parada por limite de uso:** quando faltarem 5–8% do limite da sessão (o `/usage`), parar onde estiver, atualizar
+  este PLANO (onde parou e qual o próximo passo), commitar e abrir o PR em rascunho (`gh pr create --draft`) se ainda
+  não houver. Voltar só quando o uso reiniciar ou o Ricardo mandar. O Claude não enxerga o `/usage`: **o Ricardo avisa**.
+  Commits pequenos ao fim de cada passo limitam a perda se o aviso não vier.
+
 ### Checklist da Fase 2
 
 Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normalização + motor de busca (passos 1–6 e sondas ✅) ·
@@ -364,6 +384,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [x] `ValidacaoSumario` `[eu escrevo]` (escrita pelo Ricardo; 12 testes)
 - [x] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória) + `BibliotecaRepositorioCoreData` (conversão `[eu escrevo]` em parte; 25 testes de Dados)
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
+  (2.4a montagem e tela inicial · 2.4b apagar estante · 2.4c estante → livros → detalhe · 2.4d formulário · 2.4e prateleira ·
+  depois o estilo, tela por tela)
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
@@ -577,3 +599,7 @@ do parser e do Gemini.
 | 09/10 | Correção de digitação por distância de edição (OSA), só para termo desconhecido; trigramas descartados; não espera a Fase 5 | Termo desconhecido já daria lista vazia, então corrigir não muda consulta que funciona. Vocabulário pequeno dispensa índice de trigramas; a Fase 5 é de sinônimos |
 | 09/10 | OU de reserva só com E vazio e ≥ 2 termos, ordenado por nível de coordenação; `RespostaBusca` com `modo`, `correcoes` e `palavrasAusentes` | Sem penalidade nem mistura com o E: as notas dos dois grupos não se comparam. A tela precisa explicar a lista |
 | 09/10 | Peso do sumário 0,5 → 0,25 (revisa a linha de 09/10 que descartou o 0,25) | O plural tirou a parte estrutural da #11; duas consultas de risco inverso, escritas antes de medir, não pioraram. Continua na ponta da grade: não se estende a grade atrás de mais ganho |
+| 09/10 | 2.4: primeiro a lógica de todas as telas (componentes nativos), depois o estilo tela por tela, com perguntas a cada captura | Garante o fluxo certo antes de gastar tempo com aparência; decidir o visual olhando cada tela no simulador |
+| 09/10 | Capturas do simulador só locais (`docs/capturas/`, no `.gitignore`), com versão no nome; telas internas via argumento `-captura` só em DEBUG | Histórico visual sem pesar o repositório; o `simctl` não toca na tela |
+| 09/10 | Lista da estante agrupada por prateleira; na 2.4 o Claude escreve tudo (sem `[eu escrevo]`) | Espelha a estante física; escolha do Ricardo |
+| 09/10 | Parada a 5–8% do limite de uso: PLANO atualizado, commit, PR em rascunho; volta só com uso reiniciado ou ordem do Ricardo | Não perder trabalho no meio; o Claude não vê o `/usage`, então o Ricardo avisa |

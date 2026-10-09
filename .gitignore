@@ -24,3 +24,6 @@ data/cache_urn/
 data/fichas_urn.jsonl
 cache_urn/
 avaliacao/fotos/
+
+# Capturas do simulador (só locais)
+docs/capturas/
