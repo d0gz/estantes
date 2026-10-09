@@ -320,6 +320,15 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     consultas de referência**: 20–30 fichas reais e 15–20 consultas, cada uma com o livro esperado,
     medidas num teste XCTest (top 1/top 3 e MRR). Mudar um peso mostra o efeito em todas as consultas
     de uma vez; o app (2.7) só confere a sensação de uso e sugere consultas novas para o conjunto.
+  - **Conjunto de referência (passo 6, 09/10)**: em `EstantesTests/Dominio/Busca/Referencia/`, dados em Swift
+    (22 fichas: os 4 livros fotografados + 18 do LexML em grupos de vizinhos; 19 consultas de ajuste e 6
+    sondas). Métricas no alvo de testes, com empate pessimista. Linha de base: top 1 0,895 · MRR 0,939.
+    Resultado: **só o peso do sumário mudou (1,0 → 0,5)** → top 1 0,947 · top 3 1,000 · MRR 0,965 · item
+    certo 1,000. Os outros parâmetros não mudaram nenhuma consulta: ficam os de partida, sem validação.
+    Pisos congelados em `testMetricasNaoCaemAbaixoDoPiso` (top 1 ≥ 0,94, top 3 = 1, MRR ≥ 0,96, item = 1).
+  - **Sondas em aberto** (nenhum peso conserta; decidir antes da 2.7): "arts 1710 1779" e "tratado 48" (artigos e
+    volume fora do índice), "prisoes" (plural), "procesos" (digitação), "lassalle" × "Lassale" (grafia).
+    Quatro das seis terminam em **nenhum resultado** por causa do E estrito entre os termos.
 - **Filtros** combináveis: autor, editora, faixa de anos, estante, prefixo de CDDir e categoria (chips coloridas).
 - **Resultado**: livro · item do sumário · página · estante · prateleira.
 
@@ -335,8 +344,8 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 ### Checklist da Fase 2
 
-Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 normalização + motor de busca (passos 1–5 ✅)** ·
-2.3b modelo de obras em vários volumes + índice ✅ · **2.3 passo 6** (consultas de referência e pesos) · 2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
+Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normalização + motor de busca (passos 1–6 ✅) ·
+2.3b modelo de obras em vários volumes + índice ✅ · 2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
 2.9 fechamento (simulador + CI; Sideloadly adiado).
 
 - [x] Entidades do Domínio (structs; `Livro` como agregado com o sumário; categorias por id; capa fora da struct) + porta `BibliotecaRepositorio` + regra do nome de categoria
@@ -347,8 +356,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 norma
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
-  6 conjunto de consultas de referência e ajuste dos pesos — **depois da 2.3b**, para o conjunto já incluir
-  "art 1710", parte/subtítulo e hífens; senão os pesos seriam ajustados duas vezes)
+  6 conjunto de consultas de referência e ajuste dos pesos ✅, depois da 2.3b; 185 testes)
 - [x] 2.3b Obras em vários volumes: campos novos do `Livro` (volume, volumeRotulo, parte, serie, local,
   artigosInicio/Fim); `pagina` como texto + regra de conversão romano/arábico (`NumeroDePagina`); `ValidacaoSumario`
   comparando por sequência (escrita pelo Claude, a pedido do Ricardo); Core Data + `Conversao.swift`; `numeracao`
@@ -474,6 +482,10 @@ do parser e do Gemini.
 - Fase 4: Edge Functions `enriquecer-urn` (porta de `data/enriquecer_urn.py`, 5 s entre pedidos),
   `identificar-livro` (Google Books, Gemini) e `estruturar-sumario` (Gemini); chaves como secrets;
   limite de chamadas por dispositivo; pré-preenchimento do sumário pela `descricao`.
+  **Atenção (achado de 09/10):** no Supabase a `descricao` está cortada em 400 caracteres
+  (`MAX_DESCRICAO_CSV` em `data/extrair_livros_lexml.py`; 10.145 de 24.118). O pré-preenchimento precisa da
+  descrição inteira (reimportar a coluna ou ler a ficha `/urn`) e descartar o item cortado.
+  O leitor do `/urn` às vezes devolve a hierarquia da CDDir repetida ("… > DIREITO PRIVADO > DIREITO CIVIL").
 
 ## Fases 5 e 6
 
@@ -544,3 +556,6 @@ do parser e do Gemini.
 | 09/10 | `ValidacaoSumario` compara a página só com a do item anterior com página, e só se for da mesma sequência; "s/n" é pulado | Comparar com o último da mesma sequência faria um índice remissivo em romanos no fim avisar contra o prefácio |
 | 09/10 | Hífen entre letras: "-", U+2010 e U+2011 juntam; o travessão separa; o hífen invisível (U+00AD) some | Texto copiado e OCR trazem os hífens Unicode; o travessão é pontuação entre palavras |
 | 09/10 | `parte` soma no campo `subtitulo` e `numeracao` no `sumario` (sem campos novos no BM25F); `volumeRotulo` e `serie` fora do índice | Mesmo papel, mesmo peso: um campo novo seria mais um peso a ajustar no passo 6. Revisitar se uma consulta de referência pedir |
+| 09/10 | Conjunto de referência em Swift no alvo de testes (UUIDs fixos), não JSON; métricas também no alvo de testes, com empate pessimista | O `Livro` ainda muda até a 2.8: o compilador acusa campo renomeado. O app nunca calcula MRR. Empate decidido por título/UUID não é mérito de relevância |
+| 09/10 | Peso do sumário no BM25F 1,0 → 0,5 (candidato A); o 0,25 (B) foi descartado | Conserta "processo penal" sem perder nenhuma consulta. O 0,25 só ganhava na "prisao caut" (caso misto, regra do prefixo), na ponta da grade, sem consulta que medisse o risco |
+| 09/10 | Na varredura, o item certo é restrição (não se aceita troca que o piore); pisos congelados como teste de *snapshot* | `b` do sumário = 0 subia o MRR mas mostrava o item errado (o `notaDoItem` usa o mesmo `b`). Regra criada depois de ver o resultado, registrada como tal |
