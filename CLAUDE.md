@@ -57,9 +57,10 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 Fase 2 — App. (Atualize esta linha ao abrir uma nova fase.)
 Concluídas: 2.1 (entidades, porta e `ValidacaoSumario`) e 2.2 (Core Data e repositório).
 **Em andamento: 2.3 — motor de busca**, branch `fase2/busca` (PR em rascunho). Passos 1–5 prontos
-(tokenizador, índice invertido, BM25F, filtros, motor + resultado; 144 testes). **Próximo: passo 6 —
-conjunto de consultas de referência (top 1/top 3/MRR em XCTest) e ajuste dos pesos do BM25F**, começando
-só pela explicação (sem código) e esperando o OK do Ricardo. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
+(tokenizador, índice invertido, BM25F, filtros, motor + resultado; 144 testes). **Próximo: tarefa 2.3b —
+obras em vários volumes** (campos novos do `Livro`, `pagina` como texto, `numeracao`/`parte` no índice, hífen;
+achados das fotos reais em 09/10), depois o **passo 6 — consultas de referência (top 1/top 3/MRR) e pesos
+do BM25F**. Cada um começa só pela explicação (sem código), esperando o OK do Ricardo. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que

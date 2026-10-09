@@ -51,8 +51,8 @@ função do estado, e o ViewModel faz o papel que o controller tinha no MVC.
 ios/Estantes/
   App/              EstantesApp, Dependencias (montagem)
   Dominio/
-    Entidades/      Livro, Estante, Categoria (+ CorCategoria), ItemSumario, Candidato, FichaExtraida
-    Regras/         ISBN, ParserISBD, ParserSumario, Pontuacao, JaroWinkler, Normalizacao
+    Entidades/      Livro, Estante, Categoria (+ CorCategoria), ItemSumario, Candidato, FichaExtraida, LinhaOCR
+    Regras/         ISBN, ParserFichaCIP, ParserFolhaDeRosto, ParserSumario, NumeroRomano, Pontuacao, JaroWinkler, Normalizacao
     Busca/          Tokenizador, IndiceInvertido, BM25F, FiltroBusca, MotorDeBusca, ResultadoBusca
     CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca
     Portas/         BibliotecaRepositorio, CatalogoServico, OCRServico, LeitorCodigoBarras
@@ -252,8 +252,8 @@ create index edicoes_obra on edicoes (obra_id);
 | Entidade | Campos | Regras |
 | --- | --- | --- |
 | `Estante` | id (UUID), nome, criadaEm | `livros` com exclusão em cascata; a interface confirma quantos livros serão apagados e oferece movê-los |
-| `Livro` | id (UUID), titulo, subtitulo, autores, editora, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoCapa, adicionadoEm | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
-| `ItemSumario` | id (UUID), ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3"), titulo, pagina (opcional), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
+| `Livro` | id (UUID), titulo, subtitulo, autores, editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoCapa, adicionadoEm; **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
+| `ItemSumario` | id (UUID), ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3", "Art. 1.710", "§ 5.108"), titulo, pagina (opcional, **texto** desde a 2.3b: "245", "XI"), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
 | `Categoria` | id (UUID), nome (único, sem diferenciar maiúsculas/acentos), cor (identificador da paleta) | muitos-para-muitos com `Livro`; apagar a categoria = **nullify** (os livros só perdem a etiqueta) |
 
 - **No Core Data** (2.2): classes escritas à mão com sufixo `MO` (`LivroMO`...), só em `Dados/Persistencia/`;
@@ -275,6 +275,21 @@ create index edicoes_obra on edicoes (obra_id);
   `ValidacaoSumario` (Domínio) vale para todas: nível ≥ 1; o nível sobe no máximo 1 em relação ao item
   anterior; título não vazio; página menor que a anterior gera aviso, não erro. A entrada manual é
   item a item (numeração, título, página, recuo ↑↓); colar texto fica para a Fase 3, com o parser.
+- **Obras em vários volumes** (achado das fotos reais, 09/10): tratados e comentários vêm em tomos, cada
+  um com folha de rosto própria ("Tomo XLVIII", "Arts. 1.710-1.779"). `volume` é o número (ordena e
+  desempata no LexML); `volumeRotulo` é o texto impresso; `parte` e `subtitulo` são o texto médio da folha de
+  rosto (entram na busca); `serie` vem da ficha CIP; `artigosInicio/Fim` são opcionais. `edicao` continua texto
+  e guarda também a reimpressão ("3.ª ed., 2.ª reimpr.").
+- **Âncoras jurídicas no sumário**: "Art. 1.710" e "§ 5.108" vão em `numeracao` (sem campo `rotulo` à parte:
+  cada item tem um só prefixo impresso). Os subitens numerados de um § viram filhos (nível + 1) com a mesma página.
+- **Página como texto** (`pagina: String?`): há páginas em romanos (prefácio, introdução). Uma regra pura do
+  Domínio converte romano/arábico em número; a `ValidacaoSumario` compara páginas só dentro da mesma
+  sequência (passar de "XII" para "1" não gera aviso).
+- **CDD e assuntos da ficha CIP não viram campos do `Livro`** (continua a decisão de 03/10: categorias no lugar
+  de `assuntos`). Ficam na `FichaExtraida` e no gabarito; os assuntos viram sugestão de categorias na tela de
+  confirmação (Fase 3).
+- **Sem migração**: o modelo muda na 2.3b, antes das telas (2.4) e do export v1 (2.8); ainda não há dados
+  gravados em aparelho, então o `.xcdatamodeld` é editado direto e o JSON v1 já nasce com os campos novos.
 - **Exportar/importar**: `.json` versionado `{"versao": 1, "categorias": [...], "estantes": [...]}`;
   cada livro leva `cddirCaminho`, `itensSumario` e os UUIDs das suas categorias. Via folha de
   compartilhar e seletor de arquivos; UUIDs permitem **mesclar** ou **substituir** (perguntar).
@@ -286,6 +301,12 @@ create index edicoes_obra on edicoes (obra_id);
 Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, com testes XCTest.
 
 - **Normalização**: minúsculas, sem acento, sem palavras vazias (de, da, do, e, em, para...).
+  - Ortografia antiga ("sôbre", "emprêsa", comum nos livros de 1950–1970) já casa com a atual: a remoção de
+    acentos resolve. "art. 1.710" já vira `art 1710` (o ponto entre dígitos some no `Tokenizador`).
+  - **Hífen (2.3b)**: entre letras é removido, no índice e na consulta ("sub-rogação" → `subrogacao`, igual a
+    quem digita sem hífen); entre dígitos continua separando ("1.710-1.779" não pode virar um termo só).
+- **Campos indexados (2.3b)**: a `numeracao` dos itens entra no campo `sumario` (para "art 1710" achar o item;
+  números estruturais como "1.2.3" viram um ruído pequeno, aceito); `parte` entra no campo `subtitulo`.
 - **Índice invertido** em memória, montado ao abrir o app; atualizado livro a livro depois de cada alteração.
   O índice grava os *nomes* das categorias: renomear ou apagar uma categoria reindexa os livros dela.
 - **Ranking BM25F** por livro. Pesos por campo: título (maior), subtítulo, nomes de categoria,
@@ -314,8 +335,8 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 ### Checklist da Fase 2
 
-Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 normalização + motor de busca (em andamento: falta o passo 6)** ·
-2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
+Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 normalização + motor de busca (passos 1–5 ✅)** ·
+**2.3b modelo de obras em vários volumes + índice** · 2.3 passo 6 (consultas de referência e pesos) · 2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
 2.9 fechamento (simulador + CI; Sideloadly adiado).
 
 - [x] Entidades do Domínio (structs; `Livro` como agregado com o sumário; categorias por id; capa fora da struct) + porta `BibliotecaRepositorio` + regra do nome de categoria
@@ -326,30 +347,56 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 norma
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
-  6 conjunto de consultas de referência e ajuste dos pesos)
+  6 conjunto de consultas de referência e ajuste dos pesos — **depois da 2.3b**, para o conjunto já incluir
+  "art 1710", parte/subtítulo e hífens; senão os pesos seriam ajustados duas vezes)
+- [ ] 2.3b Obras em vários volumes: campos novos do `Livro` (volume, volumeRotulo, parte, serie, local,
+  artigosInicio/Fim); `pagina` como texto + regra de conversão romano/arábico (com testes); `ValidacaoSumario`
+  comparando por sequência `[eu escrevo]`; Core Data + `Conversao.swift`; `numeracao` e `parte` no índice;
+  hífen no `Tokenizador`; testes
 - [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
 - [ ] Simulador iOS 16 e CI verde (Sideloadly no iPhone adiado até haver aparelho)
 
 ## Identificação de livros e sumário (Fases 3 e 4)
 
-### Ordem das fontes
+### O que as fotos reais mostraram (09/10)
+
+Fotos de 4 livros (`avaliacao/fotos/`, fora do Git): **nenhum tem ISBN**; 3 são de 1954–1972 e só têm
+**folha de rosto** (sem ficha CIP); dois são tomos de obras em vários volumes. Os sumários usam âncoras
+jurídicas ("§ 5.108.", "Art. 1.710 —"), páginas em romanos e às vezes o formato "Título, 5" sem pontilhado.
+O plano anterior supunha ISBN/ficha na maioria dos livros e pedia a "contracapa".
+
+### Ordem das fontes (ordem de confiança)
 
 1. **Código de barras** (EAN-13 = ISBN): `edicoes.isbn13` → senão Google Books.
-2. **Extração algorítmica** → `buscar_livro` → pontuação → enriquecer a URN escolhida.
-3. **Gemini** só quando nenhum candidato passa do limiar: estrutura o texto do OCR e a busca é refeita.
+2. **Ficha CIP** (livros mais novos) → `ParserFichaCIP`.
+3. **Folha de rosto** → `ParserFolhaDeRosto`. A captura pede "folha de rosto", não "contracapa".
+4. **Capa** → maior texto = título.
+5. Os passos 2–4 mandam o título extraído a `buscar_livro` → pontuação → enriquecer a URN escolhida.
+6. **Gemini** só quando nenhum candidato passa do limiar: estrutura o texto do OCR e a busca é refeita.
    Não inventa dados; sem confirmação, salva como "não verificado".
-4. **Edição manual**, sempre disponível.
+7. **Edição manual**, sempre disponível.
 
 ### Extração algorítmica
 
-- Ficha catalográfica (ISBD): ` / ` separa título e autores; ` – ` antecede a edição;
-  `Local : Editora, Ano`; `ISBN ...`. Parser por pontuação + regex.
-- Regex de ISBN (com dígito verificador; ISBN-10 → 13) e ano.
-- Capa: maior texto (altura da caixa do Vision) = candidato a título.
-- Mandar a `buscar_livro` **só o título extraído**, nunca o texto inteiro da capa: autor e editora no texto
+Os parsers ficam no Domínio e recebem `[LinhaOCR]`: struct só com Foundation (texto, caixa com x/y/largura/
+altura normalizados 0–1, confiança), montada em `Dados/Visao` a partir do Vision. Nada de `CGRect` ou
+`VNRecognizedTextObservation` no Domínio; os testes usam o OCR gravado em JSON (ver Avaliação).
+
+- **`ParserFichaCIP`**: cabeçalho "Sobrenome, Nome, datas"; "Título / responsabilidade"; "— Local: Editora,
+  Ano"; série entre parênteses; assuntos numerados ("1. Direito civil"); CDD/CDU; ISBN. A coluna da esquerda
+  (número de chamada, controle) é separada pela coordenada x.
+- **`ParserFolhaDeRosto`** por geometria (altura da caixa ≈ tamanho da fonte; posição vertical):
+  - título = as maiores linhas; autor = linha curta no topo ou depois de "por";
+  - volume = (TOMO|VOLUME) + romano/arábico; edição = "N.ª EDIÇÃO" (+ REIMPRESSÃO);
+  - ano = 4 dígitos no terço inferior; editora = Editor/Editora/Livraria/Ltda/S.A.; local = lista de cidades;
+  - subtítulo/parte = texto de tamanho médio entre o título e o volume (entra na busca).
+- **Capa**: maior texto (altura da caixa) = candidato a título.
+- Regex de ISBN (com dígito verificador; ISBN-10 → 13) e ano; conversão romano/arábico (regra da 2.3b,
+  reaproveitada para volume e página).
+- Mandar a `buscar_livro` **só o título extraído**, nunca o texto inteiro: autor e editora no texto
   derrubam a `similarity` abaixo do limiar (Fase 1, opção (c″)). Medir no conjunto de avaliação.
-- NLTagger (`.personalName`) para autor; NLGazetteer com editoras jurídicas para editora.
+- NLTagger (`.personalName`) e NLGazetteer (editoras jurídicas) como apoio para autor e editora.
 
 ### Pontuação
 
@@ -359,8 +406,10 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 norma
 | Título | alto | trigramas, sem acento |
 | Autor | médio | Jaro-Winkler após normalizar "Sobrenome, Nome" e iniciais |
 | Ano, editora | desempate | igualdade/proximidade |
+| Volume, edição | desempate | títulos iguais de obras em vários volumes |
 
-Buscar amplo (só título, ~10 candidatos), ordenar com todos os sinais. Alta: pré-seleciona.
+Conferir no `lexml_livros` como o LexML registra os volumes (no título? um registro por tomo?) antes de
+fechar a pontuação. Buscar amplo (só título, ~10 candidatos), ordenar com todos os sinais. Alta: pré-seleciona.
 Média: top 3 + "nenhum desses". Baixa: Gemini.
 
 ### Sumário
@@ -371,8 +420,16 @@ Média: top 3 + "nenhum desses". Baixa: Gemini.
 - **Alternativa sem câmera**: `PhotosPicker` com várias páginas, sempre disponível (e a única no
   simulador). Fotos vão do Mac para o simulador arrastando para a janela ou com
   `xcrun simctl addmedia booted foto.jpg`.
-- **Parser algorítmico** (`Regras/ParserSumario`): número no fim da linha = página; numeração
-  (1., 1.1, I, a)) e recuo definem o nível e vão para `numeracao`; linhas quebradas são juntadas.
+- **Parser algorítmico** (`Regras/ParserSumario`) por **âncoras + geometria**, não por linha (uma entrada
+  ocupa várias linhas e a página nem sempre fica na última):
+  - números à direita (x > ~85% da largura) formam a coluna de páginas;
+  - uma entrada começa em "§ N.NNN." / "Art. N.NNN —" / numeração (1., 1.1, I, a)) / recuo; a âncora vai para
+    `numeracao`;
+  - a página da entrada é o número da coluna cujo y cai dentro do bloco dela (às vezes vem uma linha antes do fim);
+  - PARTE / CAPÍTULO / caixa alta / centralizado = níveis sem página;
+  - formato "Título, 5" (sem pontilhado, com romanos) tratado à parte;
+  - ruídos: cabeçalho corrido, fólio, transparência do verso (filtrar pela confiança), página curva;
+  - colar texto (sem geometria) usa o mesmo parser, com cada linha numa caixa de largura inteira.
   A saída passa pela `ValidacaoSumario`, como a entrada manual.
 - **Gemini como reserva** quando o parser falha (Edge Function `estruturar-sumario`).
 - **Pré-preenchimento pela `descricao`** do LexML (`Sumário: ... -- ...`), com `origem = lexml`.
@@ -380,16 +437,40 @@ Média: top 3 + "nenhum desses". Baixa: Gemini.
 
 ### Avaliação (decide algoritmo × IA com números)
 
-Conjunto de ~30 livros reais (fotos de capa + ficha) e **~10 sumários** com gabarito anotado à mão;
-medir acerto por campo (livro) e por item/nível/página (sumário), do parser e do Gemini.
+Conjunto de ~30 livros reais (capa, ficha CIP ou folha de rosto) e **~10 sumários** com gabarito anotado à
+mão (hoje: 4 livros, 5 páginas de sumário); medir acerto por campo (livro) e por item/nível/página (sumário),
+do parser e do Gemini.
+
+- **Fotos** em `avaliacao/fotos/livro-0N-<nome>/` (`capa.jpg`, `ficha-cip.jpg`, `folha-rosto.jpg`,
+  `sumario-0N.jpg`), **fora do Git** (direitos autorais e tamanho).
+- **OCR em JSON**, no Git, em `avaliacao/ocr/`: gerado no Mac por um teste/script que roda o Vision nas fotos
+  (texto, caixa, confiança de cada linha). Os parsers são testados com esse JSON, inclusive na CI, sem as fotos.
+- **Gabarito** em `avaliacao/gabarito/livro-0N.json`, no Git:
+  ```
+  { "id", "fonte_identificacao",
+    "livro": { "titulo", "subtitulo", "autores", "editora", "local", "ano", "edicao", "reimpressao",
+               "volume", "volume_rotulo", "parte", "serie", "isbn", "cdd", "assuntos" },
+    "sumario": [ { "ordem", "nivel", "rotulo", "titulo", "pagina" } ],
+    "notas" }
+  ```
+  No gabarito, `rotulo` corresponde à `numeracao` do app; `reimpressao` fica separada para medir, mas no app
+  vai junto em `edicao`; `cdd` e `assuntos` não têm campo no `Livro`.
 
 ### Checklists
 
-- Fase 3: câmera + `PhotosPicker`; conjunto de avaliação (livros + sumários); parser ISBD/regex/layout/
-  NLTagger; script de medição; RPC + pontuação; tela de confirmação (candidatos, "nenhum desses", manual,
-  estante sugerida pela CDDir, prateleira); cache local; scanner de sumário (VisionKit e `PhotosPicker`)
-  + `ParserSumario` + avaliação. Fotos do conjunto de avaliação como recursos do alvo de testes
-  (`EstantesTests/Recursos/`, no `project.yml`), com o OCR rodando em XCTest no simulador.
+- Fase 3:
+  - [ ] Script/teste local: Vision nas fotos → `avaliacao/ocr/*.json`
+  - [ ] Gabaritos dos 4 livros já fotografados; ampliar até ~30 livros / ~10 sumários
+  - [ ] `LinhaOCR` no Domínio + leitura do JSON nos testes
+  - [ ] `ParserFichaCIP` + testes
+  - [ ] `ParserFolhaDeRosto` (geometria) + testes
+  - [ ] `ParserSumario` (âncoras + geometria) + testes
+  - [ ] Script de medição (acerto por campo e por item/nível/página)
+  - [ ] Conferir como o LexML registra volumes; RPC + pontuação com volume/edição/ano no desempate
+  - [ ] Câmera + `PhotosPicker` pedindo capa, ficha CIP ou folha de rosto
+  - [ ] Tela de confirmação (candidatos, "nenhum desses", manual, estante sugerida pela CDDir, prateleira,
+        assuntos da CIP como sugestão de categorias); cache local
+  - [ ] Scanner de sumário (VisionKit e `PhotosPicker`) + colar texto
 - Fase 4: Edge Functions `enriquecer-urn` (porta de `data/enriquecer_urn.py`, 5 s entre pedidos),
   `identificar-livro` (Google Books, Gemini) e `estruturar-sumario` (Gemini); chaves como secrets;
   limite de chamadas por dispositivo; pré-preenchimento do sumário pela `descricao`.
@@ -451,3 +532,11 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 08/10 | `apagarEstante` com destino igual à própria estante lança `destinoInvalido`; ids inexistentes: apagar ignora, ler devolve vazio, gravar lança erro | Revisão da 2.2: o destino igual pulava o "mover" e a cascata apagava os livros |
 | 09/10 | Pesos do BM25F ajustados por um conjunto de consultas de referência (passo 6 da 2.3, depois do motor), não testando o app | Uma métrica (top 1/top 3, MRR) mostra o efeito de cada ajuste em todas as consultas; no olho, consertar uma busca piora outras sem ninguém ver |
 | 09/10 | Filtros (`FiltroBusca`): E entre dimensões, OU dentro de estantes e categorias; aplicados depois do BM25F; autor por palavras (prefixo, qualquer ordem, mesmo autor); livro sem ano/CDDir sai quando o filtro está ligado | Filtrar antes mudaria o IDF ao ligar uma chip; "contém" no texto inteiro não achava "José Afonso Silva" em "Silva, José Afonso da" |
+| 09/10 | Ordem de confiança: código de barras → ficha CIP → folha de rosto → capa → Gemini → manual; a captura pede "folha de rosto" | Fotos de 4 livros reais: nenhum com ISBN, 3 (1954–1972) só com folha de rosto. Refina a ordem de 03/10 (o "algoritmo" vira três fontes), não a reverte |
+| 09/10 | Parsers de ficha CIP, folha de rosto e sumário sobre `LinhaOCR` (texto + caixa + confiança), usando a geometria do Vision | Na folha de rosto o tamanho da fonte diz o que é título; no sumário a página fica numa coluna e nem sempre na última linha da entrada |
+| 09/10 | `Livro` ganha volume, volumeRotulo, parte, serie, local e artigosInicio/Fim, numa tarefa 2.3b antes do passo 6 e da 2.4 | Obras em vários volumes; volume/ano/edição desempatam títulos iguais no LexML. Antes das telas e do export v1, sem dados gravados: sem migração |
+| 09/10 | Âncoras ("Art. 1.710", "§ 5.108") em `numeracao`, que passa a ser indexada; sem campo `rotulo` | Cada item tem um só prefixo impresso; dois campos com o mesmo papel complicariam tela, Core Data e export. Ruído dos números estruturais é pequeno |
+| 09/10 | `ItemSumario.pagina` como texto + valor numérico derivado; `ValidacaoSumario` compara por sequência | Páginas em romanos no prefácio; "XII" → "1" não é erro |
+| 09/10 | Hífen entre letras removido no índice e na consulta; entre dígitos continua separando | "sub-rogação" = "subrogação"; "1.710-1.779" não pode virar um termo só |
+| 09/10 | Fotos do conjunto de avaliação fora do Git; OCR gravado em JSON (`avaliacao/ocr/`) no Git | Direitos autorais e tamanho; a CI testa os parsers sem as fotos. Substitui "fotos como recursos do alvo de testes" |
+| 09/10 | CDD e assuntos da ficha CIP fora do `Livro`; assuntos viram sugestão de categorias | Mantém a decisão de 03/10 (categorias no lugar de `assuntos`) |
