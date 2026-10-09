@@ -3,7 +3,8 @@ import Foundation
 /// Regra única do formato do sumário. Vale para toda origem: escrita à mão (2.6), foto + parser
 /// (Fase 3), Gemini e LexML (Fase 4).
 ///
-/// [eu escrevo] — Ricardo implementa `validar`. Os tipos abaixo já estão prontos.
+/// `validar` foi escrita pelo Ricardo na 2.1; na 2.3b (páginas em texto) a comparação de páginas
+/// passou a respeitar a sequência (romanos do prefácio × arábicos do corpo).
 enum ValidacaoSumario {
     /// Cada problema aponta o índice do item no array (0 = primeiro).
     enum Problema: Equatable {
@@ -13,7 +14,8 @@ enum ValidacaoSumario {
         case saltoDeNivel(indice: Int)
         /// Erro: título vazio ou só com espaços.
         case tituloVazio(indice: Int)
-        /// Aviso: página menor que a do último item anterior que tinha página.
+        /// Aviso: página menor que a do último item anterior com página, sendo os dois da mesma sequência
+        /// (romana ou arábica). "XII" → "1" é troca de sequência, não regressão.
         case paginaMenorQueAnterior(indice: Int)
     }
 
@@ -29,7 +31,8 @@ enum ValidacaoSumario {
         var erros: [Problema] = []
         var avisos: [Problema] = []
         var itemAnteriorNivel = 0
-        var pagItemAnterior: Int? = nil
+        // A última página interpretável; texto como "s/n" é pulado, como um item sem página.
+        var pagItemAnterior: NumeroDePagina? = nil
         for(index, element) in itens.enumerated()
         {
     
@@ -47,18 +50,28 @@ enum ValidacaoSumario {
                 erros.append(.tituloVazio(indice: index))
             }
             
-            if let pagAtual = element.pagina
+            if let pagAtual = element.numeroDaPagina
             {
                 if let pagAnterior = pagItemAnterior,
-                    pagAtual < pagAnterior
+                    paginaVoltou(de: pagAnterior, para: pagAtual)
                 {
                     avisos.append(.paginaMenorQueAnterior(indice: index))
                 }
-                
-            pagItemAnterior = pagAtual
+
+                pagItemAnterior = pagAtual
             }
             itemAnteriorNivel = element.nivel
         }
         return Resultado(erros: erros, avisos: avisos)
+    }
+
+    /// Só compara dentro da mesma sequência; ao trocar de sequência, a comparação recomeça do item atual.
+    private static func paginaVoltou(de anterior: NumeroDePagina, para atual: NumeroDePagina) -> Bool {
+        switch (anterior, atual) {
+        case let (.arabico(a), .arabico(b)), let (.romano(a), .romano(b)):
+            return b < a
+        default:
+            return false
+        }
     }
 }

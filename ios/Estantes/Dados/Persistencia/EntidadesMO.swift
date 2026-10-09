@@ -30,7 +30,14 @@ final class LivroMO: NSManagedObject {
     /// Um autor por linha (`FormatoPersistido.separadorAutores`).
     @NSManaged var autores: String
     @NSManaged var editora: String?
+    @NSManaged var local: String?
     @NSManaged var edicao: String?
+    @NSManaged var volume: NSNumber?
+    @NSManaged var volumeRotulo: String?
+    @NSManaged var parte: String?
+    @NSManaged var serie: String?
+    @NSManaged var artigosInicio: NSNumber?
+    @NSManaged var artigosFim: NSNumber?
     /// `NSNumber?` e não `Int`: um número "escalar" do Core Data não pode ficar vazio.
     @NSManaged var ano: NSNumber?
     @NSManaged var isbn13: String?
@@ -63,7 +70,8 @@ final class ItemSumarioMO: NSManagedObject {
     @NSManaged var nivel: Int32
     @NSManaged var numeracao: String?
     @NSManaged var titulo: String
-    @NSManaged var pagina: NSNumber?
+    /// Texto desde a 2.3b ("245", "XI").
+    @NSManaged var pagina: String?
     /// `OrigemItemSumario.rawValue`.
     @NSManaged var origem: String
     @NSManaged var livro: LivroMO

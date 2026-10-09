@@ -90,9 +90,11 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
             prateleira: "2ª de cima",
             categoriaIds: [categoria.id],
             itensSumario: [
+                // Página em romanos: o texto impresso volta igual (desde a 2.3b, `pagina` é String).
+                ItemSumario(nivel: 1, titulo: "Prefácio", pagina: "XI", origem: .manual),
                 ItemSumario(nivel: 1, numeracao: "Parte I", titulo: "Teoria geral", origem: .lexml),
-                ItemSumario(nivel: 2, numeracao: "Capítulo 1", titulo: "Conceito de contrato", pagina: 3, origem: .foto),
-                ItemSumario(nivel: 2, titulo: "Formação", pagina: 51, origem: .manual),
+                ItemSumario(nivel: 2, numeracao: "Capítulo 1", titulo: "Conceito de contrato", pagina: "3", origem: .foto),
+                ItemSumario(nivel: 2, titulo: "Formação", pagina: "51", origem: .manual),
             ],
             adicionadoEm: data
         )
@@ -112,6 +114,36 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         XCTAssertEqual(lido?.autores, [])
         XCTAssertEqual(lido?.cddirCaminho, [])
         XCTAssertNil(lido?.ano)
+        // Campos da 2.3b: ausentes voltam nil, não 0 nem "".
+        XCTAssertNil(lido?.volume)
+        XCTAssertNil(lido?.artigosInicio)
+        XCTAssertNil(lido?.parte)
+        XCTAssertNil(lido?.local)
+    }
+
+    func testTomoDeObraEmVariosVolumesIdaEVolta() async throws {
+        let estante = try await novaEstante()
+        let livro = Livro(
+            estanteId: estante.id,
+            titulo: "Tratado de direito privado",
+            autores: ["Pontes de Miranda"],
+            editora: "Borsoi",
+            local: "Rio de Janeiro",
+            edicao: "3.ª ed., 2.ª reimpr.",
+            volume: 48,
+            volumeRotulo: "Tomo XLVIII",
+            parte: "Direito das sucessões",
+            serie: "Coleção Tratado",
+            artigosInicio: 1710,
+            artigosFim: 1779,
+            ano: 1972,
+            itensSumario: [ItemSumario(nivel: 1, numeracao: "§ 5.108.", titulo: "Conceito", pagina: "3")],
+            adicionadoEm: data
+        )
+        try await repositorio.salvar(livro)
+
+        let lido = try await repositorio.livro(id: livro.id)
+        XCTAssertEqual(lido, livro)
     }
 
     func testSumarioVoltaNaOrdemDoArray() async throws {
