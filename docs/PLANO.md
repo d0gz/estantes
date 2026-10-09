@@ -301,12 +301,17 @@ create index edicoes_obra on edicoes (obra_id);
 Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, com testes XCTest.
 
 - **Normalização**: minúsculas, sem acento, sem palavras vazias (de, da, do, e, em, para...).
+  - **Plural (2.3i)**: regra mínima do português (`Singular`: oes→ao, ais→al, eis→el, ns→m, vogal+res→r, zes→z,
+    vogal+s; exceções testadas), aplicada pelo `Tokenizador` no índice e na consulta. O texto gravado não muda. O índice
+    guarda também as palavras como foram escritas, para o prefixo ("cautelare" → `cautelar`). RSLP descartado.
   - Ortografia antiga ("sôbre", "emprêsa", comum nos livros de 1950–1970) já casa com a atual: a remoção de
     acentos resolve. "art. 1.710" já vira `art 1710` (o ponto entre dígitos some no `Tokenizador`).
   - **Hífen (2.3b)**: entre letras é removido, no índice e na consulta ("sub-rogação" → `subrogacao`, igual a
     quem digita sem hífen); entre dígitos continua separando ("1.710-1.779" não pode virar um termo só).
 - **Campos indexados (2.3b)**: a `numeracao` dos itens entra no campo `sumario` (para "art 1710" achar o item;
   números estruturais como "1.2.3" viram um ruído pequeno, aceito); `parte` entra no campo `subtitulo`.
+  **Desde a 2.3i** também `volume`, `volumeRotulo` e as pontas de `artigosInicio/Fim` (no `subtitulo`; o intervalo
+  inteiro ficaria como ruído — "art 1750 → volume XXIV" seria outro recurso, se o uso pedir).
 - **Índice invertido** em memória, montado ao abrir o app; atualizado livro a livro depois de cada alteração.
   O índice grava os *nomes* das categorias: renomear ou apagar uma categoria reindexa os livros dela.
 - **Ranking BM25F** por livro. Pesos por campo: título (maior), subtítulo, nomes de categoria,
@@ -326,9 +331,16 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     Resultado: **só o peso do sumário mudou (1,0 → 0,5)** → top 1 0,947 · top 3 1,000 · MRR 0,965 · item
     certo 1,000. Os outros parâmetros não mudaram nenhuma consulta: ficam os de partida, sem validação.
     Pisos congelados em `testMetricasNaoCaemAbaixoDoPiso` (top 1 ≥ 0,94, top 3 = 1, MRR ≥ 0,96, item = 1).
-  - **Sondas em aberto** (nenhum peso conserta; decidir antes da 2.7): "arts 1710 1779" e "tratado 48" (artigos e
-    volume fora do índice), "prisoes" (plural), "procesos" (digitação), "lassalle" × "Lassale" (grafia).
-    Quatro das seis terminam em **nenhum resultado** por causa do E estrito entre os termos.
+  - **Sondas decididas (2.3i, 09/10)**: plural (regra mínima), volume/rótulo/artigos no índice, **correção de digitação**
+    (Damerau–Levenshtein restrita contra o vocabulário, só para termo desconhecido só de letras com ≥ 5 letras: 1 erro
+    até 8 letras, 2 a partir de 9; desempate por df e ordem alfabética) e **OU de reserva** (só quando a lista do E,
+    já filtrada, fica vazia e há ≥ 2 termos; ordena por quantos termos o livro tem e depois pela nota). `buscar` devolve
+    `RespostaBusca` (resultados, `modo`, `correcoes`); cada resultado traz `palavrasAusentes`. A tela (2.7) mostra a
+    correção ("buscar exatamente" = `corrigir: false`), a faixa do OU e o `volumeRotulo` na linha.
+    Cinco sondas viraram ajuste; a #22 ("tratado direito privado") continua sonda: é ambígua por natureza.
+    Consultas novas, escritas antes de medir: #26–#30 (plural ao contrário, "tomo xlviii", OU, e duas de risco inverso
+    do peso do sumário). **Peso do sumário 0,5 → 0,25**: o plural tirou a parte estrutural da #11 e as de risco inverso
+    não pioraram. Resultado: 29 de ajuste, todas em 1º (top 1, top 3, MRR e item = 1,000); pisos top 1 ≥ 0,96, MRR ≥ 0,98.
 - **Filtros** combináveis: autor, editora, faixa de anos, estante, prefixo de CDDir e categoria (chips coloridas).
 - **Resultado**: livro · item do sumário · página · estante · prateleira.
 
@@ -344,7 +356,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 ### Checklist da Fase 2
 
-Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normalização + motor de busca (passos 1–6 ✅) ·
+Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normalização + motor de busca (passos 1–6 e sondas ✅) ·
 2.3b modelo de obras em vários volumes + índice ✅ · 2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
 2.9 fechamento (simulador + CI; Sideloadly adiado).
 
@@ -354,9 +366,10 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
-- [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
+- [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
-  6 conjunto de consultas de referência e ajuste dos pesos ✅, depois da 2.3b; 185 testes)
+  6 conjunto de consultas de referência e ajuste dos pesos ✅, depois da 2.3b · 2.3i sondas: plural, volume/artigos,
+  correção, OU de reserva, peso do sumário 0,25 ✅; 224 testes)
 - [x] 2.3b Obras em vários volumes: campos novos do `Livro` (volume, volumeRotulo, parte, serie, local,
   artigosInicio/Fim); `pagina` como texto + regra de conversão romano/arábico (`NumeroDePagina`); `ValidacaoSumario`
   comparando por sequência (escrita pelo Claude, a pedido do Ricardo); Core Data + `Conversao.swift`; `numeracao`
@@ -559,3 +572,8 @@ do parser e do Gemini.
 | 09/10 | Conjunto de referência em Swift no alvo de testes (UUIDs fixos), não JSON; métricas também no alvo de testes, com empate pessimista | O `Livro` ainda muda até a 2.8: o compilador acusa campo renomeado. O app nunca calcula MRR. Empate decidido por título/UUID não é mérito de relevância |
 | 09/10 | Peso do sumário no BM25F 1,0 → 0,5 (candidato A); o 0,25 (B) foi descartado | Conserta "processo penal" sem perder nenhuma consulta. O 0,25 só ganhava na "prisao caut" (caso misto, regra do prefixo), na ponta da grade, sem consulta que medisse o risco |
 | 09/10 | Na varredura, o item certo é restrição (não se aceita troca que o piore); pisos congelados como teste de *snapshot* | `b` do sumário = 0 subia o MRR mas mostrava o item errado (o `notaDoItem` usa o mesmo `b`). Regra criada depois de ver o resultado, registrada como tal |
+| 09/10 | Plural por regra mínima no `Tokenizador` (índice e consulta), com vocabulário de palavras escritas para o prefixo; RSLP descartado | "prisoes" não achava "prisão". O RSLP corta derivações e junta conceitos ("constitucional" × "constituição"); só o texto do índice muda, nunca o gravado |
+| 09/10 | `volume`, `volumeRotulo` e pontas dos artigos no campo `subtitulo` | "tratado 48" e "arts 1710 1779" achavam nada; mesmo papel da `parte` (folha de rosto), sem peso novo. Revisa a linha de 09/10 que deixava `volumeRotulo` fora |
+| 09/10 | Correção de digitação por distância de edição (OSA), só para termo desconhecido; trigramas descartados; não espera a Fase 5 | Termo desconhecido já daria lista vazia, então corrigir não muda consulta que funciona. Vocabulário pequeno dispensa índice de trigramas; a Fase 5 é de sinônimos |
+| 09/10 | OU de reserva só com E vazio e ≥ 2 termos, ordenado por nível de coordenação; `RespostaBusca` com `modo`, `correcoes` e `palavrasAusentes` | Sem penalidade nem mistura com o E: as notas dos dois grupos não se comparam. A tela precisa explicar a lista |
+| 09/10 | Peso do sumário 0,5 → 0,25 (revisa a linha de 09/10 que descartou o 0,25) | O plural tirou a parte estrutural da #11; duas consultas de risco inverso, escritas antes de medir, não pioraram. Continua na ponta da grade: não se estende a grade atrás de mais ganho |

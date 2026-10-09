@@ -55,12 +55,10 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 
 ## Fase atual
 Fase 2 — App. (Atualize esta linha ao abrir uma nova fase.)
-Concluídas: 2.1 (entidades, porta e `ValidacaoSumario`) e 2.2 (Core Data e repositório).
-**Em andamento: 2.3 — motor de busca**, branch `fase2/busca` (PR em rascunho). Passos 1–6 prontos
-(tokenizador, índice invertido, BM25F, filtros, motor + resultado, consultas de referência com o peso do sumário
-ajustado para 0,5) e a tarefa 2.3b (obras em vários volumes); 185 testes.
-**Próximo: decidir as sondas em aberto** (E estrito → "E, e se vazio, OU"? indexar volume/artigos? plural?),
-listadas em `docs/PLANO.md` (Busca na biblioteca), e depois fechar a 2.3 (PR) e seguir para a 2.4. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
+Concluídas: 2.1 (entidades, porta e `ValidacaoSumario`), 2.2 (Core Data e repositório) e 2.3 (motor de busca:
+passos 1–6, 2.3b obras em vários volumes e 2.3i sondas — plural, volume/artigos no índice, correção de digitação,
+OU de reserva, peso do sumário 0,25; 224 testes). PR da branch `fase2/busca` aberto para revisão (merge quando o Ricardo mandar).
+**Próximo: 2.4 — telas principais**, começando só pela explicação. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que
