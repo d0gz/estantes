@@ -287,6 +287,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 - **Normalização**: minúsculas, sem acento, sem palavras vazias (de, da, do, e, em, para...).
 - **Índice invertido** em memória, montado ao abrir o app; atualizado livro a livro depois de cada alteração.
+  O índice grava os *nomes* das categorias: renomear ou apagar uma categoria reindexa os livros dela.
 - **Ranking BM25F** por livro. Pesos por campo: título (maior), subtítulo, nomes de categoria,
   `cddirCaminho`, itens do sumário, autor (peso baixo). Cada campo tem o próprio fator de tamanho (`b`).
   As frequências do termo nos campos são multiplicadas pelos pesos e somadas **antes** da saturação (`k1`),
