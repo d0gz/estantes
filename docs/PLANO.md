@@ -336,7 +336,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 ### Checklist da Fase 2
 
 Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 normalização + motor de busca (passos 1–5 ✅)** ·
-**2.3b modelo de obras em vários volumes + índice** · 2.3 passo 6 (consultas de referência e pesos) · 2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
+2.3b modelo de obras em vários volumes + índice ✅ · **2.3 passo 6** (consultas de referência e pesos) · 2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
 2.9 fechamento (simulador + CI; Sideloadly adiado).
 
 - [x] Entidades do Domínio (structs; `Livro` como agregado com o sumário; categorias por id; capa fora da struct) + porta `BibliotecaRepositorio` + regra do nome de categoria
@@ -349,10 +349,10 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 norma
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
   6 conjunto de consultas de referência e ajuste dos pesos — **depois da 2.3b**, para o conjunto já incluir
   "art 1710", parte/subtítulo e hífens; senão os pesos seriam ajustados duas vezes)
-- [ ] 2.3b Obras em vários volumes: campos novos do `Livro` (volume, volumeRotulo, parte, serie, local,
-  artigosInicio/Fim); `pagina` como texto + regra de conversão romano/arábico (com testes); `ValidacaoSumario`
-  comparando por sequência `[eu escrevo]`; Core Data + `Conversao.swift`; `numeracao` e `parte` no índice;
-  hífen no `Tokenizador`; testes
+- [x] 2.3b Obras em vários volumes: campos novos do `Livro` (volume, volumeRotulo, parte, serie, local,
+  artigosInicio/Fim); `pagina` como texto + regra de conversão romano/arábico (`NumeroDePagina`); `ValidacaoSumario`
+  comparando por sequência (escrita pelo Claude, a pedido do Ricardo); Core Data + `Conversao.swift`; `numeracao`
+  e `parte` no índice; hífen no `Tokenizador`; 171 testes
 - [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
 - [ ] Simulador iOS 16 e CI verde (Sideloadly no iPhone adiado até haver aparelho)
@@ -540,3 +540,7 @@ do parser e do Gemini.
 | 09/10 | Hífen entre letras removido no índice e na consulta; entre dígitos continua separando | "sub-rogação" = "subrogação"; "1.710-1.779" não pode virar um termo só |
 | 09/10 | Fotos do conjunto de avaliação fora do Git; OCR gravado em JSON (`avaliacao/ocr/`) no Git | Direitos autorais e tamanho; a CI testa os parsers sem as fotos. Substitui "fotos como recursos do alvo de testes" |
 | 09/10 | CDD e assuntos da ficha CIP fora do `Livro`; assuntos viram sugestão de categorias | Mantém a decisão de 03/10 (categorias no lugar de `assuntos`) |
+| 09/10 | `NumeroDePagina`: romano só na forma canônica (conferida pela ida e volta inteiro → romano); num intervalo vale o início | A soma sozinha aceitaria lixo de OCR ("IIIII"); a ida e volta reaproveita a conversão em vez de uma regex |
+| 09/10 | `ValidacaoSumario` compara a página só com a do item anterior com página, e só se for da mesma sequência; "s/n" é pulado | Comparar com o último da mesma sequência faria um índice remissivo em romanos no fim avisar contra o prefácio |
+| 09/10 | Hífen entre letras: "-", U+2010 e U+2011 juntam; o travessão separa; o hífen invisível (U+00AD) some | Texto copiado e OCR trazem os hífens Unicode; o travessão é pontuação entre palavras |
+| 09/10 | `parte` soma no campo `subtitulo` e `numeracao` no `sumario` (sem campos novos no BM25F); `volumeRotulo` e `serie` fora do índice | Mesmo papel, mesmo peso: um campo novo seria mais um peso a ajustar no passo 6. Revisitar se uma consulta de referência pedir |
