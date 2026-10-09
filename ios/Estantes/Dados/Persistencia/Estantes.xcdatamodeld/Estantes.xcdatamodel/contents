@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="21513" systemVersion="21G72" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    <entity name="Categoria" representedClassName="CategoriaMO" syncable="YES">
+        <attribute name="cor" attributeType="String"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="nome" attributeType="String"/>
+        <relationship name="livros" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Livro" inverseName="categorias" inverseEntity="Livro"/>
+    </entity>
+    <entity name="Estante" representedClassName="EstanteMO" syncable="YES">
+        <attribute name="criadaEm" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="nome" attributeType="String"/>
+        <relationship name="livros" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Livro" inverseName="estante" inverseEntity="Livro"/>
+    </entity>
+    <entity name="ItemSumario" representedClassName="ItemSumarioMO" syncable="YES">
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="nivel" attributeType="Integer 32" defaultValueString="1" usesScalarValueType="YES"/>
+        <attribute name="numeracao" optional="YES" attributeType="String"/>
+        <attribute name="ordem" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="origem" attributeType="String"/>
+        <attribute name="pagina" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
+        <attribute name="titulo" attributeType="String"/>
+        <relationship name="livro" maxCount="1" deletionRule="Nullify" destinationEntity="Livro" inverseName="itensSumario" inverseEntity="Livro"/>
+    </entity>
+    <entity name="Livro" representedClassName="LivroMO" syncable="YES">
+        <attribute name="adicionadoEm" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="ano" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
+        <attribute name="autores" attributeType="String" defaultValueString=""/>
+        <attribute name="cddir" optional="YES" attributeType="String"/>
+        <attribute name="cddirCaminho" attributeType="String" defaultValueString=""/>
+        <attribute name="edicao" optional="YES" attributeType="String"/>
+        <attribute name="editora" optional="YES" attributeType="String"/>
+        <attribute name="fotoCapa" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isbn13" optional="YES" attributeType="String"/>
+        <attribute name="origem" attributeType="String"/>
+        <attribute name="paginas" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
+        <attribute name="prateleira" optional="YES" attributeType="String"/>
+        <attribute name="subtitulo" optional="YES" attributeType="String"/>
+        <attribute name="titulo" attributeType="String"/>
+        <attribute name="urn" optional="YES" attributeType="String"/>
+        <relationship name="categorias" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Categoria" inverseName="livros" inverseEntity="Categoria"/>
+        <relationship name="estante" maxCount="1" deletionRule="Nullify" destinationEntity="Estante" inverseName="livros" inverseEntity="Estante"/>
+        <relationship name="itensSumario" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="ItemSumario" inverseName="livro" inverseEntity="ItemSumario"/>
+    </entity>
+</model>
