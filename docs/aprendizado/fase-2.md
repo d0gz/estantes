@@ -1480,3 +1480,76 @@ Com 0,25, #29 e #30 continuam em 1º com o item certo, então 0,25 foi adotado. 
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4a — Montagem das dependências e tela inicial com as estantes (2026-10-09)
+
+### O que foi feito
+Criamos `App/Dependencias.swift` (a montagem: escolhe a implementação da porta), o `InicioViewModel` com seu `enum Estado` e a `InicioView` (grade de estantes, criar e renomear). `EstantesApp` passou a guardar um `Result` para não travar se o banco não abrir. Para ver as telas no simulador, há exemplos só em DEBUG (`App/Exemplos.swift`), o `scripts/capturar.sh` e um repositório falso nos testes (`BibliotecaRepositorioEmMemoria`). Antes disso, o PLANO registrou a forma de trabalho das telas: primeiro a lógica (2.4a-e) com componentes nativos, depois o estilo tela por tela.
+
+### Conceitos envolvidos
+**Raiz de composição e injeção de dependência.** Em vez de cada tela criar o que precisa, um único lugar (`Dependencias`) decide "a porta `BibliotecaRepositorio` é o Core Data". As telas recebem o ViewModel pronto, e o ViewModel recebe o repositório pelo `init`. Isso é a *composition root*: só ali o código concreto é conhecido, e o resto depende do protocolo. Ganho prático: nos testes entra o falso; nos previews e nas capturas, o Core Data em memória; em produção, o disco. Nada muda nas telas.
+
+**Estado como `enum` com valores associados.** `Estado` tem quatro casos (`carregando`, `vazio`, `pronto([...])`, `erro(String)`). Com `Bool`s (`carregando`, `temErro`, `lista`) haveria 2^n combinações, e a maioria seria absurda ("carregando e com erro"). O enum torna os estados impossíveis **irrepresentáveis**: o compilador obriga o `switch` da View a tratar todos. Princípio: "make illegal states unrepresentable".
+
+**`@StateObject` e ciclo de vida.** A View é um valor barato que o SwiftUI recria muitas vezes; o que precisa sobreviver é o ViewModel. `@StateObject` guarda o objeto fora da View e só executa a expressão de criação na primeira vez. Por isso o `init` recebe `@autoclosure`: `InicioView(viewModel: deps.fazerInicioViewModel())` não cria nada na hora; vira um closure que o `StateObject` chama uma vez. Com `@ObservedObject` o ViewModel seria recriado a cada reconstrução da View e o estado se perderia.
+
+**`@MainActor`.** `@Published` alimenta a UI, então só pode mudar na thread principal. Marcar o ViewModel como `@MainActor` faz o compilador garantir isso. O custo apareceu no Xcode 14.2: *"call to main actor-isolated instance method ... in a synchronous nonisolated context"*. Naquele SDK só o `body` da `View` é `@MainActor`; propriedades auxiliares da View não são. Quem cria um objeto `@MainActor` precisa estar no main actor também, então a solução foi `@MainActor` na `RaizView` e no tipo do closure (`@MainActor (Dependencias) -> Conteudo`). Em SDKs mais novos a `View` inteira é `@MainActor`, então isso é uma diferença entre os dois Xcodes que o projeto precisa suportar. Esta é uma observação do que o compilador disse; para detalhes de versão confirme nas notas de lançamento do SDK.
+
+**`Binding` derivado.** O alerta precisa de `Binding<Bool>`, mas o estado real é `pedido: PedidoDeNome?` (nil = fechado). Construímos o `Binding` a partir do opcional (`get: pedido != nil`, `set: se false, pedido = nil`). Assim há **uma só fonte de verdade**; guardar também um `Bool` obrigaria a mantê-los sincronizados.
+
+**Tela derivada do banco.** Depois de gravar, o ViewModel chama `carregar()` de novo. Não há `@FetchRequest` nem lista editada na mão. O custo é reler; o ganho é que a tela nunca diverge do que está salvo. Com poucas estantes, o custo é desprezível.
+
+**Contagem: N+1 consultas.** `carregar()` faz 1 consulta de estantes + 1 `quantidadeDeLivros` por estante (N+1). É o padrão que costuma ser um problema com milhares de linhas ou rede. Aqui é aceitável porque N é pequeno, a consulta é um `COUNT` no SQLite local (não carrega livros) e não há latência de rede. Uma consulta agregada (`GROUP BY`) só valeria com muitas estantes.
+
+**Argumentos de lançamento e `UserDefaults`.** O iOS registra argumentos do tipo `-chave valor` no domínio de argumentos do `UserDefaults`. Então `-captura Inicio` é lido com `UserDefaults.standard.string(forKey: "captura")`, sem parser. Isso, mais `#if DEBUG`, permite abrir qualquer tela já preenchida (o `simctl` não toca na tela).
+
+**Dublê de teste (fake).** `BibliotecaRepositorioEmMemoria` é um *fake*: implementação funcional simplificada (dicionários) com chaves `falharAoLer`/`falharAoGravar` para forçar erros. Difere de um *mock* (que verifica chamadas). Precisa seguir o **contrato** da porta (cascata, mover, destino inválido), senão os testes passam contra um comportamento que o repositório real não tem.
+
+### Por que assim
+- `Dependencias` como `struct` criada uma vez, com `producao()` e `emMemoria()`: é visível e testável, e a injeção ocorre pelo `init`, como pede o PLANO.
+- `Result { try Dependencias.producao() }` no `EstantesApp`: se o banco falha (disco cheio, migração quebrada), mostra `MensagemDeErroView` em vez de `try!` (que derruba o app sem explicação).
+- `EstanteResumo` na Apresentação: a contagem é dado da tela; pôr `quantidade` em `Estante` poluiria o Domínio com algo derivado.
+- Erro de gravação em `mensagemDeErro`, separado de `estado`: se virasse `.erro`, a lista sumiria por causa de uma falha que não a invalida.
+- `nomeValido` estático, usado pelo ViewModel **e** pela View: uma regra, dois usos; a View só desabilita o botão, o ViewModel é quem de fato recusa.
+- Exemplos em `App/` e só em DEBUG: montar um repositório concreto é papel da montagem, e o código de exemplo não deve ir para o `.ipa` de produção.
+- Previews com o Core Data em memória real: um segundo falso dentro do app seria código a manter só para previews.
+
+### Alternativas descartadas
+- **Singleton `.shared`:** esconde de quem depende de quê, e testes compartilham estado global.
+- **`.environmentObject`:** funciona, mas a dependência fica implícita (falta de um objeto só aparece em tempo de execução, com crash); o PLANO pede injeção pelo `init`.
+- **`@FetchRequest`:** acopla a View ao `NSManagedObject`, o que o projeto proíbe fora de `Dados/Persistencia/`.
+- **Vários `Bool` no estado:** estados impossíveis possíveis.
+- **Consulta agregada de contagens:** otimização prematura aqui.
+- **Override da barra de status (9:41) nas capturas:** tentado; o simulador do iOS 16 ignorou o `--time`. Retirado em vez de mantido como código morto.
+
+### Padrões e boas práticas
+- **Composition root + injeção por construtor.** Não use quando o objeto não tem variação nenhuma e é puro (uma função utilitária estática não precisa de injeção).
+- **MVVM com estado em enum.** Quando o estado é realmente independente (dois alertas sem relação), campos separados são mais honestos que um enum forçado.
+- **Fake com contrato** em vez de mock verificador, para testar comportamento e não implementação.
+- **Trabalhar em duas passadas (lógica, depois estilo):** evita retrabalho de estilo sobre uma lógica que ainda muda. Cada captura tem versão (0.x lógica, 1.x+ estilo) para comparar.
+- **Parar com margem de uso:** registrar o estado no PLANO antes de acabar o limite, para que a próxima sessão retome sem contexto.
+
+### Armadilhas
+- **Isolamento de ator diferente entre SDKs:** compila no Xcode 26 e falha no 14.2 (ou o contrário). Sempre rode `./scripts/testar.sh` no Mac e olhe a CI.
+- **`@StateObject` sem `@autoclosure`:** se o init avaliar `InicioViewModel(...)` direto, cria-se um ViewModel descartado a cada reconstrução da View (o `StateObject` ignora, mas o custo de criação ocorre).
+- **`.task` repetido:** `.task` roda quando a View aparece; se ela reaparecer, recarrega. Aqui é benigno, mas em telas pesadas vale controlar.
+- **Banco em memória é assíncrono para preencher:** por isso `ComExemplos` espera os dados antes de mostrar a tela; senão a captura sai vazia (condição de corrida).
+- **Argumento de lançamento perdido:** configurado no Edit Scheme do Xcode, some quando o `xcodegen generate` recria o projeto.
+- **Fake que diverge do real:** se o contrato mudar no repositório Core Data e o fake não acompanhar, os testes do ViewModel mentem. Idealmente os mesmos testes de contrato rodariam nos dois.
+
+### Para ir além
+- Documentação da Apple: *Managing model data in your app* e *StateObject* (developer.apple.com/documentation/swiftui), para o ciclo de vida de `@StateObject` vs `@ObservedObject`.
+- Mark Seemann, *Dependency Injection: Principles, Practices, and Patterns* (capítulo sobre Composition Root).
+- Yaron Minsky, "Effective ML" (a ideia de "make illegal states unrepresentable"), disponível como palestra e artigo.
+
+### Perguntas
+1. Com suas palavras: por que o `InicioViewModel` recebe o repositório pelo `init` e quem o monta é `Dependencias`? O que você ganha nos testes e nos previews?
+2. Aplicação: o PLANO pede que a tela de uma estante mostre os livros. Se `InicioViewModel.carregar()` precisasse também do total de livros "sem estante", em que ponto do código você faria isso e o que mudaria no `enum Estado`? Quando a estratégia N+1 deixaria de ser aceitável?
+3. Raciocínio: por que uma falha ao gravar vira `mensagemDeErro` e não `.erro(...)` no estado? Que comportamento ruim o usuário veria se fosse `.erro`? E por que o `@autoclosure` no `init` da View evita o ViewModel ser recriado?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
