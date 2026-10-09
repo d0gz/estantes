@@ -314,7 +314,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 ### Checklist da Fase 2
 
-Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 normalização + motor de busca (próxima)** ·
+Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 normalização + motor de busca (em andamento: falta o passo 6)** ·
 2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
 2.9 fechamento (simulador + CI; Sideloadly adiado).
 
