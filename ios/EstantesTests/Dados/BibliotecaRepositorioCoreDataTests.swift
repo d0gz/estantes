@@ -90,9 +90,11 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
             prateleira: "2ª de cima",
             categoriaIds: [categoria.id],
             itensSumario: [
+                // Página em romanos: o texto impresso volta igual (desde a 2.3b, `pagina` é String).
+                ItemSumario(nivel: 1, titulo: "Prefácio", pagina: "XI", origem: .manual),
                 ItemSumario(nivel: 1, numeracao: "Parte I", titulo: "Teoria geral", origem: .lexml),
-                ItemSumario(nivel: 2, numeracao: "Capítulo 1", titulo: "Conceito de contrato", pagina: 3, origem: .foto),
-                ItemSumario(nivel: 2, titulo: "Formação", pagina: 51, origem: .manual),
+                ItemSumario(nivel: 2, numeracao: "Capítulo 1", titulo: "Conceito de contrato", pagina: "3", origem: .foto),
+                ItemSumario(nivel: 2, titulo: "Formação", pagina: "51", origem: .manual),
             ],
             adicionadoEm: data
         )

@@ -18,7 +18,7 @@
         <attribute name="numeracao" optional="YES" attributeType="String"/>
         <attribute name="ordem" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="origem" attributeType="String"/>
-        <attribute name="pagina" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
+        <attribute name="pagina" optional="YES" attributeType="String"/>
         <attribute name="titulo" attributeType="String"/>
         <relationship name="livro" maxCount="1" deletionRule="Nullify" destinationEntity="Livro" inverseName="itensSumario" inverseEntity="Livro"/>
     </entity>

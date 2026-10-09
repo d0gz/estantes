@@ -204,8 +204,8 @@ final class MotorDeBuscaTests: XCTestCase {
             estanteId: estante1,
             titulo: "Processo penal",
             itensSumario: [
-                ItemSumario(nivel: 1, titulo: "Prisão", pagina: 10),
-                ItemSumario(nivel: 1, titulo: "Prisão temporária", pagina: 42),
+                ItemSumario(nivel: 1, titulo: "Prisão", pagina: "10"),
+                ItemSumario(nivel: 1, titulo: "Prisão temporária", pagina: "42"),
             ]
         )
         let motor = MotorDeBusca(livros: [livro, livroC], categorias: [])
@@ -213,7 +213,7 @@ final class MotorDeBuscaTests: XCTestCase {
         let escolhido = motor.buscar("prisao temporaria").first?.itemDoSumario
 
         XCTAssertEqual(escolhido?.titulo, "Prisão temporária")
-        XCTAssertEqual(escolhido?.pagina, 42)
+        XCTAssertEqual(escolhido?.pagina, "42")
     }
 
     func testItemComTermoFixoEPrefixoJuntos() {

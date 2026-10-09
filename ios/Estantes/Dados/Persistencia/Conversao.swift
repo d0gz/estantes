@@ -62,7 +62,7 @@ extension ItemSumarioMO {
             nivel: Int(nivel),
             numeracao: numeracao,
             titulo: titulo,
-            pagina: pagina?.intValue,
+            pagina: pagina,
             origem: OrigemItemSumario(rawValue: origem) ?? .manual
         )
     }
@@ -73,7 +73,7 @@ extension ItemSumarioMO {
         nivel = Int32(item.nivel)
         numeracao = item.numeracao
         titulo = item.titulo
-        pagina = item.pagina.map { NSNumber(value: $0) }
+        pagina = item.pagina
         origem = item.origem.rawValue
         self.ordem = Int32(ordem)
     }

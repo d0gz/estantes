@@ -63,7 +63,8 @@ final class ItemSumarioMO: NSManagedObject {
     @NSManaged var nivel: Int32
     @NSManaged var numeracao: String?
     @NSManaged var titulo: String
-    @NSManaged var pagina: NSNumber?
+    /// Texto desde a 2.3b ("245", "XI").
+    @NSManaged var pagina: String?
     /// `OrigemItemSumario.rawValue`.
     @NSManaged var origem: String
     @NSManaged var livro: LivroMO
