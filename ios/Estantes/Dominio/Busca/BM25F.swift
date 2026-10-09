@@ -1,7 +1,7 @@
 import Foundation
 
-/// Pesos e parâmetros do BM25F. Os valores de `padrao` são um ponto de partida: título pesa mais,
-/// autor pesa pouco; o `b` é maior nos campos longos (sumário), onde o tamanho mais distorce a contagem.
+/// Pesos e parâmetros do BM25F: título pesa mais, autor pesa pouco; o `b` é maior nos campos longos
+/// (sumário), onde o tamanho mais distorce a contagem.
 struct ParametrosBM25F {
     /// Saturação: quanto maior, mais devagar as repetições do termo deixam de contar.
     let k1: Double
@@ -21,9 +21,13 @@ struct ParametrosBM25F {
         self.b = b
     }
 
+    /// Ajustado com as consultas de referência (passo 6 da 2.3; tabela em docs/aprendizado/fase-2.md):
+    /// só o peso do sumário mudou (1,0 → 0,5), porque com 1,0 um livro com o termo em vários itens do
+    /// sumário passava à frente do que o tem no título. Os demais valores não mudaram nenhuma consulta
+    /// do conjunto: continuam os de partida, sem terem sido validados.
     static let padrao = ParametrosBM25F(
         k1: 1.2,
-        pesos: [.titulo: 3.0, .subtitulo: 2.0, .categorias: 1.5, .cddirCaminho: 1.5, .sumario: 1.0, .autores: 0.5],
+        pesos: [.titulo: 3.0, .subtitulo: 2.0, .categorias: 1.5, .cddirCaminho: 1.5, .sumario: 0.5, .autores: 0.5],
         // No autor, b = 0: o tamanho de um nome não diz nada sobre a relevância.
         b: [.titulo: 0.5, .subtitulo: 0.5, .categorias: 0.3, .cddirCaminho: 0.3, .sumario: 0.75, .autores: 0]
     )

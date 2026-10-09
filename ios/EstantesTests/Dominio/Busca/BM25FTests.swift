@@ -34,6 +34,13 @@ final class BM25FTests: XCTestCase {
     private lazy var livroB = livro(titulo: "Processo penal", sumario: ["Prisão", "Recursos", "Provas"])
     private lazy var livroC = livro(titulo: "Direito civil", sumario: ["Contratos"])
     private lazy var exemplo = montarIndice([livroA, livroB, livroC])
+    /// Os valores do enunciado, fixos aqui: o exemplo testa a fórmula, não o `padrao` calibrado
+    /// (que mudou no passo 6).
+    private let parametrosDoExemplo = ParametrosBM25F(
+        k1: 1.2,
+        pesos: [.titulo: 3.0, .subtitulo: 2.0, .categorias: 1.5, .cddirCaminho: 1.5, .sumario: 1.0, .autores: 0.5],
+        b: [.titulo: 0.5, .subtitulo: 0.5, .categorias: 0.3, .cddirCaminho: 0.3, .sumario: 0.75, .autores: 0]
+    )
 
     func testIdf() {
         XCTAssertEqual(BM25F.idf(totalDeLivros: 3, livrosComOTermo: 2), 0.4700, accuracy: precisao) // ln 1,6
@@ -42,7 +49,7 @@ final class BM25FTests: XCTestCase {
     }
 
     func testExemploPrisao() {
-        let notas = BM25F.notas(termos: ["prisao"], indice: exemplo)
+        let notas = BM25F.notas(termos: ["prisao"], indice: exemplo, parametros: parametrosDoExemplo)
 
         // A: título 3·1/1 + sumário 1·1/1 = 4 → 0,4700 · 4/5,2
         XCTAssertEqual(notas[livroA.id] ?? 0, 0.3615, accuracy: precisao)
@@ -52,7 +59,7 @@ final class BM25FTests: XCTestCase {
     }
 
     func testExemploPrisaoFlagrante() {
-        let notas = BM25F.notas(termos: ["prisao", "flagrante"], indice: exemplo)
+        let notas = BM25F.notas(termos: ["prisao", "flagrante"], indice: exemplo, parametros: parametrosDoExemplo)
 
         // flagrante: 0,9808 · 1/2,2 = 0,4458, somado aos 0,3615 de prisao
         XCTAssertEqual(notas[livroA.id] ?? 0, 0.8074, accuracy: precisao)
