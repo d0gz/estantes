@@ -853,4 +853,96 @@ As decisões, numeradas como foram aprovadas:
 3. Raciocínio: suponha que o filtro de estante rodasse **antes** do BM25F, restringindo o índice às estantes marcadas. Dê um exemplo concreto com duas estantes e um termo (por exemplo "prisão") em que o mesmo livro mudaria de nota ao ligar a chip, e explique por quê usando o IDF. Depois diga: o `Tokenizador` ignora "da"; o que `FiltroBusca(autor: "da")` devolve em `estaVazio` e em `aceita`?
 
 ### Minhas respostas
+(sem respostas)
+
+---
+
+## Tarefa 2.3e — Motor de busca (passo 5a) (2026-10-09)
+
+### O que foi feito
+Criei `Dominio/Busca/MotorDeBusca.swift`, que junta o `IndiceInvertido`, o `BM25F` e o `FiltroBusca` numa única API (`buscar`), e `ResultadoBusca.swift`. Acrescentei `IndiceInvertido.termos(comPrefixo:)` e refatorei `FiltroBusca` para ter a forma `Preparado`. Testes em `EstantesTests/Dominio/Busca/MotorDeBuscaTests.swift`; suíte em 131 testes, 0 falhas, Xcode 14.2. O passo 5 foi dividido: este é o **5a (motor)**; o **5b** traz o item do sumário no resultado e `atualizar(categorias:)` reindexando os livros afetados.
+
+### Conceitos envolvidos
+
+#### 1. O pipeline da consulta
+```mermaid
+flowchart LR
+  T[texto] --> K[Tokenizador]
+  K --> B["BM25F na biblioteca inteira<br/>(último termo: prefixo)"]
+  B --> E["E: só quem tem todos os termos"]
+  E --> F["filtro preparado"]
+  F --> O["ordenar: nota, título, id"]
+```
+Cada etapa existe por um motivo. O BM25F roda antes do filtro porque o IDF depende do conjunto de livros (ver 2.3d). O E vem antes do filtro só por clareza; a ordem entre os dois não muda o resultado, só o custo.
+
+#### 2. Struct com `mutating` em vez de classe
+`MotorDeBusca` é um tipo-valor. `atualizar` e `remover` são `mutating`, e `buscar` não é (só lê). Em Swift, `let motor` impede mutação, `var motor` permite: o compilador diz quem pode alterar. O dono será o ViewModel (`@Published var motor`), sem singleton, como pede a arquitetura. Dicionários e arrays são copy-on-write: copiar o motor é barato até alguém alterar uma das cópias.
+
+#### 3. Por que o motor guarda os livros
+O índice só tem termos de texto (título, autores, categorias, sumário). O filtro precisa de editora, ano, estante e CDDir, que ficaram de fora do índice de propósito (2.3b). Então o motor mantém `[UUID: Livro]`: o índice responde "quem contém o termo", o dicionário responde "quem é esse livro" em O(1).
+
+#### 4. E entre os termos, e o laço que o implementa
+`BM25F.notas(termos: [t])` devolve só os livros que contêm `t`. Começamos com as notas do último termo e, para cada termo fixo, mantemos apenas os ids presentes em `notasDoTermo`, somando a nota:
+```swift
+for (id, nota) in notas {
+    notas[id] = notasDoTermo[id].map { nota + $0 }   // nil remove a chave
+}
+```
+Atribuir `nil` a uma chave de dicionário a remove. O `for` percorre uma **cópia** de `notas` (tipo-valor, copy-on-write: a primeira mutação dentro do laço duplica o armazenamento), por isso alterar o dicionário no laço é seguro. Em Swift, `Optional.map` aplica a função só se houver valor: `nil.map { ... }` continua `nil`. Complexidade: O(k · m), com k termos e m livros candidatos do último termo.
+
+#### 5. Prefixo no último termo
+O usuário ainda está digitando, então "prevent" deve achar "preventiva". Só o último termo expande, e só com 2 ou mais caracteres (com 1 letra, quase todo o vocabulário entraria). `termos(comPrefixo:)` filtra as chaves de `postings` com `hasPrefix` e ordena: O(V) mais a ordenação dos casados. Para cada expansão calculamos a nota e o livro fica com a **maior**, não a soma: um prefixo com muitas expansões não deve inflar a nota (a mesma ideia da saturação do BM25F). Consequência: como cada expansão traz seu IDF, costuma vencer a expansão mais rara na biblioteca.
+
+#### 6. Ordenação determinística e "decorate-sort-undecorate"
+O comparador precisa normalizar o título (`Normalizacao.chave`), operação cara. Uma ordenação faz O(n log n) comparações; normalizar dentro do comparador repete o trabalho. Em vez disso, `ordenar` calcula uma vez por resultado uma tupla `(resultado, tituloNormalizado, id)`, ordena as tuplas e descarta a decoração. É a **transformada de Schwartz** (decorate-sort-undecorate): O(n) normalizações em vez de O(n log n). Critérios: nota decrescente, título crescente, `uuidString` crescente. O último garante que duas execuções deem a mesma ordem, mesmo com notas e títulos iguais (o `sorted` do Swift não é garantidamente estável).
+
+#### 7. `FiltroBusca.Preparado`
+Antes, `aceita` normalizava a editora, tokenizava o autor e removia espaços do CDDir **a cada livro**. `preparado()` faz isso uma vez por consulta e devolve um valor com os textos já prontos; `estaVazio` e `aceita` de `FiltroBusca` só delegam. Efeito colateral bom: a regra "em branco = sem filtro" agora está num único lugar (`preparado()`), o que fecha o achado 1 da 2.3d.
+
+### Por que assim
+As decisões, numeradas como foram aprovadas (elas fecham as "decisões adiadas para o passo 5" da 2.3a e o achado 2 da revisão da 2.3d):
+1. **`struct MotorDeBusca`** com `IndiceInvertido`, `[UUID: Livro]` e os nomes das categorias; `init(livros:categorias:)`, `atualizar(_:)`, `remover(livroId:)`, `buscar(_:filtro:parametros:)`. Struct com `mutating` porque o dono é o ViewModel, sem singleton. Guarda os livros porque o filtro precisa de editora, ano, estante e CDDir.
+2. **`ResultadoBusca` = livro + nota** (o item do sumário vem na 5b). O nome da estante não entra: a tela resolve por `livro.estanteId`; senão renomear uma estante exigiria reindexar.
+3. **E entre os termos.** "prisão" aparece em dezenas de livros jurídicos, e OU devolveria uma lista cheia de ruído. Custo: um erro de digitação zera o resultado. O passo 6 mede; se for frequente, a saída é "E, e se vazio, OU".
+4. **Prefixo só no último termo**, mínimo 2 caracteres, **maior nota entre as expansões**. `termos(comPrefixo:)` varre o vocabulário em O(V).
+5. **Plural/stemming adiado** ("prisão" × "prisões", algoritmo RSLP): o prefixo não resolve ("prisoes" não começa com "prisao"). Medir no passo 6; sinônimos na Fase 5.
+6. **Consulta vazia** (em branco ou só palavras vazias, como "de"): sem filtro devolve `[]`; com filtro devolve os livros filtrados em ordem de título, nota 0.
+7. **Ordem**: tokenizar, BM25F na biblioteca inteira, E, filtro (depois, para não mudar o IDF), ordenar. `FiltroBusca` ganhou `Preparado`.
+8. **Ordenação**: nota decrescente, título normalizado crescente, id (`uuidString`), mantendo o determinismo da 2.3c.
+
+Detalhe do E: `BM25F.notas` é chamado um termo por vez e a soma segue ordem fixa (último termo, depois os fixos em ordem alfabética). Soma de `Double` não é associativa, então a ordem pode mudar o último bit da nota; ordem fixa dá resultado reprodutível.
+
+### Alternativas descartadas
+- **OU entre os termos**: ruído demais em um domínio de vocabulário repetitivo.
+- **Vocabulário ordenado + busca binária para prefixo**: acharia o intervalo em O(log V + r), mas manter o vocabulário ordenado custa a cada inclusão de livro. Só se a medição pedir.
+- **Somar as notas das expansões do prefixo**: um prefixo curto como "pr" inflaria a nota de quem casa com várias palavras.
+- **Nome da estante dentro do resultado**: obrigaria a reindexar ao renomear.
+- **Remover o `.sorted()` de `termos(comPrefixo:)`** (sugestão da revisão, recusada): o custo é desprezível e a ordem fixa evita o bug intermitente da soma (ver acima).
+- **Stemming agora**: sem medir, é complexidade especulativa.
+
+### Padrões e boas práticas
+- **Decorate-sort-undecorate**: use quando a chave de ordenação é cara de calcular. Não use quando a chave já é um campo guardado (ordenar por `nota` direto).
+- **Preparar uma vez, usar muitas** (o `Preparado`): separar "interpretar a configuração" de "aplicá-la" evita trabalho repetido em laços. Não vale para filtros usados uma vez só.
+- **Fonte única de verdade**: a regra "em branco = sem filtro" mora em `preparado()`; `FiltroBusca.estaVazio` e `aceita` apenas delegam.
+- **Teste que distingue a versão certa da errada**: todo teste precisa de um caso em que o código errado daria resultado diferente.
+- **Ler a falha antes de consertar**: o teste também pode estar errado.
+
+### Armadilhas
+- **O bug "penal penal"**: o último termo repetia um anterior e entrava duas vezes: nota 1,72 = 2 × 0,86. Correção: `anteriores.remove(ultimo) != nil` marca o repetido; repetido não expande (o usuário já passou dele) e conta uma vez só, como os repetidos no BM25F. `Set.remove` devolve o elemento removido (ou `nil`), então serve de teste de pertinência e remoção num só passo.
+- **Teste que não protegia a correção**: "penal penal" passava mesmo sem o conserto, porque nada mais começa com "penal". O novo teste usa "prev" (acha A e D) e "prev prev" (devolve `[]`: o repetido vale como exato e "prev" não é um termo do vocabulário). Sem a correção, "prev prev" acharia A e D.
+- **Erro do teste, não do motor**: esperei que "preve" achasse só "Prisão preventiva", mas "Prevenção" vira "prevencao" e também começa com "preve". Troquei por "prevent". Sintoma de diagnóstico: o motor retornava um livro "a mais" que, ao olhar o dado, estava certo.
+- **Iterar e mutar o mesmo dicionário** é seguro em Swift por causa da cópia, mas em outras linguagens (Java, Python) é erro em tempo de execução. Não generalize.
+- **Para a 5b**: `atualizar(categorias:)` precisa reindexar os livros afetados, porque os nomes das categorias entram no índice.
+
+### Para ir além
+- Manning, Raghavan e Schütze, *Introduction to Information Retrieval*, cap. 3 (dicionários e consultas por prefixo/curingas) e cap. 6 (ranking); nlp.stanford.edu/IR-book.
+- Transformada de Schwartz (decorate-sort-undecorate): o nome vem de Randal Schwartz, que popularizou o padrão em Perl nos anos 1990; o verbete "Schwartzian transform" da Wikipédia resume a ideia e o custo.
+- *The Swift Programming Language*, capítulo "Structures and Classes" (tipos-valor e copy-on-write) e a documentação de `Dictionary` e `Set.remove`.
+
+### Perguntas
+1. Com suas palavras: por que o motor guarda `[UUID: Livro]` além do índice, e por que o filtro roda depois do BM25F? O que mudaria na nota de um livro se rodasse antes?
+2. Aplicação: o produto decide que, quando o E devolver lista vazia, a busca deve tentar OU. Onde em `buscar` você mexeria, o que precisa mudar na ordenação (as notas dos dois grupos são comparáveis?) e como o teste "prev prev" se comportaria?
+3. Raciocínio: a biblioteca tem "Prisão preventiva" e "Prevenção do crime", e o usuário digita "prevent" (última palavra), depois "preven". Quais livros voltam em cada caso e por quê? Dica: pense em quais termos do vocabulário começam com cada prefixo e no que a regra "maior nota entre as expansões" faz.
+
+### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
