@@ -253,9 +253,15 @@ create index edicoes_obra on edicoes (obra_id);
 | --- | --- | --- |
 | `Estante` | id (UUID), nome, criadaEm | `livros` com exclusão em cascata; a interface confirma quantos livros serão apagados e oferece movê-los |
 | `Livro` | id (UUID), titulo, subtitulo, autores, editora, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoCapa, adicionadoEm | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
-| `ItemSumario` | ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3"), titulo, pagina (opcional), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
+| `ItemSumario` | id (UUID), ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3"), titulo, pagina (opcional), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
 | `Categoria` | id (UUID), nome (único, sem diferenciar maiúsculas/acentos), cor (identificador da paleta) | muitos-para-muitos com `Livro`; apagar a categoria = **nullify** (os livros só perdem a etiqueta) |
 
+- **No Core Data** (2.2): classes escritas à mão com sufixo `MO` (`LivroMO`...), só em `Dados/Persistencia/`;
+  opcionais numéricos como `NSNumber?`; `autores` numa String com um nome por linha; sumário sem relação
+  ordenada (atributo `ordem`); a conversão MO ↔ struct fica toda em `Conversao.swift`.
+  **Limitação conhecida:** cada operação usa um contexto de fundo novo e grava com "busca pelo id, senão cria";
+  dois `salvar` simultâneos do mesmo id poderiam duplicar o registro. Os ViewModels `@MainActor` chamam um de
+  cada vez; rever na 2.8 (importação), com um contexto único de escrita ou *uniqueness constraints*.
 - **Prateleira**: etiqueta de texto livre do usuário ("2ª de cima", "caixa azul"); sugerir as
   etiquetas já usadas naquela estante.
 - **cddir × cddirCaminho**: `cddir` é o código (filtro por prefixo); `cddirCaminho` são os níveis da
@@ -304,13 +310,13 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 ### Checklist da Fase 2
 
-Ordem das tarefas: 2.1 entidades + porta ✅ · **2.2 Core Data (próxima)** · 2.3 normalização + motor de busca ·
+Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 normalização + motor de busca (próxima)** ·
 2.4 telas principais · 2.5 categorias · 2.6 sumário manual · 2.7 busca na interface · 2.8 exportar/importar ·
 2.9 fechamento (simulador + CI; Sideloadly adiado).
 
 - [x] Entidades do Domínio (structs; `Livro` como agregado com o sumário; categorias por id; capa fora da struct) + porta `BibliotecaRepositorio` + regra do nome de categoria
 - [x] `ValidacaoSumario` `[eu escrevo]` (escrita pelo Ricardo; 12 testes)
-- [ ] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória)
+- [x] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória) + `BibliotecaRepositorioCoreData` (conversão `[eu escrevo]` em parte; 25 testes de Dados)
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
@@ -432,3 +438,8 @@ medir acerto por campo (livro) e por item/nível/página (sumário), do parser e
 | 08/10 | Keepalive com o secret `SUPABASE_PUBLISHABLE_KEY` só no cabeçalho `apikey`, falhando quando faltam secrets | O projeto usa a chave nova `sb_publishable_` (não é JWT); um ping que sai verde sem consultar o banco esconde a pausa do projeto |
 | 08/10 | `ItemSumario.numeracao` separada do título + regra `ValidacaoSumario` para todas as origens | Sumário por foto e por escrita fica no mesmo formato; título limpo para a busca |
 | 08/10 | Toda captura com alternativa `PhotosPicker` (inclusive o sumário); testes de fotos no simulador; Sideloadly adiado | Sem iPhone por enquanto; câmera e VisionKit não funcionam no simulador, Vision e `PhotosPicker` sim |
+| 08/10 | Classes do Core Data à mão com sufixo `MO` (codegen Manual/None) | A geração automática criaria `Livro`, `Estante`... colidindo com as structs do Domínio e visíveis no app inteiro |
+| 08/10 | `autores` no Core Data como String com um nome por linha (`\n`) | Nomes de autor têm vírgula ("Sobrenome, Nome"); evita Transformable |
+| 08/10 | Sumário com atributo `ordem` em vez de relação ordenada (`NSOrderedSet`) | Mais simples de substituir em bloco; relação ordenada é frágil e não funciona com CloudKit |
+| 08/10 | `ItemSumario` ganha `id` (UUID) no Core Data | A struct já tem `id`; sem ele a ida e volta não preserva a igualdade |
+| 08/10 | `apagarEstante` com destino igual à própria estante lança `destinoInvalido`; ids inexistentes: apagar ignora, ler devolve vazio, gravar lança erro | Revisão da 2.2: o destino igual pulava o "mover" e a cascata apagava os livros |

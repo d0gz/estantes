@@ -6,6 +6,12 @@ import Foundation
 /// `async throws`: o Core Data trabalha num contexto em segundo plano e gravar em disco pode falhar;
 /// os ViewModels (`@MainActor`) esperam com `await` sem travar a tela.
 /// Um repositório só, e não um por entidade: a importação "substituir" troca tudo numa transação.
+///
+/// Ids que não existem:
+/// - **apagar** algo que não existe não faz nada (apagar duas vezes dá o mesmo resultado);
+/// - **ler** devolve `nil`, lista vazia ou zero;
+/// - **gravar** apontando para algo que não existe (estante do livro, categoria, livro da foto) lança erro,
+///   porque o dado seria perdido ou ficaria solto.
 protocol BibliotecaRepositorio {
     // MARK: Estantes
 
@@ -14,6 +20,7 @@ protocol BibliotecaRepositorio {
     func salvar(_ estante: Estante) async throws
     func quantidadeDeLivros(naEstante estanteId: UUID) async throws -> Int
     /// Apaga a estante. Com `destino`, os livros são movidos para lá antes; sem ele, vão junto (cascata).
+    /// Lança erro se o `destino` não existir ou for a própria estante, sem apagar nada.
     func apagarEstante(id: UUID, moverLivrosPara destino: UUID?) async throws
 
     // MARK: Livros
