@@ -40,56 +40,82 @@ struct FiltroBusca: Equatable {
     }
 
     /// Nenhuma dimensão ligada: aceita qualquer livro.
-    var estaVazio: Bool {
-        FiltroBusca.termos(autor).isEmpty
-            && FiltroBusca.textoNormalizado(editora) == nil
-            && anoMinimo == nil
-            && anoMaximo == nil
-            && estanteIds.isEmpty
-            && FiltroBusca.semEspacos(prefixoCDDir) == nil
-            && categoriaIds.isEmpty
+    var estaVazio: Bool { preparado().estaVazio }
+
+    /// Prepara o filtro a cada chamada: para testar muitos livros, use `preparado()` uma vez.
+    func aceita(_ livro: Livro) -> Bool { preparado().aceita(livro) }
+
+    /// O filtro com os textos procurados já normalizados. O motor prepara uma vez por consulta e
+    /// testa todos os livros com ele, em vez de normalizar o mesmo texto a cada livro.
+    func preparado() -> Preparado {
+        Preparado(
+            termosDoAutor: Tokenizador.termos(autor ?? ""),
+            editora: FiltroBusca.textoNormalizado(editora),
+            anoMinimo: anoMinimo,
+            anoMaximo: anoMaximo,
+            estanteIds: estanteIds,
+            prefixoCDDir: FiltroBusca.semEspacos(prefixoCDDir),
+            categoriaIds: categoriaIds
+        )
     }
 
-    func aceita(_ livro: Livro) -> Bool {
-        let termosDoAutor = FiltroBusca.termos(autor)
-        if !termosDoAutor.isEmpty,
-           !livro.autores.contains(where: { FiltroBusca.autor($0, casaCom: termosDoAutor) }) {
-            return false
+    /// Cada dimensão já na forma em que é comparada. Termos do autor vazios, editora e prefixo `nil` e
+    /// conjuntos vazios significam "sem filtro": a regra "em branco = sem filtro" mora só em `preparado()`.
+    struct Preparado {
+        let termosDoAutor: [String]
+        let editora: String?
+        let anoMinimo: Int?
+        let anoMaximo: Int?
+        let estanteIds: Set<UUID>
+        let prefixoCDDir: String?
+        let categoriaIds: Set<UUID>
+
+        var estaVazio: Bool {
+            termosDoAutor.isEmpty
+                && editora == nil
+                && anoMinimo == nil
+                && anoMaximo == nil
+                && estanteIds.isEmpty
+                && prefixoCDDir == nil
+                && categoriaIds.isEmpty
         }
-        if let editoraProcurada = FiltroBusca.textoNormalizado(editora),
-           !Normalizacao.chave(livro.editora ?? "").contains(editoraProcurada) {
-            return false
-        }
-        if anoMinimo != nil || anoMaximo != nil {
-            guard let ano = livro.ano else { return false }
-            if let minimo = anoMinimo, ano < minimo { return false }
-            if let maximo = anoMaximo, ano > maximo { return false }
-        }
-        if !estanteIds.isEmpty, !estanteIds.contains(livro.estanteId) {
-            return false
-        }
-        if let prefixoProcurado = FiltroBusca.semEspacos(prefixoCDDir) {
-            guard let cddir = FiltroBusca.semEspacos(livro.cddir), cddir.hasPrefix(prefixoProcurado) else {
+
+        func aceita(_ livro: Livro) -> Bool {
+            if !termosDoAutor.isEmpty,
+               !livro.autores.contains(where: { Preparado.autor($0, casaCom: termosDoAutor) }) {
                 return false
             }
+            if let editoraProcurada = editora,
+               !Normalizacao.chave(livro.editora ?? "").contains(editoraProcurada) {
+                return false
+            }
+            if anoMinimo != nil || anoMaximo != nil {
+                guard let ano = livro.ano else { return false }
+                if let minimo = anoMinimo, ano < minimo { return false }
+                if let maximo = anoMaximo, ano > maximo { return false }
+            }
+            if !estanteIds.isEmpty, !estanteIds.contains(livro.estanteId) {
+                return false
+            }
+            if let prefixoProcurado = prefixoCDDir {
+                guard let cddir = FiltroBusca.semEspacos(livro.cddir), cddir.hasPrefix(prefixoProcurado) else {
+                    return false
+                }
+            }
+            if !categoriaIds.isEmpty, categoriaIds.isDisjoint(with: livro.categoriaIds) {
+                return false
+            }
+            return true
         }
-        if !categoriaIds.isEmpty, categoriaIds.isDisjoint(with: livro.categoriaIds) {
-            return false
-        }
-        return true
-    }
 
-    /// Todos os termos procurados no mesmo autor: "José Grinover" não casa com um livro que tenha
-    /// um José e uma Grinover como coautores.
-    private static func autor(_ nome: String, casaCom termosProcurados: [String]) -> Bool {
-        let termosDoNome = Tokenizador.termos(nome)
-        return termosProcurados.allSatisfy { procurado in
-            termosDoNome.contains { $0.hasPrefix(procurado) }
+        /// Todos os termos procurados no mesmo autor: "José Grinover" não casa com um livro que tenha
+        /// um José e uma Grinover como coautores.
+        private static func autor(_ nome: String, casaCom termosProcurados: [String]) -> Bool {
+            let termosDoNome = Tokenizador.termos(nome)
+            return termosProcurados.allSatisfy { procurado in
+                termosDoNome.contains { $0.hasPrefix(procurado) }
+            }
         }
-    }
-
-    private static func termos(_ texto: String?) -> [String] {
-        Tokenizador.termos(texto ?? "")
     }
 
     /// Texto normalizado, ou `nil` se estiver ausente ou em branco.

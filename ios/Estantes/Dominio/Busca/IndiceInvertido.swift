@@ -113,6 +113,12 @@ struct IndiceInvertido {
         postings[termo] ?? [:]
     }
 
+    /// Os termos do vocabulário que começam com o prefixo (o próprio prefixo incluído, se existir),
+    /// em ordem alfabética. Percorre o vocabulário inteiro: O(V), barato para uma biblioteca pessoal.
+    func termos(comPrefixo prefixo: String) -> [String] {
+        postings.keys.filter { $0.hasPrefix(prefixo) }.sorted()
+    }
+
     /// `df` do IDF: em quantos livros o termo aparece, em qualquer campo.
     func quantidadeDeLivros(contendo termo: String) -> Int {
         postings[termo]?.count ?? 0
