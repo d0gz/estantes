@@ -384,8 +384,19 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [x] `ValidacaoSumario` `[eu escrevo]` (escrita pelo Ricardo; 12 testes)
 - [x] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória) + `BibliotecaRepositorioCoreData` (conversão `[eu escrevo]` em parte; 25 testes de Dados)
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
-  (2.4a montagem e tela inicial · 2.4b apagar estante · 2.4c estante → livros → detalhe · 2.4d formulário · 2.4e prateleira ·
+  (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário · 2.4e prateleira ·
   depois o estilo, tela por tela)
+  **Onde paramos (09/10, branch `fase2/telas`, 266 testes):** lógica da 2.4a–c pronta e aprovada no simulador.
+  Próximos, nesta ordem, cada um começando pela explicação e esperando o OK:
+  1. **2.4d** formulário de adicionar/editar livro: `RascunhoLivro` (tudo texto) ↔ `Livro` (título obrigatório, números
+     validados, vazio → nil, autores um por linha; a edição preserva id, adicionadoEm, origem, sumário, categorias, cddirCaminho, urn);
+     `Form` em seções (Essencial · Publicação · Volume recolhível · Estante e prateleira); ativa o "+" da `EstanteView` e o
+     "Editar" do `LivroDetalheView` (hoje desabilitados).
+  2. **2.4e** prateleira com sugestões (`prateleiras(naEstante:)` filtradas pelo texto, com `Normalizacao.chave`; regra pura + testes).
+  3. **Estilo**, uma tela por vez: Inicio → Estante → Detalhe → Formulário → Apagar estante (ver "Forma de trabalho nas telas").
+  4. Fechamento: CI verde, PR pronto para revisão, checklist e CLAUDE.md atualizados.
+  Ferramentas: `./scripts/testar.sh`; `./scripts/capturar.sh <Tela> <versão> [<pasta>]` (casos no enum `Captura`, `App/Exemplos.swift`);
+  testar à mão com `xcrun simctl launch "iPhone 14" com.ricardo.estantes -captura Inicio` (exemplos em memória).
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
