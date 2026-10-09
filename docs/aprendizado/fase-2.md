@@ -749,3 +749,108 @@ Proteções no código (releia `BM25F.swift`):
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+**Correção das respostas:** (sem respostas)
+
+---
+
+## Tarefa 2.3d — Filtros da busca (2026-10-09)
+
+### O que foi feito
+Criei `Dominio/Busca/FiltroBusca.swift`: uma `struct` só com Foundation que guarda as escolhas das chips (autor, editora, faixa de anos, estantes, prefixo de CDDir, categorias) e expõe o predicado puro `aceita(_ livro:) -> Bool` e `estaVazio`. Os testes estão em `EstantesTests/Dominio/Busca/FiltroBuscaTests.swift`. A suíte ficou em 112 testes, 0 falhas, no Xcode 14.2. O PLANO marcou os passos 3 e 4 da 2.3 e ganhou uma linha na tabela de decisões.
+
+### Conceitos envolvidos
+
+#### 1. Predicado puro e filtro vazio
+Um predicado é uma função `Livro -> Bool`. Ele é "puro" porque a resposta depende só do filtro e do livro, sem rede, relógio nem estado escondido. Isso permite testar com exemplos pequenos e reaproveitar o filtro no motor, na tela e em testes. Regra de identidade: o filtro vazio aceita tudo, como o `true` do `&&`.
+
+#### 2. Lógica E entre dimensões, OU dentro de uma dimensão
+```mermaid
+flowchart LR
+  L[Livro] --> A{autor?}
+  A -->|passa| E{editora?}
+  E -->|passa| N{ano?}
+  N -->|passa| S{"estante ∈ conjunto?"}
+  S -->|passa| C{CDDir?}
+  C -->|passa| G{"categorias ∩ conjunto ≠ ∅?"}
+  G -->|passa| OK[aceito]
+```
+Entre dimensões vale E (cada `if ... return false` é uma barreira). Dentro de estantes e categorias vale OU: `estanteIds.contains(livro.estanteId)` e `!categoriaIds.isDisjoint(with:)`. `Set.contains` é O(1) em média; `isDisjoint(with:)` percorre o menor dos dois conjuntos.
+
+#### 3. "Sem filtro" por convenção: nil, texto em branco, conjunto vazio
+Cada dimensão tem um valor neutro. Isso evita um `enum` de "ligado/desligado" por chip, mas cria um risco: a regra "em branco = sem filtro" precisa ser a mesma em `estaVazio` e em `aceita`. Se uma dimensão nova entrar em um lugar e não no outro, o motor (que usará `estaVazio` como atalho) pularia um filtro ligado. O teste de propriedade (ver "Padrões") amarra as duas funções.
+
+#### 4. Autor: casamento por prefixo de termos, em qualquer ordem
+O problema: o dado vem como "Silva, José Afonso da" e o usuário digita "José Afonso Silva". Comparar o texto inteiro ("contém") falha. A solução usa o `Tokenizador` da 2.3a: o nome vira termos normalizados (`["silva","jose","afonso"]`, porque "da" é palavra vazia), e cada termo digitado precisa ser prefixo de algum termo do **mesmo** autor:
+```swift
+termosProcurados.allSatisfy { procurado in
+    termosDoNome.contains { $0.hasPrefix(procurado) }
+}
+```
+Complexidade: O(p · t) por autor (p termos procurados, t termos do nome), pequenos de verdade. Consequências:
+
+| Digitado | Resultado | Por quê |
+| --- | --- | --- |
+| "silv" | acha | prefixo de "silva" |
+| "ilva" | não acha | meio da palavra, não prefixo |
+| "da" | filtro conta como vazio | palavra vazia, o tokenizador descarta |
+| "antonio grinover" | não casa com Cintra, Antônio + Grinover, Ada | os termos têm de estar no mesmo autor |
+
+O "mesmo autor" está em `livro.autores.contains(where: { autor($0, casaCom:) })`: o OU é entre autores do livro, o E é entre os termos dentro de um autor.
+
+#### 5. Editora, ano e CDDir
+- **Editora**: `Normalizacao.chave` (minúsculas, sem acento) nos dois lados e `contains`. Editora não tem ordem de nome, então o "contém" basta.
+- **Ano**: limites inclusivos e opcionais. Livro sem ano sai quando há qualquer limite (não dá para afirmar que está na faixa). Faixa invertida (mínimo > máximo) não aceita ninguém.
+- **CDDir**: `hasPrefix` depois de remover todo espaço. A classificação decimal é hierárquica: "341.1" é o assunto geral, "341.12" um subassunto, então prefixo de string coincide com a hierarquia. Armadilha da string: "34" também pega "341" e "3412", o que aqui é desejado, mas um prefixo de "341.1" não pega "341.2".
+
+#### 6. Onde o filtro entra no pipeline
+O filtro roda **depois** do BM25F, sobre os candidatos já pontuados. O IDF (raridade do termo) é calculado sobre a biblioteca inteira no índice; se filtrássemos antes, o IDF mudaria com o conjunto e o mesmo livro teria nota diferente ao ligar uma chip. Custo: O(n) linear nos candidatos (n pequeno: biblioteca pessoal).
+
+### Por que assim
+As decisões, numeradas como foram aprovadas:
+1. **`struct FiltroBusca` com estado**, diferente do `BM25F` (enum sem casos, função pura sem estado). O filtro guarda as escolhas da tela, então precisa de valores; o BM25F só calcula. Filtro vazio aceita tudo.
+2. **Campos**: autor, editora (`String?`), anoMinimo, anoMaximo (`Int?`), estanteIds, categoriaIds (`Set<UUID>`), prefixoCDDir (`String?`). `nil`, texto em branco e conjunto vazio significam "sem filtro". Esses dados ficaram fora do `CampoBusca` na 2.3b justamente para serem filtros, não texto pontuado.
+3. **E entre dimensões; OU dentro de estantes e categorias.** Marcar "Penal" e "Processo" mostra livros de qualquer uma. E entre categorias foi descartado: quem marca duas chips quase sempre quer ampliar.
+4. **Editora** por `Normalizacao.chave` + "contém". **Autor** começou como "contém" no texto inteiro; o revisor apontou que "José Afonso Silva" não acha "Silva, José Afonso da". A busca BM25F (campo autores tokenizado) já acha em qualquer ordem, só o filtro falhava. Opções: (a) comparar por termos do `Tokenizador`, cada termo digitado prefixo de algum termo de um mesmo autor; (b) manter e a tela 2.7 oferecer lista de autores. Ricardo escolheu (a). Consequências na tabela acima.
+5. **Ano**: limites inclusivos e opcionais; livro sem ano sai quando há filtro de ano; faixa invertida não aceita nenhum, **sem `precondition`**. Entrada do usuário não pode travar o app (lição da 2.3c: `precondition` é para erro de programação, como os parâmetros do BM25F). A tela evita o caso.
+6. **CDDir**: `hasPrefix` depois de tirar **todos** os espaços (pontas e meio: "341 .2" vira "341.2"; código CDDir não tem espaço significativo). A hierarquia decimal faz "341.1" pegar "341.12". Livro sem CDDir sai.
+7. **O filtro roda depois do BM25F** (no motor, passo 5), pelo motivo do IDF. Consulta vazia + filtro preenchido fica para o passo 5.
+8. **Custo O(n) linear**; índices por faceta (bitmaps) descartados como otimização prematura.
+
+### Alternativas descartadas
+- **Filtrar antes do ranking**: mudaria o IDF e as notas (ver acima). Só valeria se o objetivo fosse "ranquear dentro do subconjunto" como uma biblioteca nova.
+- **E entre categorias**: restringe demais; contraria a intenção típica de quem marca várias chips.
+- **Autor por "contém" no texto inteiro**: falha com a ordem "Sobrenome, Nome" (achado 4 da revisão).
+- **Opção (b) para autor** (lista de autores na tela 2.7): empurra o problema para a interface e não ajuda quem digita livremente.
+- **`precondition` na faixa de anos invertida**: travaria o app por entrada do usuário.
+- **Índices por faceta/bitmaps**: complexidade sem medida que a justifique.
+
+### Padrões e boas práticas
+- **Predicado puro com valor neutro (identidade)**: filtro vazio = `true`. Quando não usar: se o filtro precisasse de dados externos (consultar o banco por categoria), deixaria de ser puro e iria para a camada de dados.
+- **Teste de propriedade amarrando duas funções** (`testCadaDimensaoLigadaDeixaDeEstarVazioERecusaLivro`): um filtro por dimensão (7, conferido com `count` para o teste falhar se uma dimensão nova for esquecida), exigindo `estaVazio == false` e recusa do livro. Isso fecha o risco de `estaVazio` e `aceita` divergirem.
+- **Testar o E uma dimensão por vez**: dicionário de closures `(inout FiltroBusca) -> Void`, cada uma estraga uma dimensão de um filtro que antes aceitava o livro. Pegaria uma troca de E por OU.
+- **Nomes que dizem o papel** (Swift API Design Guidelines): `textoNormalizado`, `editoraProcurada`, `prefixoProcurado` em vez de nomes sombreados (um método `static chave` com `let chave` dentro; `if let autor` sombreando a propriedade). Sombrear compila, mas confunde a leitura.
+- **`guard` dentro do `if`** nas dimensões ano/CDDir: deixa explícito o caso "livro sem ano/sem cddir". A revisão apontou a mistura de estilos, e a mistura foi mantida de propósito.
+- **Faixa de anos inclusiva** com comentário de teste mostrando que 2014 está entre 2010 e 2020 mas mesmo assim sai na faixa invertida: o teste documenta o porquê.
+
+### Armadilhas
+- **Closures guardadas num dicionário são `@escaping`**: dentro de um `XCTestCase`, acessar propriedades exige `self.` explícito no Swift 5.7 (`self.estante2`); sem isso o compilador reclama de captura implícita.
+- **`estaVazio` e `aceita` divergirem**: diagnóstico pelo teste de propriedade; sintoma no app seria uma chip ligada sem efeito.
+- **Filtro só com "da"** vira vazio (palavra vazia): o usuário digita e nada muda. É consistente com o tokenizador, mas pode surpreender na tela.
+- **"ilva" não acha "Silva"**: prefixo não é substring. Aceito por escolha.
+- **Livro sem ano/CDDir some quando o filtro está ligado**: correto, mas na tela convém explicar.
+- **Termos do filtro recalculados a cada livro** (normalização e tokenização do texto procurado): custo pequeno hoje, adiado ao passo 5 (pré-calcular uma vez por consulta, só depois de medir).
+- **Passo 5**: conferir que o motor aplica o filtro depois do BM25F e que usa `estaVazio` só como atalho.
+
+### Para ir além
+- Manning, Raghavan e Schütze, *Introduction to Information Retrieval*, cap. 1 e 7 (combinação de restrições booleanas com ranking); online em nlp.stanford.edu/IR-book.
+- Swift API Design Guidelines (swift.org/documentation/api-design-guidelines): seção sobre clareza e nomes que dizem o papel.
+- Documentação do Swift sobre closures: "Escaping Closures" em *The Swift Programming Language*.
+
+### Perguntas
+1. Com suas palavras: por que "José Afonso Silva" acha "Silva, José Afonso da" no filtro agora, mas "antonio grinover" não casa com um livro de Cintra, Antônio e Grinover, Ada? Onde no código está a diferença entre "o mesmo autor" e "qualquer autor do livro"?
+2. Aplicação: se o produto pedisse que marcar as categorias "Penal" e "Processo" mostrasse só livros que têm **as duas**, o que mudaria em `aceita`? E o que mudaria no teste de propriedade e na tela, sabendo que `estaVazio` ainda precisa fazer sentido?
+3. Raciocínio: suponha que o filtro de estante rodasse **antes** do BM25F, restringindo o índice às estantes marcadas. Dê um exemplo concreto com duas estantes e um termo (por exemplo "prisão") em que o mesmo livro mudaria de nota ao ligar a chip, e explique por quê usando o IDF. Depois diga: o `Tokenizador` ignora "da"; o que `FiltroBusca(autor: "da")` devolve em `estaVazio` e em `aceita`?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
