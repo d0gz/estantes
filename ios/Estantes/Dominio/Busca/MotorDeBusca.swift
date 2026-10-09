@@ -3,7 +3,8 @@ import Foundation
 /// A busca na biblioteca do usuário: junta o índice, o BM25F e os filtros.
 ///
 /// Guarda os livros além do índice porque o filtro precisa de editora, ano, estante e CDDir,
-/// que o índice não tem. Quem altera a biblioteca chama `atualizar` ou `remover` em seguida.
+/// que o índice não tem. Quem altera a biblioteca chama `atualizar` ou `remover` em seguida;
+/// quem cria, renomeia ou apaga uma categoria chama `atualizar(categorias:)`.
 struct MotorDeBusca {
     /// O último termo só é expandido por prefixo a partir deste tamanho: com uma letra, quase todo
     /// o vocabulário entraria.
@@ -34,6 +35,25 @@ struct MotorDeBusca {
         indice.remover(livroId)
     }
 
+    /// Troca a lista de categorias. O índice grava os nomes, então só são reindexados os livros com
+    /// uma categoria cujo nome mudou: renomeada, apagada ou nova (um livro pode ter recebido o id
+    /// antes de o motor conhecer o nome). Das apagadas, o livro também perde o id, como o
+    /// repositório faz (nullify): senão o filtro por categoria ainda acharia o id antigo.
+    /// Ids que o motor nunca conheceu (nem antes nem agora) ficam no livro: o repositório não os produz.
+    mutating func atualizar(categorias: [Categoria]) {
+        let antigos = nomesDasCategorias
+        let novos: [UUID: String] = categorias.reduce(into: [:]) { $0[$1.id] = $1.nome }
+        let afetadas = Set(antigos.keys).union(novos.keys).filter { antigos[$0] != novos[$0] }
+        let apagadas = Set(antigos.keys).subtracting(novos.keys)
+        nomesDasCategorias = novos
+
+        guard !afetadas.isEmpty else { return }
+        for var livro in livros.values where !livro.categoriaIds.isDisjoint(with: afetadas) {
+            livro.categoriaIds.subtract(apagadas)
+            atualizar(livro)
+        }
+    }
+
     // MARK: - Busca
 
     /// Os livros que contêm **todos** os termos da consulta (E) e passam no filtro, do mais
@@ -56,7 +76,7 @@ struct MotorDeBusca {
             return MotorDeBusca.ordenar(
                 livros.values
                     .filter(filtroPreparado.aceita)
-                    .map { ResultadoBusca(livro: $0, nota: 0) }
+                    .map { ResultadoBusca(livro: $0, itemDoSumario: nil, nota: 0) }
             )
         }
 
@@ -67,7 +87,11 @@ struct MotorDeBusca {
         var anteriores = Set(termos.dropLast())
         let repetido = anteriores.remove(ultimo) != nil
         let fixos = anteriores.sorted()
-        var notas = notasDoUltimo(ultimo, expandir: !repetido, parametros: parametros)
+        let expansoes = !repetido && ultimo.count >= MotorDeBusca.tamanhoMinimoDoPrefixo
+            ? indice.termos(comPrefixo: ultimo)
+            : [ultimo]
+        var notas = notasDoUltimo(expansoes, parametros: parametros)
+        let conjuntoDeExpansoes = Set(expansoes)
         for termo in fixos {
             let notasDoTermo = BM25F.notas(termos: [termo], indice: indice, parametros: parametros)
             // E: só continua quem também tem este termo. O `for` percorre uma cópia de `notas`
@@ -81,7 +105,8 @@ struct MotorDeBusca {
         return MotorDeBusca.ordenar(
             notas.compactMap { id, nota in
                 guard let livro = livros[id], filtroPreparado.aceita(livro) else { return nil }
-                return ResultadoBusca(livro: livro, nota: nota)
+                let item = melhorItem(de: livro, fixos: fixos, expansoes: conjuntoDeExpansoes, parametros: parametros)
+                return ResultadoBusca(livro: livro, itemDoSumario: item, nota: nota)
             }
         )
     }
@@ -89,10 +114,7 @@ struct MotorDeBusca {
     /// Nota de cada livro para o último termo: a maior entre as expansões do prefixo, e não a soma,
     /// para que um prefixo com muitas expansões não infle a nota (mesma ideia da saturação).
     /// Como cada expansão traz o próprio IDF, a que costuma vencer é a mais rara na biblioteca.
-    private func notasDoUltimo(_ ultimo: String, expandir: Bool, parametros: ParametrosBM25F) -> [UUID: Double] {
-        let expansoes = expandir && ultimo.count >= MotorDeBusca.tamanhoMinimoDoPrefixo
-            ? indice.termos(comPrefixo: ultimo)
-            : [ultimo]
+    private func notasDoUltimo(_ expansoes: [String], parametros: ParametrosBM25F) -> [UUID: Double] {
         var melhores: [UUID: Double] = [:]
         for termo in expansoes {
             for (id, nota) in BM25F.notas(termos: [termo], indice: indice, parametros: parametros) {
@@ -100,6 +122,37 @@ struct MotorDeBusca {
             }
         }
         return melhores
+    }
+
+    /// O item do sumário mostrado no resultado: o de maior nota BM25, com a mesma regra do livro
+    /// (termos fixos somados, a maior entre as expansões do último). Calculado só para os livros que
+    /// sobraram depois do filtro. No empate, o que vem antes no sumário; `nil` se nenhum item tem
+    /// os termos (o livro casou pelo título, autor...).
+    private func melhorItem(
+        de livro: Livro,
+        fixos: [String],
+        expansoes: Set<String>,
+        parametros: ParametrosBM25F
+    ) -> ItemSumario? {
+        var melhor: (id: UUID, nota: Double)?
+        for item in indice.itensSumario(doLivro: livro.id) {
+            // Só as expansões que o item tem: um prefixo curto pode ter centenas, e um item tem
+            // poucos termos. Percorrer os termos do item custa O(tamanho do item), não O(expansões).
+            let notaDoUltimo = item.frequencias.keys
+                .filter(expansoes.contains)
+                .map { BM25F.notaDoItem(item, termos: [$0], indice: indice, parametros: parametros) }
+                .max() ?? 0
+            let nota = fixos.reduce(notaDoUltimo) { soma, termo in
+                soma + BM25F.notaDoItem(item, termos: [termo], indice: indice, parametros: parametros)
+            }
+            // `>` e não `>=`: no empate fica o primeiro. Partir de 0 faz item sem os termos
+            // (nota 0) nunca vencer; se nenhum vence, o resultado é `nil`.
+            if nota > (melhor?.nota ?? 0) {
+                melhor = (item.id, nota)
+            }
+        }
+        guard let id = melhor?.id else { return nil }
+        return livro.itensSumario.first { $0.id == id }
     }
 
     /// Nota maior primeiro; no empate, título (sem acento nem maiúsculas) e, por fim, o id,
