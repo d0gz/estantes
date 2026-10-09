@@ -320,7 +320,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · **2.3 norma
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
-- [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
+- [ ] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F `[eu escrevo]`, filtros) + testes
 - [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
 - [ ] Simulador iOS 16 e CI verde (Sideloadly no iPhone adiado até haver aparelho)
