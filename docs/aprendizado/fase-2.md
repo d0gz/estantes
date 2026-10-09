@@ -1337,4 +1337,146 @@ Grade do peso do sumário a partir da linha de base: 0,25 → MRR 0,974 (#1 e #1
 3. Raciocínio: a varredura mostrou que o peso do subtítulo, as categorias e o CDDir não mudam nenhuma consulta. Alguém propõe escrever em `ConsultasDeReferencia.swift` uma consulta nova que faça o peso das categorias "importar" e depois escolher o valor que a conserta. O que há de errado nisso, e qual é a ordem correta dos passos? Depois explique por que o ótimo (peso 0,5, `b` 0) foi rejeitado apesar de MRR 0,974, e por que a escolha do candidato A em vez do B também é uma decisão sobre risco, não só sobre número.
 
 ### Minhas respostas
+(sem respostas)
+
+---
+
+## Tarefa 2.3i — Sondas da busca: plural, volume/artigos, correção de digitação, OU de reserva e peso do sumário 0,25 (2026-10-09)
+
+### O que foi feito
+Seis commits atacaram as seis sondas que a 2.3h deixou (#20 "arts 1710 1779", #21 "tratado 48", #22 "tratado direito privado", #23 "prisoes cautelares", #24 "procesos penal", #25 "lassalle"). Criaram `Singular.swift` (plural), `DistanciaDeEdicao.swift` (correção de digitação), passaram volume, rótulo e artigos para o campo subtítulo, deram ao `MotorDeBusca` o OU de reserva e a `RespostaBusca` (resultados, correções, modo), e baixaram o peso do sumário de 0,5 para 0,25. Os testes foram de 185 para 224, e as 29 consultas de ajuste ficaram todas em 1º lugar (Xcode 14.2, 0 falhas).
+
+### Conceitos envolvidos
+
+**1. Diagnóstico: por que "nenhum resultado"?** As quatro sondas vazias tinham a mesma causa. O motor usa **E estrito**: um livro só entra se tiver *todos* os termos. Basta um termo que não existe no vocabulário do índice (ou que existe em outra forma, como `prisoes` × `prisao`) para a interseção ficar vazia. Há duas frentes possíveis: fazer o termo existir (plural, volume/artigos, correção) ou relaxar o E (OU de reserva). A ordem escolhida foi o vocabulário primeiro e o OU por último, como rede de segurança: consertar a causa é melhor que esconder o sintoma.
+
+```mermaid
+flowchart TD
+  C[consulta digitada] --> T[Tokenizador: palavras normalizadas]
+  T --> S[Singular.forma em cada palavra]
+  S --> D{termo desconhecido?<br/>df = 0, so letras, >= 5}
+  D -- sim --> K[DistanciaDeEdicao: corrige para o termo do vocabulario]
+  D -- nao --> E
+  K --> E[E estrito: livros com TODOS os termos]
+  E -- achou --> R[ranking BM25F]
+  E -- vazio e >= 2 termos distintos --> O[OU de reserva: ordena por menos ausentes, depois nota]
+  E -- vazio e 1 termo --> V[lista vazia]
+```
+
+**2. Stemming mínimo de plural (`Singular.swift`).** *Stemming* é reduzir palavras flexionadas a uma forma comum para que consulta e documento casem. Aqui o escopo é só plural, com regras da mais específica para a mais geral, aplicadas apenas a termos só de letras com 4 ou mais caracteres:
+
+| Regra | Exemplos | Guarda |
+| --- | --- | --- |
+| oes -> ao | prisoes -> prisao, obrigacoes -> obrigacao | nenhuma |
+| ais -> al | penais -> penal, reais -> real | exceções: mais, demais, jamais, pais (país), cais |
+| eis -> el | imoveis -> imovel, papeis -> papel | 5 letras ou mais ("leis" não vira "lel": cai na regra geral e vira "lei") |
+| ns -> m | ordens -> ordem, bens -> bem | nenhuma |
+| vogal+res -> vogal+r | cautelares -> cautelar, credores -> credor | só depois de vogal ("livres" -> livre, "padres" -> padre) |
+| zes -> z | juizes -> juiz, vezes -> vez | nenhuma |
+| vogal+s -> tira o s | direitos -> direito, partes -> parte, leis -> lei | exceções: onus (viraria "onu", a ONU), virus, bonus, lapis |
+| exceções fixas | arts -> art, civis -> civil | tabela testada |
+
+Por que a ordem importa: "oes" tem de vir antes da regra geral de "s", senão "prisoes" viraria "prisoe". É o mesmo raciocínio de uma cadeia de `if` com casos mais específicos primeiro (como o *longest match* em tokenizadores).
+
+A função entra **só no Tokenizador**: `termos(texto) = palavras(texto).map(Singular.forma)`. `palavras` continua sendo a forma escrita, já normalizada (minúscula, sem acento).
+
+**A pergunta do Ricardo e a resposta.** Durante o planejamento ele perguntou: "a modificação acontece só ao tokenizar, sem alterar o que é armazenado? Isso não poderia produzir livros incorretos e incapacitar buscas, ou o plural força um padrão para todos?" A resposta, em partes:
+- O texto gravado (Core Data, exportação, o que a tela mostra) **nunca muda**. O singular existe só nos *termos do índice em memória* (que é refeito ao abrir o app) e nos *termos da consulta*.
+- Tem de valer **nos dois lados**. Se só a consulta virasse singular, "prisoes" -> `prisao` não casaria com o `prisoes` do índice, e a busca ficaria pior que antes. É a mesma ideia dos acentos: "Ação" vira `acao` no índice e na consulta.
+- "Livro incorreto" não acontece: o índice é descartável e derivado, não há migração de dados. "Busca incapacitada" só ocorreria se índice e consulta usassem regras diferentes, o que é impossível usando a mesma função.
+- O risco real é outro: o **falso positivo**, duas palavras diferentes caindo no mesmo termo (ex.: "ônus" -> `onu` colidiria com ONU). Por isso existe a tabela de exceções. Sim, o plural impõe um padrão a todos os termos; esse é o preço (aceito) de qualquer normalização.
+
+**3. O problema do prefixo.** A busca "enquanto digita" usa prefixo no último termo. Com o vocabulário já no singular, quem digita "cautelare" não acharia nada, porque "cautelare" não é prefixo de `cautelar`: o resultado piscaria e sumiria no meio da palavra. Solução: o `IndiceInvertido` guarda também as **palavras escritas**, com contagem por livro (a contagem permite remover um livro sem apagar uma palavra que outro ainda usa). `termos(comPrefixo:)` procura o prefixo nas palavras escritas e devolve o termo já no singular: "caut" -> {cautelar, cautelares} -> {cautelar}. Se o prefixo já é um plural completo ("prisoes") e só o singular existe no índice, o singular volta também. O motor usa a palavra digitada para o prefixo e o termo singular para o resto.
+
+**4. Distância de edição (`DistanciaDeEdicao.swift`).** Distância de Levenshtein = menor número de inserções, remoções e trocas de caractere para transformar uma palavra em outra. Aqui usa-se **Damerau-Levenshtein restrita** (OSA, *optimal string alignment*), que acrescenta a **transposição de vizinhas** como 1 operação, porque é o erro de digitação mais comum: "porcesso" -> "processo" = 1 (Levenshtein puro daria 2). "Restrita" significa que nenhuma substring é editada duas vezes: "ca" -> "abc" dá 3, enquanto a Damerau-Levenshtein completa daria 2. Para correção ortográfica a diferença quase nunca importa.
+
+Implementação por programação dinâmica: `d[i][j]` = distância entre os i primeiros caracteres de A e os j primeiros de B. Guarda-se **três linhas** (atual, anterior e a de antes, necessária para a transposição) em vez da matriz inteira: memória O(m) em vez de O(n·m). Dois cortes (*early exit*):
+- se os tamanhos diferem mais que o limite, nem calcula (não dá para consertar com menos edições que a diferença de tamanho);
+- se o mínimo de uma linha passa do limite, para. Isso é seguro porque o mínimo de uma linha nunca é menor que o da anterior, nem com a transposição.
+
+Custo total por termo desconhecido: O(V·n·m), com V o tamanho do vocabulário, e com os cortes na prática bem menor.
+
+**5. Quando corrigir (no motor).**
+- Só termo **desconhecido** (df = 0), só de letras, com 5 ou mais letras.
+- Limite: 1 erro até 8 letras, 2 a partir de 9 (palavra curta com 2 erros vira qualquer outra palavra).
+- O **último termo** só é corrigido se o prefixo não achou nada: "lassal" ainda está sendo digitado e não é erro.
+- Desempate do candidato: menor distância, depois maior df, depois ordem alfabética. Em Swift, comparação de tuplas `(distancia, -df, termo)`; o `-df` inverte o sentido só dessa componente.
+- Exemplos: "lassalle" -> `lassale` (1 remoção); "procesos" -> singular `proceso` -> `processo` (1 inserção), ou seja, o singular roda antes da correção.
+- Se o termo corrigido repete um termo anterior ("processo procesos"), conta uma vez só.
+- `buscar` agora devolve `RespostaBusca` (resultados + `correcoes: [Correcao(digitado, usado)]`) e tem `corrigir: Bool = true`: a tela poderá oferecer "buscar exatamente" (o "Você quis dizer" dos buscadores, no sentido inverso). As ~70 chamadas nos testes ganharam `.resultados` por script.
+
+**Por que corrigir só termo desconhecido não piora consulta que funciona.** Um termo com df = 0 já fazia o E ficar vazio, então a consulta já não funcionava. Corrigir só pode transformar "vazio" em "algo". Nenhuma consulta que já retornava resultados é tocada, porque nenhum termo dela é desconhecido. Isso foi confirmado na medição: só #24 e #25 mudaram (ambas para 1º), todas as outras ficaram idênticas. Já corrigir também termos existentes ("pena" -> "penal") mudaria consultas certas, e por isso foi descartado.
+
+**6. Volume, rótulo e artigos no campo subtítulo.** `volume` ("48"), `volumeRotulo` ("Tomo XLVIII" vira `tomo`, `xlviii`) e **só as pontas** dos artigos (1710 e 1779) entram no campo `subtitulo`, o mesmo papel da `parte`: texto de peso médio da folha de rosto, sem peso novo. Isso revisa a decisão de 09/10 que deixava `volumeRotulo` de fora. O intervalo inteiro foi descartado: seriam dezenas de números de ruído por livro, e "art 1750 -> vol XXIV" é busca por faixa, outro recurso. Ruído de "48": só bate com "48" isolado, pois "8.048" vira `8048` no tokenizador. Resultado: #20 e #21 em 1º; #13 "art 1710" subiu de nota (2,285 -> 3,068) com o item certo (o `melhorItem` olha só o sumário). Nova consulta #27 "tomo xlviii" -> T48, em 1º.
+
+**7. OU de reserva e nível de coordenação.** Só dispara quando o E (já com filtro) devolve lista vazia **e** há 2 ou mais termos distintos. Entram os livros com pelo menos um termo. Nota = soma dos termos que o livro tem (na mesma ordem fixa do E, para a soma de `Double` ser reproduzível). Ordem: primeiro **menos palavras ausentes** (o *coordination level*, `coord` do Lucene antigo: premia quem cobre mais da consulta), depois nota, título, id. No modo E a chave "ausentes" vale 0 para todos, então a mesma função `ordenar` serve aos dois modos. Sem multiplicar a nota por fator de penalidade: E e OU nunca aparecem na mesma lista, então as notas só se comparam dentro do grupo. `RespostaBusca.modo` é `.todosOsTermos` ou `.parteDosTermos`; `ResultadoBusca.palavrasAusentes` traz a palavra **como o usuário escreveu**, na ordem da consulta ("prisões" aparece como "prisoes", não como o termo `prisao`), para a tela dizer "sem: stf". "prev prev" continua `[]` (só um termo distinto), o que responde a pergunta 2 da 2.3e.
+
+### Por que assim
+- **Vocabulário antes do OU:** o OU relaxa a precisão para todos; consertar o vocabulário só ajuda. O OU fica como rede.
+- **Singular no Tokenizador, nos dois lados:** é o único ponto por onde texto vira termo; uma só função garante simetria.
+- **Corrigir só df = 0:** garante por construção que não há regressão em consulta que já funcionava.
+- **`corrigir: Bool` e `correcoes` na resposta:** a correção automática nunca deve ser silenciosa; a UI precisa mostrar o que foi feito e poder desfazer.
+- **Nível de coordenação como primeira chave do OU:** com a soma de BM25 pura, um livro com um termo raro muito forte ganharia de um livro que tem todos os termos menos um.
+- **Helper `comTodos` nos testes:** 4 testes do motor esperavam `[]` em consulta de 2 termos. Com o OU eles passariam a receber resultados. O helper devolve `[]` quando o modo é `parteDosTermos`, mantendo a intenção original do teste ("o E não achou nada"), e o OU tem testes próprios.
+- **Testes cujas expectativas mudaram (intencional):** "Arts." -> `art`, comentarios -> `comentario`, vezes -> `vez`, obrigacoes -> `obrigacao`, recursos -> `recurso`, contratos -> `contrato`. No `BM25FTests`, o teste passava o termo cru "lopes" (agora o termo do índice é `lope`; sobrenomes também são singularizados, coerente nos dois lados) e passou a usar `Tokenizador.termos("Lopes")`.
+
+**O conflito dos pisos e a decisão do peso (decisão do Ricardo).** Antes de medir o OU, foi escrita a consulta de risco #28 "prisao cautelar stf" -> fernandes ("stf" não existe no vocabulário e é curto demais para corrigir). Ela saiu em 2º, no mesmo padrão de #11 e #23: o Maluf ("Terrorismo e prisão cautelar": o termo em 3 itens do sumário) vence o título exato do Fernandes. O piso falhou (top1 0,923 < 0,94), o ponto combinado de parar e consultar. Varredura com 26 consultas de ajuste:
+
+| peso do sumário | top1 | MRR | item | o que muda |
+| --- | --- | --- | --- | --- |
+| 0,5 (atual) | 0,923 | 0,962 | 1,000 | #11 e #28 em 2º (e a sonda #23) |
+| 0,25 | 1,000 | 1,000 | 1,000 | #11, #23, #28 -> 1º |
+| 1,5 ou mais | 0,846 | 0,923 | 1,000 | #1 e #24 caem |
+
+Baixar o `b` do sumário abaixo de 0,75 de novo piorava o item da #19: a restrição do "item certo" funcionando como desenhada.
+
+Por que a decisão da 2.3h mudou de figura: dos três motivos para descartar 0,25 lá, um (a #11 ser "caso misto") **caiu** com o plural, e os outros dois (ponta da grade; risco inverso não medido) continuavam. E #11, #23 e #28 são o **mesmo par** Fernandes × Maluf, não três evidências independentes: ganhar "três consultas" seria contar a mesma observação três vezes. A #23 deixa de ser sonda de qualquer jeito, porque a definição de sonda é "nenhum peso conserta", e agora um peso conserta.
+
+Opções oferecidas ao Ricardo: (1, recomendada e escolhida) escrever **antes** 2 consultas de risco inverso, medir, e adotar 0,25 se não piorarem; senão manter 0,5 e baixar o piso num commit explicado. (2) manter 0,5 e baixar o piso. (3) adotar 0,25 já. As consultas de risco inverso, escritas antes de medir:
+- #29 "direito fundamental liberdade" -> capez, item "O direito fundamental de liberdade" ("liberdade" também aparece no CDDir do Fernandes, e o Fernandes tem "direitos fundamentais" no sumário: baixar o sumário favorece o Fernandes).
+- #30 "contrato individual" -> mello (sumário "contrato individual de trabalho"; o subtítulo do T48, peso 2, tem "Contrato..." e "dissídios coletivos e individuais").
+
+Com 0,25, #29 e #30 continuam em 1º com o item certo, então 0,25 foi adotado. Varredura a partir de 0,25: nenhuma troca (ponto estacionário). Continua na ponta da grade, mas a grade **não** foi estendida: perseguir ganho além da ponta seria o sobreajuste que a 2.3h evitou. Os commits mostram a ordem honesta: o OU foi commitado sem a #28; a #28 entrou junto com a decisão do peso.
+
+**Resultado final.** 29 consultas de ajuste, todas em 1º: top1 1,000, top3 1,000, MRR 1,000, item certo 1,000. Só a #22 continua sonda: é ambígua por natureza (os dois tomos são respostas certas); o conserto é a tela mostrar `volumeRotulo` na linha. Pisos novos: top1 >= 0,96 e MRR >= 0,98, um pouco abaixo de 1 para tolerar uma troca 1º <-> 2º (28/29 = 0,966; (28 + 0,5)/29 = 0,983), coerente com a rejeição do "um assert por consulta" da 2.3h, e nunca abaixo dos antigos (0,94 e 0,96).
+
+### Alternativas descartadas
+- **RSLP** (Orengo e Huyck, 2001; 8 etapas, ~200 regras): corta também derivação e junta "constitucional" com "constituição"; não dá para explicar por que duas palavras casaram; e quebra o prefixo (o radical nem sempre é prefixo do que o usuário digita).
+- **Indexar as duas formas** (escrita e singular): dobraria a frequência dos termos e distorceria o IDF e o BM25.
+- **Trigramas para correção:** exige um segundo índice; só compensa com vocabulário de milhões. Aqui o vocabulário é pequeno e a varredura com corte basta.
+- **Deixar a correção para a Fase 5:** a Fase 5 é de sinônimos, outro problema.
+- **Corrigir também termos existentes:** mudaria consultas que estavam certas.
+- **Intervalo inteiro de artigos:** ruído; faixa é outro recurso.
+- **OU sempre:** ruído em toda consulta. **Só ignorar termos desconhecidos:** não cobre "todos existem, mas ninguém tem todos". **Misturar E e OU com penalidade:** exige calibrar um fator e compara notas de grupos diferentes.
+- **Adotar 0,25 de imediato (opção 3) ou manter 0,5 baixando o piso (opção 2):** a primeira decide sem medir o risco inverso; a segunda aceita uma regressão conhecida sem testar se havia custo em corrigi-la.
+- **Estender a grade abaixo de 0,25:** sobreajuste.
+
+### Padrões e boas práticas
+- **Normalização simétrica:** tudo que se aplica ao índice deve ser aplicado à consulta pela mesma função. Quebra-se isso quando se transforma só um lado.
+- **Derivado descartável:** o índice é derivação em memória de dados persistidos; por isso mudar a regra do plural não exige migração. Se o índice fosse persistido, mudar a regra exigiria reindexar.
+- **Escrever o teste antes de medir (consulta de risco):** a consulta que pode refutar a sua hipótese precisa existir antes de você ver o número. Escrita depois, ela vira racionalização.
+- **Parar no gatilho combinado:** o piso falhou e a execução parou para consultar. Piso sem consequência não é piso.
+- **Interfaces de erro explícitas:** `RespostaBusca` com `correcoes` e `modo` em vez de o motor "adivinhar" calado.
+- **Quando NÃO usar:** stemming por regras simples não serve para idiomas com morfologia mais rica sem tabela de exceções testada; correção automática não serve para vocabulário com muitos nomes próprios curtos (por isso o limite de 5 letras); OU de reserva não serve onde precisão importa mais que revocação (busca de documento específico).
+
+### Armadilhas
+- **Falso positivo do stemming:** duas palavras diferentes no mesmo termo ("ônus"/"onu"). Diagnóstico: um teste por exceção na tabela, e examinar o vocabulário quando o ranking surpreender.
+- **Cadeia de regras fora de ordem:** colocar a regra geral de "s" antes de "oes" dá "prisoe". Os testes por regra pegam isso.
+- **Expectativa de teste que "muda de significado":** os testes do E que passaram a receber resultados do OU teriam passado silenciosamente se o helper `comTodos` não existisse. Cuidado ao alterar o contrato de uma função sem rever quem testava o caso vazio.
+- **Mudança de IDF por stemming:** `cautelares` (raro, só no Capez) virou `cautelar` (mais comum) e perdeu IDF; por isso a #11 foi do 3º para o 2º (Capez caiu para 3º: maluf 3,134 | fernandes 3,108 | capez 2,832). A parte "estrutural" prevista no caso misto da 2.3h se confirmou. Moral: normalizar o vocabulário altera as estatísticas globais, não só o casamento.
+- **Contar três vezes a mesma evidência** (#11, #23, #28).
+- **Ponta da grade:** 0,25 continua lá. Uma amostra de 29 consultas (1 consulta = 1/29, cerca de 3,4 pontos de top1) com "tudo 1,000" é sinal de que o conjunto ficou fácil para este motor, **não prova**. Novas consultas devem vir do uso real, na tarefa 2.7.
+- **Transposição e linhas de DP:** confundir qual das três linhas guarda `i-2` é o bug clássico da OSA com memória reduzida.
+
+### Para ir além
+- Manning, Raghavan e Schütze, *Introduction to Information Retrieval*, cap. 3 (tolerant retrieval: distância de edição, k-gramas) e cap. 2.2.4 (stemming e lematização), disponível online no site da Stanford.
+- Orengo e Huyck, "A Stemming Algorithm for the Portuguese Language" (2001): o RSLP, para entender o que foi descartado e por quê.
+- Damerau (1964) e Wagner e Fischer (1974): origem da distância de edição por programação dinâmica; para o `coord` e a pontuação por termos presentes, a documentação do `ClassicSimilarity` do Lucene (verifique a versão que usar).
+
+### Perguntas
+1. Com suas palavras: por que o singular precisa ser aplicado nos dois lados (índice e consulta), e por que o prefixo exige guardar também as palavras escritas? Dê o exemplo de "cautelare".
+2. Aplicação: hoje só se corrige termo com df = 0. Se alguém propusesse corrigir também termos existentes quando o resultado fosse "fraco", que consulta do conjunto atual poderia piorar e como você testaria a hipótese sem sobreajustar? E o que mudaria no motor se o limite de 5 letras caísse para 3?
+3. Raciocínio: por que #11, #23 e #28 não contam como três evidências a favor do peso 0,25? Por que as consultas de risco inverso (#29 e #30) tinham de ser escritas **antes** de medir? E "tudo em 1,000" é motivo para comemorar ou para desconfiar? Justifique.
+
+### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
