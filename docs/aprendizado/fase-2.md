@@ -945,4 +945,110 @@ Detalhe do E: `BM25F.notas` é chamado um termo por vez e a soma segue ordem fix
 3. Raciocínio: a biblioteca tem "Prisão preventiva" e "Prevenção do crime", e o usuário digita "prevent" (última palavra), depois "preven". Quais livros voltam em cada caso e por quê? Dica: pense em quais termos do vocabulário começam com cada prefixo e no que a regra "maior nota entre as expansões" faz.
 
 ### Minhas respostas
+(sem respostas)
+
+## Tarefa 2.3f — Item do sumário e categorias no motor (passo 5b) (2026-10-09)
+
+### O que foi feito
+`ResultadoBusca` ganhou `itemDoSumario: ItemSumario?`, e `MotorDeBusca` ganhou `melhorItem` (escolhe o item do sumário que mais casa com a consulta) e `atualizar(categorias:)` (reindexa só os livros afetados por renomear, apagar ou criar categorias). As expansões do prefixo agora são calculadas uma vez em `buscar`. Testes em `MotorDeBuscaTests.swift`; suíte em 144 testes, 0 falhas, Xcode 14.2. Com isso o passo 5 da 2.3 está fechado; falta o passo 6 (consultas de referência e ajuste dos pesos).
+
+### Conceitos envolvidos
+
+#### 1. Resultado em dois níveis: livro e item
+A tela mostra "Livro · item do sumário, p. N · Estante X · prateleira". Cada pedaço vem de um lugar diferente:
+```mermaid
+flowchart LR
+  R[ResultadoBusca] --> L[livro]
+  R --> I["itemDoSumario (página)"]
+  L --> P[prateleira]
+  L --> E["estanteId, resolvido pela tela"]
+```
+A página mora no item, a prateleira no livro, e o nome da estante é resolvido pela tela a partir de `estanteId`. Guardar o nome no resultado obrigaria a reindexar ao renomear uma estante.
+
+#### 2. Escolher o melhor item: mesma regra do livro
+`melhorItem` percorre `indice.itensSumario(doLivro:)` e dá a cada item uma nota com a mesma regra usada no livro: soma dos termos fixos mais a maior nota entre as expansões do prefixo do último termo. Guardar o máximo corrente é uma varredura O(n) sobre os itens. Detalhes que importam:
+- Parte-se de 0 e compara-se com `>`. Item sem nenhum termo tem nota 0 e nunca vence; se nenhum vence, o resultado é `nil` (o livro casou pelo título ou autor).
+- `>` e não `>=`: no empate fica o primeiro do sumário. O teste de empate pegaria a troca por `>=`, porque com `>=` ficaria o último.
+- Só é calculado para os livros que passaram no filtro; quem sai não gasta cálculo.
+- Listagem só por filtro (consulta vazia) devolve `nil`: não há termos para casar.
+
+#### 3. Inverter quem dirige o laço (o ganho de desempenho)
+Primeira versão: para cada expansão, para cada item, `notaDoItem`. Com o prefixo "pr" há centenas de expansões; multiplicadas por itens e por livros, a cada tecla digitada. Versão final: cria-se um `Set(expansoes)` uma vez por consulta e percorrem-se os termos **do item** (`item.frequencias.keys.filter(expansoes.contains)`).
+- Antes: custo O(expansões) por item.
+- Depois: O(tamanho do item), com cada consulta ao Set em O(1) esperado (tabela hash).
+
+Regra geral: itere o conjunto pequeno e consulte o grande numa estrutura de busca O(1). Quem é "pequeno" aqui é o item (poucos termos), não o vocabulário expandido.
+
+#### 4. Reindexar quando um dado derivado muda
+O índice grava os **nomes** das categorias (decisão da 2.3b), não os ids. O nome é um dado derivado copiado para dentro do índice; se muda na fonte, a cópia fica velha. É o problema clássico de invalidação de cache/desnormalização: ou se reindexa quem foi afetado, ou se aceita resultado desatualizado. Aqui reindexa-se, e só os afetados.
+
+A expressão central:
+```swift
+let afetadas = Set(antigos.keys).union(novos.keys).filter { antigos[$0] != novos[$0] }
+```
+`antigos[$0]` e `novos[$0]` são `String?`. Comparar opcionais cobre três casos numa única condição:
+| Caso | antigo | novo | diferem? |
+| --- | --- | --- | --- |
+| renomeada | "A" | "B" | sim |
+| apagada | "A" | nil | sim |
+| nova | nil | "B" | sim |
+| inalterada | "A" | "A" | não |
+
+A "nova" conta porque um livro pode ter recebido o id da categoria antes de o motor conhecer seu nome (o índice teria gravado o livro sem aquele nome).
+
+Das apagadas, o livro também **perde o id** (`livro.categoriaIds.subtract(apagadas)`). Isso espelha o `nullify` do Core Data (apagar a categoria remove a relação nos livros). Sem isso, o filtro por categoria ainda acharia o id antigo, que já não existe.
+
+Ordem importa: `nomesDasCategorias = novos` é trocado **antes** do laço, porque `atualizar(livro)` consulta esse dicionário para montar o texto indexado e precisa dos nomes novos.
+
+Iterar `livros.values` enquanto `atualizar` altera `livros` é seguro: `values` é copiada por valor (copy-on-write), como no laço do E na 2.3e. O `guard !afetadas.isEmpty` evita a varredura quando nada mudou. Complexidade: O(C) para comparar categorias, mais O(L) para varrer os livros, mais o custo de reindexar cada afetado.
+
+### Por que assim
+Decisões aprovadas, numeradas:
+1. **`itemDoSumario: ItemSumario?` no resultado.** Página vem do item, prateleira do livro, nome da estante resolvido pela tela (renomear estante não reindexa).
+2. **Item mostrado = maior `BM25.notaDoItem`** pela mesma regra do livro; empate vai para o primeiro do sumário (`>`, não `>=`); nenhum item com os termos dá `nil`; só para livros que passaram no filtro; consulta vazia dá `nil`. O item é localizado por **id** no livro. A revisão sugeriu guardar a posição; ficou o id, porque é correto mesmo se a ordem do índice divergir da do livro, e a busca linear num sumário é barata.
+3. **`atualizar(categorias:)`** reindexa só os livros afetados (união de ids antigos e novos cujo nome difere), tira dos livros os ids apagados, troca `nomesDasCategorias` antes do laço. Ids que o motor nunca conheceu (nem antes nem agora) ficam no livro; está documentado.
+4. **Refatoração:** as expansões do prefixo são calculadas uma vez em `buscar` e passadas a `notasDoUltimo` e `melhorItem`. A regra de "repetido não expande" e do mínimo de 2 letras fica num lugar só.
+
+Revisão (Ricardo aprovou 1, 2, 4, 5, 6; recusou 3 e 7):
+1. Aplicado (desempenho): `Set(expansoes)` e laço pelos termos do item (ver conceito 3).
+2. Aplicado: comentário explicando que partir de 0 com `>` é o que gera `nil` quando nenhum item tem os termos.
+4. Aplicado: documentação dos ids órfãos.
+5. Aplicado: testes novos.
+   - "prisao temporar": termo fixo mais prefixo juntos; só o item com os dois vence.
+   - "pena": expansões "penal" (primeira alfabeticamente, presente nos 3 livros, IDF baixo, cerca de 0,13) e "penas" (só num item, IDF cerca de 0,98). Vence "Aplicação das penas". O teste falharia se o código usasse só a primeira expansão.
+6. Aplicado: livro com duas categorias e uma apagada (só aquele id sai, a outra continua buscável); `atualizar(categorias:)` com a mesma lista não muda o resultado.
+3 e 7, recusados: ver abaixo.
+
+### Alternativas descartadas
+- **Guardar a posição do item em vez do id** (achado 3, recusado): a posição seria mais rápida, mas quebra em silêncio se a ordem do índice e a do livro divergirem. Com sumários de dezenas de itens, a busca linear é irrelevante.
+- **Renomear `atualizar(categorias:)` para `trocarCategorias`** (achado 7, recusado): o nome segue o padrão `atualizar(_ livro:)` e a documentação explica o efeito.
+- **Reindexar todos os livros a cada mudança de categoria:** correto, mas O(L) reindexações; renomear uma categoria é raro, mas desnecessariamente caro.
+- **Guardar ids de categoria no índice, resolvendo nomes na consulta:** evitaria reindexar, mas o BM25F precisa do texto dos nomes para ponderar o campo; foi decisão da 2.3b.
+- **Nome da estante no resultado:** obrigaria reindexar ao renomear estante.
+
+### Padrões e boas práticas
+- **Inverter o laço / usar Set como índice de pertinência:** quando um lado é pequeno e o outro grande, itere o pequeno. Não vale a pena se ambos forem pequenos; legibilidade vence.
+- **Calcular uma vez por consulta, usar muitas vezes:** o mesmo princípio do `Preparado` (2.3e).
+- **Invalidar só o que mudou:** reindexação incremental. Não use quando a mudança é rara e a lista pequena: o ganho some e o código fica mais difícil de provar correto.
+- **Fonte única de regra:** "como pontuar um termo" vale para livro e item.
+- **Teste que distingue o certo do errado:** o teste do "penal/penas" falha se a implementação usar só a primeira expansão; o de empate falha se trocar `>` por `>=`.
+
+### Armadilhas
+- **`>=` no lugar de `>`:** o último item empatado vence e o resultado muda sem erro de compilação. Só um teste de empate pega.
+- **Nota inicial 0 com item de nota 0:** sem a comparação estrita partindo de 0, um item sem nenhum termo viraria "melhor".
+- **Trocar `nomesDasCategorias` depois do laço:** reindexaria com os nomes velhos e o bug só apareceria na busca por nome de categoria.
+- **Comparar só ids antigos e novos** (sem comparar nomes) perde renomeações; comparar só nomes perde categorias novas com ids que livros já referenciam.
+- **Esquecer de retirar os ids apagados do livro:** o filtro por categoria devolve livro de categoria que não existe.
+
+### Para ir além
+- Manning, Raghavan e Schütze, *Introduction to Information Retrieval*, cap. 4 e 5 (construção e atualização de índices).
+- Documentação do Swift sobre `Set` e `Dictionary` (complexidade de `contains` e subscript) e sobre comparação de `Optional` (`Equatable`).
+- Martin Kleppmann, *Designing Data-Intensive Applications*, cap. 3 (índices) e 11 (dados derivados e manutenção de visões).
+
+### Perguntas
+1. Com suas palavras: por que `melhorItem` só é chamado para os livros que passaram no filtro, e por que `atualizar(categorias:)` troca `nomesDasCategorias` antes do laço de reindexação? O que quebraria em cada caso se a ordem fosse inversa?
+2. Aplicação: o usuário digita "pr". Explique quantas chamadas a `notaDoItem` a primeira versão fazia (em termos de E expansões, I itens, L livros) e quantas faz a versão final. E se o sumário de cada livro tivesse 2.000 itens com 200 termos cada, a mudança ainda valeria a pena? Justifique.
+3. Raciocínio: a categoria "Penal" (id X) é renomeada para "Direito penal", e outra categoria "Civil" (id Y) é apagada. Em `atualizar(categorias:)`, quais ids entram em `afetadas`, quais em `apagadas`, e o que acontece com um livro que tinha X e Y? E o que acontece se a nova lista trouxer uma categoria Z que nenhum livro conhecido referencia?
+
+### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
