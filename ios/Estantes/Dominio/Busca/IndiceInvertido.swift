@@ -64,8 +64,12 @@ struct IndiceInvertido {
         let termosDosItens = palavrasDosItens.map { $0.map(Singular.forma) }
         let palavrasPorCampo: [CampoBusca: [String]] = [
             .titulo: Tokenizador.palavras(livro.titulo),
-            // A parte de um tomo tem o papel do subtítulo (texto médio da folha de rosto): mesmo campo e peso.
-            .subtitulo: Tokenizador.palavras(livro.subtitulo ?? "") + Tokenizador.palavras(livro.parte ?? ""),
+            // A parte, o volume e os artigos de um tomo têm o papel do subtítulo (texto médio da folha de
+            // rosto): mesmo campo e peso. "tratado 48" acha o Tomo XLVIII; dos artigos entram só as pontas
+            // ("1710", "1779"): o intervalo inteiro seriam dezenas de números de ruído.
+            .subtitulo: Tokenizador.palavras(livro.subtitulo ?? "") + Tokenizador.palavras(livro.parte ?? "")
+                + Tokenizador.palavras(livro.volumeRotulo ?? "")
+                + [livro.volume, livro.artigosInicio, livro.artigosFim].compactMap { $0.map(String.init) },
             .autores: livro.autores.flatMap(Tokenizador.palavras),
             .categorias: livro.categoriaIds.compactMap { nomesDasCategorias[$0] }.flatMap(Tokenizador.palavras),
             .cddirCaminho: livro.cddirCaminho.flatMap(Tokenizador.palavras),

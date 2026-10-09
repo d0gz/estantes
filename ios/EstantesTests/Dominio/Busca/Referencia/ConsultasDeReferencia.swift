@@ -46,11 +46,13 @@ enum ConsultasDeReferencia {
     ]
 
     /// Casos que nenhum peso conserta: ficam fora das médias e alimentam decisões sobre o motor.
+    /// Quando uma mudança no motor resolve uma, ela vira ajuste no mesmo lugar (`tipo` muda; o texto
+    /// e o esperado não), para não mudar a numeração do relatório.
     static let sondas: [ConsultaDeReferencia] = [
-        // 20 "1779" não está em nenhum item; `artigosInicio/Fim` não são indexados.
-        ConsultaDeReferencia("arts 1710 1779", esperado: "carvalho-santos-v24", caso: .ancora, tipo: .sonda),
-        // 21 `volume`/`volumeRotulo` não são indexados.
-        ConsultaDeReferencia("tratado 48", esperado: "tratado-t48", caso: .tomo, tipo: .sonda),
+        // 20 "1779" não está em nenhum item. Era sonda: virou ajuste na 2.3i, com `artigosInicio/Fim` no índice.
+        ConsultaDeReferencia("arts 1710 1779", esperado: "carvalho-santos-v24", caso: .ancora),
+        // 21 Era sonda: virou ajuste na 2.3i, com `volume`/`volumeRotulo` no índice.
+        ConsultaDeReferencia("tratado 48", esperado: "tratado-t48", caso: .tomo),
         // 22 os dois tomos empatam; o desempate é pelo título e depois pelo UUID.
         ConsultaDeReferencia("tratado direito privado", esperado: "tratado-t1", caso: .tomo, tipo: .sonda),
         // 23 plural, sem stemming.
@@ -65,6 +67,8 @@ enum ConsultasDeReferencia {
     /// motor. Ficam no fim para não mudar a numeração das anteriores no relatório.
     static let ajusteDasSondas: [ConsultaDeReferencia] = [
         // 26 plural ao contrário: a consulta no singular, o título no plural ("Inventários e partilhas").
-        ConsultaDeReferencia("inventario partilha", esperado: "mendes", caso: .plural)
+        ConsultaDeReferencia("inventario partilha", esperado: "mendes", caso: .plural),
+        // 27 o rótulo do volume em romanos, como impresso na folha de rosto.
+        ConsultaDeReferencia("tomo xlviii", esperado: "tratado-t48", caso: .tomo)
     ]
 }

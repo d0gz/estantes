@@ -287,6 +287,31 @@ final class IndiceInvertidoTests: XCTestCase {
         XCTAssertEqual(indice.tamanho(de: .subtitulo, noLivro: tomo.id), 4)
     }
 
+    func testVolumeRotuloEArtigosEntramNoCampoSubtitulo() {
+        var indice = IndiceInvertido()
+        var tomo = livro(titulo: "Código civil")
+        tomo.volume = 24
+        tomo.volumeRotulo = "Volume XXIV"
+        tomo.artigosInicio = 1710
+        tomo.artigosFim = 1779
+        indice.adicionar(tomo, nomesDasCategorias: [:])
+
+        for termo in ["volume", "xxiv", "24", "1710", "1779"] {
+            XCTAssertEqual(indice.ocorrencias(de: termo), [tomo.id: [.subtitulo: 1]], termo)
+        }
+        // Só as pontas do intervalo.
+        XCTAssertEqual(indice.ocorrencias(de: "1750"), [:])
+        XCTAssertEqual(indice.tamanho(de: .subtitulo, noLivro: tomo.id), 5)
+    }
+
+    func testSemVolumeNemArtigosOSubtituloNaoMuda() {
+        var indice = IndiceInvertido()
+        let simples = livro(titulo: "Código civil", subtitulo: "Comentado")
+        indice.adicionar(simples, nomesDasCategorias: [:])
+
+        XCTAssertEqual(indice.tamanho(de: .subtitulo, noLivro: simples.id), 1)
+    }
+
     // MARK: - Plural e prefixo (2.3i)
 
     func testPluralESingularViramOMesmoTermo() {
