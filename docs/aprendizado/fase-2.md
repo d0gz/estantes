@@ -1553,3 +1553,62 @@ Criamos `App/Dependencias.swift` (a montagem: escolhe a implementação da porta
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4b — Exclusão de estante com confirmação (e correção do botão Salvar) (2026-10-09)
+
+### O que foi feito
+Dois commits. O primeiro (76c8289) corrige o alerta "Nova estante", que só mostrava "Cancelar". O segundo (bf36e14) adiciona "Apagar" ao menu de contexto da estante: o `InicioViewModel` monta um `PedidoDeExclusao` (estante, quantidade atual de livros, destinos possíveis) e a `InicioView` o apresenta em um `confirmationDialog` com até duas folhas (confirmar; escolher a estante de destino). Foram 7 testes novos (242 verdes no Xcode 14.2), e o `capturar.sh` ganhou `EXTRA="-chave valor"`.
+
+### Conceitos envolvidos
+**Defeito de componente do sistema que o teste de ViewModel não vê.** No iOS 16, o `.alert` do SwiftUI *esconde* (não acinzenta) um botão com `.disabled(true)` e não reavalia os botões enquanto o usuário digita. O campo começava vazio, então o Salvar nascia desabilitado e sumia. Ao renomear, o campo já vinha preenchido e o botão aparecia. O ViewModel estava correto; o defeito estava na camada de apresentação, onde só olhar a tela (e o caso "começa vazio") revela. A correção foi remover o `.disabled` e deixar a proteção contra nome vazio só no ViewModel (`nomeValido`), que já tinha teste. Isso é coerente com a regra: a View é só uma casca; a regra mora onde é testável.
+
+**Estado de interface vs. estado de ViewModel.** Um `confirmationDialog` com `presenting:` amarra a visibilidade a um valor. Quando o usuário toca numa ação, o SwiftUI fecha a folha e zera o binding dela. Se o `PedidoDeExclusao` estivesse nesse binding, sumiria antes da segunda folha (escolher destino) abrir. Por isso o ViewModel *devolve* o pedido (`pedidoDeExclusao(de:) async -> PedidoDeExclusao?`) e a tela guarda `exclusao` + dois `Bool` (`confirmandoExclusao`, `escolhendoDestino`). A pergunta "qual folha está aberta?" é estado de apresentação; "o que será apagado e para onde podem ir os livros?" é dado do pedido. Separar os dois evita o acoplamento ao ciclo de vida da folha.
+
+**Dado fresco em ação destrutiva.** A quantidade de livros é relida do banco ao preparar o pedido, não tomada do cartão da grade (que pode estar desatualizado). Numa confirmação do tipo "apagar a estante e os 3 livros", o número mostrado precisa ser o real naquele instante, senão o usuário consente com informação errada.
+
+**Defesa em profundidade.** `destinosPossiveis` nunca inclui a própria estante (a interface nem oferece a opção), e o repositório mantém a trava `destinoInvalido` (já existente desde a 2.2). Duas camadas independentes: se uma tiver um bug, a outra segura. Não é redundância gratuita: a primeira serve ao usuário (não oferecer opção inválida), a segunda protege os dados.
+
+**Modelar os casos como propriedade derivada.** `podeMover` = há livros *e* há outra estante. Os três casos do diálogo (vazia; com livros e com destino; com livros sem destino) saem de duas informações simples, e o texto muda de acordo. `textoDaQuantidade(_:comArtigo:)` usa `switch` sobre tupla `(quantidade, comArtigo)` para produzir "1 livro", "3 livros", "o livro", "os 3 livros". Pluralização é uma tabela pequena; o `switch` sobre tupla deixa o compilador conferir a exaustividade.
+
+**Ação de lançamento só para captura.** `InicioView.AcaoInicial` (novaEstante, apagar, escolherDestino) roda no `.task` depois de carregar. O `simctl` não toca na tela, então é a forma de fotografar um alerta aberto. Fica atrás de `#if DEBUG` com o resto dos exemplos.
+
+### Por que assim
+- **ViewModel devolve o pedido em vez de guardá-lo em `@Published`:** o ciclo de vida da folha é da tela (ver acima).
+- **Menu de contexto com `role: .destructive`:** o sistema pinta de vermelho e sinaliza a ação perigosa sem estilo próprio.
+- **Mover vs. apagar tudo como escolhas explícitas:** o usuário nunca perde livros sem ler o número no botão vermelho.
+- **Sem teste para "Cancelar":** Cancelar não chama o ViewModel; não há comportamento nosso para verificar. Testar o nada só criaria falsa confiança.
+- **Corrigir o Salvar removendo `.disabled`, e não trocando o alerta por sheet:** a sheet com `Form` é decisão de estilo, adiada para a etapa de estilo (o PLANO separa lógica de estilo).
+
+### Alternativas descartadas
+- **Swipe para apagar:** não existe em grade (só em `List`).
+- **Modo "Editar" com ✕ em cada cartão:** um passo a mais para uma ação rara.
+- **Diálogo único com um botão por destino:** fica enorme com muitas estantes.
+- **Guardar o pedido num `@Published` do ViewModel:** zerado pelo binding antes da segunda folha.
+- **Usar a quantidade do cartão:** pode estar defasada.
+
+### Padrões e boas práticas
+- **Confirmação proporcional ao dano:** estante vazia pede só confirmação simples; com livros, mostra o número. Não use confirmação para ações reversíveis (melhor oferecer "desfazer").
+- **Defesa em profundidade** em operações destrutivas. Não duplique regra complexa nas duas camadas: aqui a segunda é uma checagem simples de invariante.
+- **Reproduzir o bug antes de corrigir** (aqui, abrindo o alerta via argumento de lançamento): confirma a causa em vez de supor.
+
+### Armadilhas
+- **Teste verde não significa tela correta:** o bug do Salvar passou por 235 testes verdes. Casos que começam vazios, estados iniciais e transições entre folhas precisam ser vistos.
+- **Comportamento muda entre versões do iOS:** o `.alert` do iOS 16 pode se comportar diferente do iOS 26 (a CI). Não assuma; veja nos dois quando importar. Confirme o comportamento exato nas notas do SDK, pois aqui só observamos o simulador.
+- **Estado zerado ao tocar uma ação:** em `confirmationDialog`/`alert`, o binding é zerado ao fechar. Qualquer dado necessário depois deve ficar fora dele.
+- **A captura estática não prova a transição** entre as duas folhas; foi preciso o teste manual do Ricardo.
+
+### Para ir além
+- Documentação da Apple: `confirmationDialog(_:isPresented:titleVisibility:presenting:actions:message:)` e *Human Interface Guidelines: Alerts / Action sheets*.
+- Martin Fowler, "Test Double" (martinfowler.com/bliki/TestDouble.html), para fake vs. mock já usado nos testes do ViewModel.
+
+### Perguntas
+1. Com suas palavras: por que o `PedidoDeExclusao` não fica num `@Published` do ViewModel, e quem guarda "qual folha está aberta"?
+2. Aplicação: se o app passasse a permitir mover livros para uma estante *dentro* de outra (estantes aninhadas), o que mudaria em `destinosPossiveis` e na trava `destinoInvalido`? Haveria um novo caso inválido?
+3. Raciocínio: o bug do Salvar tinha 235 testes verdes por cima. Por que nenhum o pegou, e que tipo de teste (ou prática) pegaria? Por que o caso "renomear" funcionava e o "criar" não?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
