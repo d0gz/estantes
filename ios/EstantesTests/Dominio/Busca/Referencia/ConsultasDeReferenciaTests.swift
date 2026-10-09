@@ -182,7 +182,7 @@ final class ConsultasDeReferenciaTests: XCTestCase {
         }
         // Quem ficou à frente, para entender o erro.
         if medicao.posicao != 1 {
-            let primeiros = motor.buscar(consulta.texto).prefix(3).map {
+            let primeiros = motor.buscar(consulta.texto).resultados.prefix(3).map {
                 "\(chave(de: $0.livro.id)) \(String(format: "%.3f", $0.nota))"
             }
             texto += " · primeiros: " + (primeiros.isEmpty ? "nenhum resultado" : primeiros.joined(separator: " | "))

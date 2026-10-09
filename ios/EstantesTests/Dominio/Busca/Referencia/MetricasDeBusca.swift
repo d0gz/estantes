@@ -125,7 +125,8 @@ enum MetricasDeBusca {
             guard let id = ids[consulta.esperado] else {
                 preconditionFailure("Ficha \"\(consulta.esperado)\" não existe na biblioteca de referência")
             }
-            return medir(consulta, livroEsperado: id, resultados: motor.buscar(consulta.texto, parametros: parametros))
+            let resultados = motor.buscar(consulta.texto, parametros: parametros).resultados
+            return medir(consulta, livroEsperado: id, resultados: resultados)
         })
     }
 }

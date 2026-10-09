@@ -10,6 +10,18 @@ struct MotorDeBusca {
     /// o vocabulário entraria.
     static let tamanhoMinimoDoPrefixo = 2
 
+    /// Quantos erros a correção aceita num termo desconhecido: nenhum em termos curtos (com 4 letras,
+    /// quase toda palavra está a 1 erro de outra) ou com dígitos ("1779" não pode virar "1770"); 1 até
+    /// 8 letras; 2 a partir de 9.
+    static func errosAceitos(em termo: String) -> Int? {
+        guard termo.allSatisfy(\.isLetter) else { return nil }
+        switch termo.count {
+        case ..<5: return nil
+        case ...8: return 1
+        default: return 2
+        }
+    }
+
     private var indice = IndiceInvertido()
     private var livros: [UUID: Livro] = [:]
     private var nomesDasCategorias: [UUID: String]
@@ -61,26 +73,41 @@ struct MotorDeBusca {
     /// porque o usuário ainda pode estar digitando. Se ele repete um termo anterior ("prev prev"),
     /// o usuário já passou dele: vale como termo exato.
     ///
+    /// Uma palavra que não existe na biblioteca (o E daria nenhum resultado) é trocada pelo termo mais
+    /// próximo, se houver um perto o bastante (`errosAceitos`); a troca vem em `correcoes`. Palavra
+    /// que existe nunca é trocada. `corrigir: false` desliga (a tela oferece "buscar exatamente").
+    ///
     /// Consulta vazia (ou só de palavras vazias): sem filtro, nada; com filtro, todos os livros
     /// que passam nele, em ordem de título.
     func buscar(
         _ texto: String,
         filtro: FiltroBusca = FiltroBusca(),
-        parametros: ParametrosBM25F = .padrao
-    ) -> [ResultadoBusca] {
+        parametros: ParametrosBM25F = .padrao,
+        corrigir: Bool = true
+    ) -> RespostaBusca {
         let filtroPreparado = filtro.preparado()
         // O prefixo usa a palavra como foi digitada ("cautelare"); o resto usa o termo no singular.
         let palavras = Tokenizador.palavras(texto)
-        let termos = palavras.map(Singular.forma)
+        var termos = palavras.map(Singular.forma)
 
-        guard let ultimo = termos.last, let ultimaPalavra = palavras.last else {
-            guard !filtroPreparado.estaVazio else { return [] }
-            return MotorDeBusca.ordenar(
-                livros.values
-                    .filter(filtroPreparado.aceita)
-                    .map { ResultadoBusca(livro: $0, itemDoSumario: nil, nota: 0) }
-            )
+        guard let ultimaPalavra = palavras.last else {
+            guard !filtroPreparado.estaVazio else { return RespostaBusca(resultados: [], correcoes: []) }
+            let todos = livros.values
+                .filter(filtroPreparado.aceita)
+                .map { ResultadoBusca(livro: $0, itemDoSumario: nil, nota: 0) }
+            return RespostaBusca(resultados: MotorDeBusca.ordenar(todos), correcoes: [])
         }
+
+        var correcoes: [Correcao] = []
+        if corrigir {
+            for i in termos.indices.dropLast() {
+                if let usado = correcao(de: termos[i]) {
+                    correcoes.append(Correcao(digitado: palavras[i], usado: usado))
+                    termos[i] = usado
+                }
+            }
+        }
+        let ultimo = termos[termos.count - 1]
 
         // Soma em ordem fixa (último termo, depois os fixos em ordem alfabética): ver a nota sobre
         // determinismo em `BM25F.notas`.
@@ -88,10 +115,18 @@ struct MotorDeBusca {
         // e conta uma vez só, como os repetidos no BM25F.
         var anteriores = Set(termos.dropLast())
         let repetido = anteriores.remove(ultimo) != nil
-        let fixos = anteriores.sorted()
-        let expansoes = !repetido && ultimaPalavra.count >= MotorDeBusca.tamanhoMinimoDoPrefixo
+        var expansoes = !repetido && ultimaPalavra.count >= MotorDeBusca.tamanhoMinimoDoPrefixo
             ? indice.termos(comPrefixo: ultimaPalavra)
             : [ultimo]
+        // O último só é corrigido se nem o prefixo achou nada: "lassal" ainda está sendo digitado.
+        let ultimoExiste = expansoes.contains { indice.quantidadeDeLivros(contendo: $0) > 0 }
+        if corrigir, !ultimoExiste, let usado = correcao(de: ultimo) {
+            correcoes.append(Correcao(digitado: ultimaPalavra, usado: usado))
+            // Corrigido, pode repetir um anterior ("processo procesos"): conta uma vez só.
+            anteriores.remove(usado)
+            expansoes = [usado]
+        }
+        let fixos = anteriores.sorted()
         var notas = notasDoUltimo(expansoes, parametros: parametros)
         let conjuntoDeExpansoes = Set(expansoes)
         for termo in fixos {
@@ -104,13 +139,22 @@ struct MotorDeBusca {
         }
 
         // O filtro vem depois do BM25F: aplicado antes, mudaria o IDF e a nota de quem continua.
-        return MotorDeBusca.ordenar(
+        let resultados = MotorDeBusca.ordenar(
             notas.compactMap { id, nota in
                 guard let livro = livros[id], filtroPreparado.aceita(livro) else { return nil }
                 let item = melhorItem(de: livro, fixos: fixos, expansoes: conjuntoDeExpansoes, parametros: parametros)
                 return ResultadoBusca(livro: livro, itemDoSumario: item, nota: nota)
             }
         )
+        return RespostaBusca(resultados: resultados, correcoes: correcoes)
+    }
+
+    /// O termo do vocabulário que substitui `termo`, se ele não existe na biblioteca e há um perto o
+    /// bastante. Termo que existe nunca é corrigido: "pena" não vira "penal".
+    private func correcao(de termo: String) -> String? {
+        guard indice.quantidadeDeLivros(contendo: termo) == 0,
+              let limite = MotorDeBusca.errosAceitos(em: termo) else { return nil }
+        return indice.termoMaisProximo(de: termo, limite: limite)
     }
 
     /// Nota de cada livro para o último termo: a maior entre as expansões do prefixo, e não a soma,

@@ -156,6 +156,22 @@ struct IndiceInvertido {
         return termos.sorted()
     }
 
+    /// O termo do vocabulário mais próximo (distância de edição até `limite`), para corrigir um termo
+    /// digitado errado. No empate, o que está em mais livros e, depois, o primeiro em ordem alfabética.
+    /// `nil` se nenhum está perto. Percorre o vocabulário inteiro: O(V · n · m), com corte pelo limite.
+    func termoMaisProximo(de termo: String, limite: Int) -> String? {
+        var melhor: (distancia: Int, menosLivros: Int, termo: String)?
+        for (candidato, livros) in postings {
+            guard let distancia = DistanciaDeEdicao.entre(termo, candidato, limite: limite) else { continue }
+            // `-df`: na comparação de tuplas, menor é melhor em todas as posições.
+            let chave = (distancia, -livros.count, candidato)
+            if melhor.map({ chave < $0 }) ?? true {
+                melhor = chave
+            }
+        }
+        return melhor?.termo
+    }
+
     /// `df` do IDF: em quantos livros o termo aparece, em qualquer campo.
     func quantidadeDeLivros(contendo termo: String) -> Int {
         postings[termo]?.count ?? 0

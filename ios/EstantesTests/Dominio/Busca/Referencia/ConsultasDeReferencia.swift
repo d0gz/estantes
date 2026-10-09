@@ -57,10 +57,10 @@ enum ConsultasDeReferencia {
         ConsultaDeReferencia("tratado direito privado", esperado: "tratado-t1", caso: .tomo, tipo: .sonda),
         // 23 plural, sem stemming.
         ConsultaDeReferencia("prisoes cautelares", esperado: "fernandes", caso: .prefixo, tipo: .sonda),
-        // 24 erro de digitação, com E entre os termos.
-        ConsultaDeReferencia("procesos penal", esperado: "badaro", caso: .titulo, tipo: .sonda),
-        // 25 grafia da capa ("Lassalle") × ficha CIP ("Lassale").
-        ConsultaDeReferencia("lassalle", esperado: "lassale", caso: .autor, tipo: .sonda)
+        // 24 erro de digitação, com E entre os termos. Era sonda: virou ajuste na 2.3i, com a correção.
+        ConsultaDeReferencia("procesos penal", esperado: "badaro", caso: .titulo),
+        // 25 grafia da capa ("Lassalle") × ficha CIP ("Lassale"). Era sonda: virou ajuste na 2.3i.
+        ConsultaDeReferencia("lassalle", esperado: "lassale", caso: .autor)
     ]
 
     /// Consultas de ajuste escritas na 2.3i, depois das sondas, para medir o risco de cada mudança no
