@@ -1303,7 +1303,7 @@ Grade do peso do sumário a partir da linha de base: 0,25 → MRR 0,974 (#1 e #1
 ### Alternativas descartadas
 - **Um assert por consulta** ("a #1 tem que ser 1º"): qualquer troca 1º↔2º entre consultas legítimas reprovaria, tornando o teste frágil e fazendo as pessoas o desligarem. O piso agregado tolera trocas que se compensam.
 - **Só imprimir o relatório**: a regressão passaria silenciosa na CI.
-- **Busca em grade completa** (todas as combinações dos 9 parâmetros): custo exponencial (com as grades usadas na varredura, 6 · 5⁴ · 4⁴ = 960 mil combinações, cada uma rodando as 25 consultas; a descida por coordenadas testou 41 por volta) e mais sobreajuste, pois testar muitas combinações contra 19 consultas quase sempre acha uma que "acerta tudo" por acaso.
+- **Busca em grade completa** (todas as combinações dos 9 parâmetros): custo exponencial (com as grades usadas na varredura, 6 · 5⁴ · 4⁴ = 960 mil combinações, cada uma rodando as 25 consultas; a descida por coordenadas testou 42 por volta) e mais sobreajuste, pois testar muitas combinações contra 19 consultas quase sempre acha uma que "acerta tudo" por acaso.
 - **Fichas inventadas**: ver conceito 5.
 - **Escolher B pelo MRR mais alto**: ver "Por que assim".
 - **Encadear `+` no T48**: o T48 usa `Array([[...], paragrafo(...), ...].joined())` em vez de uma cadeia longa de `+`, porque o verificador de tipos do Swift 5.7 (Xcode 14.2) estoura com "expression too complex to be solved in reasonable time" em expressões grandes com tipos inferidos. Construir com `joined()` dá ao compilador tipos explícitos para resolver.
