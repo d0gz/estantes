@@ -36,8 +36,9 @@ struct InicioView: View {
         .alert(tituloDoPedido, isPresented: pedidoAberto) {
             TextField("Nome da estante", text: $nomeDigitado)
             Button("Cancelar", role: .cancel) {}
+            // Sem `.disabled`: no iOS 16 o alerta esconde o botão desabilitado e não o reavalia enquanto se digita
+            // (com o campo começando vazio, o "Salvar" nunca aparecia). O ViewModel já ignora nome vazio.
             Button("Salvar") { confirmarNome() }
-                .disabled(InicioViewModel.nomeValido(nomeDigitado) == nil)
         }
         .alert("Algo deu errado", isPresented: erroAberto) {
             Button("OK", role: .cancel) {}

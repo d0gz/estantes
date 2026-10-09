@@ -5,6 +5,7 @@
 #      ./scripts/capturar.sh InicioVazio 0.1 Inicio   → docs/capturas/Inicio/InicioVazio_0.1.png
 #
 # A tela é um caso do enum `Captura` (App/Exemplos.swift, só em DEBUG), passado como `-captura <Tela>`.
+# EXTRA="-chave valor" passa argumentos de lançamento a mais (para testes pontuais).
 # As capturas ficam só no Mac (docs/capturas/ está no .gitignore).
 
 TELA=$1
@@ -36,7 +37,7 @@ open -a Simulator
 xcrun simctl bootstatus "$APARELHO" > /dev/null
 xcrun simctl terminate "$APARELHO" com.ricardo.estantes 2>/dev/null
 xcrun simctl install "$APARELHO" "$APP" || exit 1
-xcrun simctl launch "$APARELHO" com.ricardo.estantes -captura "$TELA" > /dev/null || exit 1
+xcrun simctl launch "$APARELHO" com.ricardo.estantes -captura "$TELA" $EXTRA > /dev/null || exit 1
 
 sleep "${ESPERA:-3}"   # tempo para a tela montar os exemplos e desenhar
 mkdir -p "$(dirname "$SAIDA")"

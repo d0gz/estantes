@@ -34,7 +34,7 @@ final class InicioViewModel: ObservableObject {
         self.repositorio = repositorio
     }
 
-    /// Nome aparado, ou `nil` se só tiver espaços. A tela usa a mesma regra para desabilitar o botão.
+    /// Nome aparado, ou `nil` se só tiver espaços (aí criar e renomear não fazem nada).
     static func nomeValido(_ texto: String) -> String? {
         let aparado = texto.trimmingCharacters(in: .whitespacesAndNewlines)
         return aparado.isEmpty ? nil : aparado
