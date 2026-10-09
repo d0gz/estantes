@@ -74,6 +74,9 @@ struct ComExemplos<Conteudo: View>: View {
 enum Captura: String {
     case inicio = "Inicio"
     case inicioVazio = "InicioVazio"
+    case inicioNovaEstante = "InicioNovaEstante"
+    case apagarEstante = "ApagarEstante"
+    case apagarEstanteMover = "ApagarEstanteMover"
 
     /// Argumentos `-chave valor` viram entradas do `UserDefaults` (domínio de argumentos), sem parser próprio.
     static var pedida: Captura? {
@@ -87,6 +90,14 @@ enum Captura: String {
             ComExemplos { InicioView(viewModel: $0.fazerInicioViewModel()) }
         case .inicioVazio:
             ComExemplos(vazio: true) { InicioView(viewModel: $0.fazerInicioViewModel()) }
+        case .inicioNovaEstante:
+            ComExemplos { InicioView(viewModel: $0.fazerInicioViewModel(), acaoInicial: .novaEstante) }
+        case .apagarEstante:
+            ComExemplos { InicioView(viewModel: $0.fazerInicioViewModel(), acaoInicial: .apagar(nomeDaEstante: "Escritório")) }
+        case .apagarEstanteMover:
+            ComExemplos {
+                InicioView(viewModel: $0.fazerInicioViewModel(), acaoInicial: .escolherDestino(nomeDaEstante: "Escritório"))
+            }
         }
     }
 }

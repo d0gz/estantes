@@ -9,6 +9,18 @@ struct EstanteResumo: Identifiable, Equatable {
     var id: UUID { estante.id }
 }
 
+/// Tudo o que a confirmação de "apagar estante" precisa mostrar, lido do banco na hora do pedido.
+struct PedidoDeExclusao: Identifiable, Equatable {
+    let estante: Estante
+    let quantidadeDeLivros: Int
+    /// As outras estantes, que podem receber os livros. Nunca inclui a própria.
+    let destinosPossiveis: [Estante]
+
+    var id: UUID { estante.id }
+    /// Só faz sentido mover se há livros e algum lugar para onde levá-los.
+    var podeMover: Bool { quantidadeDeLivros > 0 && !destinosPossiveis.isEmpty }
+}
+
 /// Estado da tela inicial e as ações sobre as estantes.
 ///
 /// Sem `@FetchRequest`: depois de cada gravação o ViewModel relê tudo do repositório, então a tela
@@ -65,6 +77,32 @@ final class InicioViewModel: ObservableObject {
         var renomeada = estante
         renomeada.nome = nome
         await gravar(renomeada, falha: "Não foi possível renomear a estante.")
+    }
+
+    // MARK: Apagar estante
+
+    /// Prepara a confirmação. A quantidade é relida do banco (e não tirada do cartão): numa ação
+    /// destrutiva, o número mostrado precisa ser o de agora.
+    /// Devolve o pedido em vez de guardá-lo num `@Published`: qual folha está aberta é estado da tela.
+    func pedidoDeExclusao(de estante: Estante) async -> PedidoDeExclusao? {
+        do {
+            let quantidade = try await repositorio.quantidadeDeLivros(naEstante: estante.id)
+            let outras = try await repositorio.estantes().filter { $0.id != estante.id }
+            return PedidoDeExclusao(estante: estante, quantidadeDeLivros: quantidade, destinosPossiveis: outras)
+        } catch {
+            mensagemDeErro = "Não foi possível preparar a exclusão da estante."
+            return nil
+        }
+    }
+
+    /// Apaga a estante. Com `destino`, os livros vão para lá antes; sem ele, vão junto (cascata).
+    func apagar(_ pedido: PedidoDeExclusao, movendoLivrosPara destino: Estante?) async {
+        do {
+            try await repositorio.apagarEstante(id: pedido.estante.id, moverLivrosPara: destino?.id)
+        } catch {
+            mensagemDeErro = "Não foi possível apagar a estante."
+        }
+        await carregar()
     }
 
     private func gravar(_ estante: Estante, falha: String) async {
