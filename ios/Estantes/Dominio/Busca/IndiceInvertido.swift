@@ -15,7 +15,7 @@ enum CampoBusca: CaseIterable {
 /// sem tokenizar de novo na hora da busca.
 struct ItemSumarioIndexado: Equatable {
     let id: UUID
-    /// Termo → quantas vezes aparece no título do item.
+    /// Termo → quantas vezes aparece na numeração e no título do item.
     let frequencias: [String: Int]
     /// Total de termos do item (com repetições).
     let tamanho: Int
@@ -51,10 +51,15 @@ struct IndiceInvertido {
     mutating func adicionar(_ livro: Livro, nomesDasCategorias: [UUID: String]) {
         remover(livro.id)
 
-        let termosDosItens = livro.itensSumario.map { Tokenizador.termos($0.titulo) }
+        // A numeração entra com o título do item: "art 1710" acha "Art. 1.710 — Do bem de família".
+        // Números estruturais ("1.2.3" → `123`) viram um ruído pequeno, aceito (PLANO, 09/10).
+        let termosDosItens = livro.itensSumario.map {
+            Tokenizador.termos($0.numeracao ?? "") + Tokenizador.termos($0.titulo)
+        }
         let termosPorCampo: [CampoBusca: [String]] = [
             .titulo: Tokenizador.termos(livro.titulo),
-            .subtitulo: Tokenizador.termos(livro.subtitulo ?? ""),
+            // A parte de um tomo tem o papel do subtítulo (texto médio da folha de rosto): mesmo campo e peso.
+            .subtitulo: Tokenizador.termos(livro.subtitulo ?? "") + Tokenizador.termos(livro.parte ?? ""),
             .autores: livro.autores.flatMap(Tokenizador.termos),
             .categorias: livro.categoriaIds.compactMap { nomesDasCategorias[$0] }.flatMap(Tokenizador.termos),
             .cddirCaminho: livro.cddirCaminho.flatMap(Tokenizador.termos),

@@ -350,4 +350,31 @@ final class MotorDeBuscaTests: XCTestCase {
         XCTAssertFalse(antes.isEmpty)
         XCTAssertEqual(motor.buscar("prisao criminal"), antes)
     }
+
+    // MARK: - Obras em vários volumes (2.3b)
+
+    func testArtigoAchaOLivroEMostraOItemPelaNumeracao() {
+        let tomo = Livro(
+            estanteId: estante1,
+            titulo: "Tratado de direito privado",
+            itensSumario: [
+                ItemSumario(nivel: 1, numeracao: "Art. 1.709 —", titulo: "Bem de família", pagina: "3"),
+                ItemSumario(nivel: 1, numeracao: "Art. 1.710 —", titulo: "Bem de família", pagina: "15"),
+            ]
+        )
+        let motor = MotorDeBusca(livros: [tomo, livroC], categorias: [])
+
+        let resultados = motor.buscar("art 1710")
+
+        XCTAssertEqual(ids(resultados), [tomo.id])
+        XCTAssertEqual(resultados.first?.itemDoSumario?.pagina, "15")
+    }
+
+    func testPalavraSoDaParteAchaOTomo() {
+        var tomo = Livro(estanteId: estante1, titulo: "Tratado de direito privado")
+        tomo.parte = "Direito das sucessões"
+        let motor = MotorDeBusca(livros: [tomo, livroC], categorias: [])
+
+        XCTAssertEqual(ids(motor.buscar("sucessoes")), [tomo.id])
+    }
 }

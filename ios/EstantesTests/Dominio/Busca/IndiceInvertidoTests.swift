@@ -258,4 +258,32 @@ final class IndiceInvertidoTests: XCTestCase {
         XCTAssertEqual(indice.tamanhoMedioDosItens, 0)
         XCTAssertEqual(indice.itensSumario(doLivro: UUID()), [])
     }
+
+    // MARK: - Numeração e parte (2.3b)
+
+    func testNumeracaoDoItemEntraNoSumarioENasFrequenciasDoItem() {
+        var indice = IndiceInvertido()
+        let item = ItemSumario(nivel: 1, numeracao: "Art. 1.710 —", titulo: "Bem de família")
+        let tratado = Livro(estanteId: estanteId, titulo: "Tratado", itensSumario: [item])
+        indice.adicionar(tratado, nomesDasCategorias: [:])
+
+        XCTAssertEqual(indice.ocorrencias(de: "1710"), [tratado.id: [.sumario: 1]])
+        XCTAssertEqual(indice.ocorrencias(de: "art"), [tratado.id: [.sumario: 1]])
+        // art, 1710, bem, familia
+        XCTAssertEqual(indice.tamanho(de: .sumario, noLivro: tratado.id), 4)
+        let indexado = indice.itensSumario(doLivro: tratado.id).first
+        XCTAssertEqual(indexado?.frequencias["1710"], 1)
+        XCTAssertEqual(indexado?.tamanho, 4)
+    }
+
+    func testParteEntraNoCampoSubtitulo() {
+        var indice = IndiceInvertido()
+        var tomo = livro(titulo: "Tratado de direito privado", subtitulo: "Parte especial")
+        tomo.parte = "Direito das sucessões"
+        indice.adicionar(tomo, nomesDasCategorias: [:])
+
+        XCTAssertEqual(indice.ocorrencias(de: "sucessoes"), [tomo.id: [.subtitulo: 1]])
+        // parte, especial, direito, sucessoes
+        XCTAssertEqual(indice.tamanho(de: .subtitulo, noLivro: tomo.id), 4)
+    }
 }
