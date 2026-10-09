@@ -4,7 +4,7 @@ import Foundation
 /// Consulta nova pode entrar; uma existente nunca é reescrita para passar.
 /// O número no comentário é o que aparece no relatório (`[referencia] #N`).
 enum ConsultasDeReferencia {
-    static let todas: [ConsultaDeReferencia] = ajuste + sondas
+    static let todas: [ConsultaDeReferencia] = ajuste + sondas + ajusteDasSondas
 
     static let ajuste: [ConsultaDeReferencia] = [
         // 1–2 título: "processo penal" também está no título do Rosa e no sumário de outros.
@@ -59,5 +59,12 @@ enum ConsultasDeReferencia {
         ConsultaDeReferencia("procesos penal", esperado: "badaro", caso: .titulo, tipo: .sonda),
         // 25 grafia da capa ("Lassalle") × ficha CIP ("Lassale").
         ConsultaDeReferencia("lassalle", esperado: "lassale", caso: .autor, tipo: .sonda)
+    ]
+
+    /// Consultas de ajuste escritas na 2.3i, depois das sondas, para medir o risco de cada mudança no
+    /// motor. Ficam no fim para não mudar a numeração das anteriores no relatório.
+    static let ajusteDasSondas: [ConsultaDeReferencia] = [
+        // 26 plural ao contrário: a consulta no singular, o título no plural ("Inventários e partilhas").
+        ConsultaDeReferencia("inventario partilha", esperado: "mendes", caso: .plural)
     ]
 }

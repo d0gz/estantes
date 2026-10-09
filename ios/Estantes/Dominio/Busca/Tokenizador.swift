@@ -15,10 +15,18 @@ enum Tokenizador {
         "num", "numa", "para", "por", "pelo", "pela", "pelos", "pelas", "com", "ou", "que", "se",
     ]
 
-    /// Os termos do texto, na ordem e com repetições (o BM25F conta a frequência de cada um).
+    /// Os termos do texto, na ordem e com repetições (o BM25F conta a frequência de cada um),
+    /// já no singular (`Singular`): "Prisões" e "prisão" são o mesmo termo.
     /// "Lei 8.078/90 – Código de Defesa do Consumidor" → ["lei", "8078", "90", "codigo", "defesa", "consumidor"]
-    /// "Sub-rogação nos arts. 1.710-1.779" → ["subrogacao", "arts", "1710", "1779"]
+    /// "Sub-rogação nos arts. 1.710-1.779" → ["subrogacao", "art", "1710", "1779"]
     static func termos(_ texto: String) -> [String] {
+        palavras(texto).map(Singular.forma)
+    }
+
+    /// As palavras do texto como foram escritas (normalizadas, sem as vazias), antes do singular.
+    /// O prefixo da consulta precisa delas: quem ainda digita "cautelare" não acha nada no termo
+    /// `cautelar`, mas acha na palavra "cautelares".
+    static func palavras(_ texto: String) -> [String] {
         let caracteres = Array(Normalizacao.chave(texto))
         var termos: [String] = []
         var atual = ""

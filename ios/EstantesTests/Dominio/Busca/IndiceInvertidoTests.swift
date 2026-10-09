@@ -87,7 +87,7 @@ final class IndiceInvertidoTests: XCTestCase {
         indice.adicionar(civil, nomesDasCategorias: [:])
 
         XCTAssertEqual(indice.ocorrencias(de: "direito"), [civil.id: [.cddirCaminho: 2]])
-        XCTAssertEqual(indice.ocorrencias(de: "obrigacoes"), [civil.id: [.titulo: 1, .cddirCaminho: 1]])
+        XCTAssertEqual(indice.ocorrencias(de: "obrigacao"), [civil.id: [.titulo: 1, .cddirCaminho: 1]])
     }
 
     func testRemoverLimpaTermosExclusivosEAtualizaMedias() {
@@ -125,7 +125,7 @@ final class IndiceInvertidoTests: XCTestCase {
 
         XCTAssertEqual(indice.totalDeLivros, 1)
         XCTAssertEqual(indice.ocorrencias(de: "civil"), [:])
-        XCTAssertEqual(indice.ocorrencias(de: "contratos"), [:])
+        XCTAssertEqual(indice.ocorrencias(de: "contrato"), [:])
         XCTAssertEqual(indice.ocorrencias(de: "direito"), [id: [.titulo: 1]])
         XCTAssertEqual(indice.tamanhoMedio(de: .sumario), 0)
         XCTAssertEqual(indice.tamanhoMedioDosItens, 0)
@@ -140,7 +140,7 @@ final class IndiceInvertidoTests: XCTestCase {
         XCTAssertEqual(itens.map(\.id), penal.itensSumario.map(\.id))
         XCTAssertEqual(itens[0].frequencias, ["prisao": 2, "preventiva": 1])
         XCTAssertEqual(itens[0].tamanho, 3)
-        XCTAssertEqual(itens[1].frequencias, ["recursos": 1])
+        XCTAssertEqual(itens[1].frequencias, ["recurso": 1])
         XCTAssertEqual(indice.tamanhoMedioDosItens, 2) // (3 + 1) / 2
         XCTAssertEqual(indice.ocorrencias(de: "prisao"), [penal.id: [.sumario: 2]])
     }
@@ -158,7 +158,7 @@ final class IndiceInvertidoTests: XCTestCase {
         XCTAssertEqual(indice.tamanhoMedioDosItens, 2)
         XCTAssertEqual(indice.tamanhoMedio(de: .sumario), 2)
         XCTAssertEqual(indice.itensSumario(doLivro: penal.id), [])
-        XCTAssertEqual(indice.ocorrencias(de: "contratos"), [civil.id: [.sumario: 1]])
+        XCTAssertEqual(indice.ocorrencias(de: "contrato"), [civil.id: [.sumario: 1]])
     }
 
     func testReindexarComMesmoConteudoNaoMudaNada() {
@@ -282,8 +282,58 @@ final class IndiceInvertidoTests: XCTestCase {
         tomo.parte = "Direito das sucessões"
         indice.adicionar(tomo, nomesDasCategorias: [:])
 
-        XCTAssertEqual(indice.ocorrencias(de: "sucessoes"), [tomo.id: [.subtitulo: 1]])
-        // parte, especial, direito, sucessoes
+        XCTAssertEqual(indice.ocorrencias(de: "sucessao"), [tomo.id: [.subtitulo: 1]])
+        // parte, especial, direito, sucessao
         XCTAssertEqual(indice.tamanho(de: .subtitulo, noLivro: tomo.id), 4)
+    }
+
+    // MARK: - Plural e prefixo (2.3i)
+
+    func testPluralESingularViramOMesmoTermo() {
+        var indice = IndiceInvertido()
+        let plural = livro(titulo: "Prisões cautelares")
+        let singular = livro(titulo: "Prisão cautelar")
+        indice.adicionar(plural, nomesDasCategorias: [:])
+        indice.adicionar(singular, nomesDasCategorias: [:])
+
+        XCTAssertEqual(indice.quantidadeDeLivros(contendo: "prisao"), 2)
+        XCTAssertEqual(indice.quantidadeDeLivros(contendo: "prisoes"), 0)
+    }
+
+    func testPrefixoProcuraNasPalavrasEDevolveOSingular() {
+        var indice = IndiceInvertido()
+        indice.adicionar(livro(titulo: "Prisões cautelares"), nomesDasCategorias: [:])
+        indice.adicionar(livro(titulo: "Prisão cautelar"), nomesDasCategorias: [:])
+
+        // "cautelare" não é prefixo de `cautelar`, mas é de "cautelares".
+        XCTAssertEqual(indice.termos(comPrefixo: "cautelare"), ["cautelar"])
+        // Duas palavras, um termo: não repete.
+        XCTAssertEqual(indice.termos(comPrefixo: "caut"), ["cautelar"])
+        XCTAssertEqual(indice.termos(comPrefixo: "pris"), ["prisao"])
+    }
+
+    func testPrefixoQueEhPluralCompletoAchaOSingular() {
+        var indice = IndiceInvertido()
+        indice.adicionar(livro(titulo: "Prisão cautelar"), nomesDasCategorias: [:])
+
+        // Nenhuma palavra começa com "prisoes", mas o singular `prisao` está no índice.
+        XCTAssertEqual(indice.termos(comPrefixo: "prisoes"), ["prisao"])
+        XCTAssertEqual(indice.termos(comPrefixo: "cautelares"), ["cautelar"])
+    }
+
+    func testRemoverTiraAsPalavrasExclusivasDoLivro() {
+        var indice = IndiceInvertido()
+        let plural = livro(titulo: "Prisões cautelares")
+        let singular = livro(titulo: "Prisão cautelar")
+        indice.adicionar(plural, nomesDasCategorias: [:])
+        indice.adicionar(singular, nomesDasCategorias: [:])
+
+        indice.remover(plural.id)
+        // "cautelares" só existia no livro removido; `cautelar` continua pelo outro livro.
+        XCTAssertEqual(indice.termos(comPrefixo: "cautelare"), [])
+        XCTAssertEqual(indice.termos(comPrefixo: "caut"), ["cautelar"])
+
+        indice.remover(singular.id)
+        XCTAssertEqual(indice.termos(comPrefixo: "caut"), [])
     }
 }

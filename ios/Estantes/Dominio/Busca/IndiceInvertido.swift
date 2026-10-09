@@ -31,12 +31,17 @@ struct IndiceInvertido {
     private struct Documento {
         let tamanhos: [CampoBusca: Int]
         let termos: Set<String>
+        /// As palavras antes do singular, para descontar de `palavras` na remoção.
+        let palavras: Set<String>
         let itensSumario: [ItemSumarioIndexado]
     }
 
     /// Termo → livro → campo → frequência. Só aparecem os campos onde o termo ocorre.
     private var postings: [String: [UUID: [CampoBusca: Int]]] = [:]
     private var documentos: [UUID: Documento] = [:]
+    /// Palavra como foi escrita ("cautelares") → em quantos livros aparece. O prefixo da consulta
+    /// procura aqui e devolve o termo no singular; a contagem diz quando a palavra sai na remoção.
+    private var palavras: [String: Int] = [:]
     /// Somas mantidas a cada inclusão e remoção: as médias saem sem recontar a biblioteca.
     private var somaDosTamanhos: [CampoBusca: Int] = [:]
     private var somaDosTamanhosDosItens = 0
@@ -53,22 +58,29 @@ struct IndiceInvertido {
 
         // A numeração entra com o título do item: "art 1710" acha "Art. 1.710 — Do bem de família".
         // Números estruturais ("1.2.3" → `123`) viram um ruído pequeno, aceito (PLANO, 09/10).
-        let termosDosItens = livro.itensSumario.map {
-            Tokenizador.termos($0.numeracao ?? "") + Tokenizador.termos($0.titulo)
+        let palavrasDosItens = livro.itensSumario.map {
+            Tokenizador.palavras($0.numeracao ?? "") + Tokenizador.palavras($0.titulo)
         }
-        let termosPorCampo: [CampoBusca: [String]] = [
-            .titulo: Tokenizador.termos(livro.titulo),
+        let termosDosItens = palavrasDosItens.map { $0.map(Singular.forma) }
+        let palavrasPorCampo: [CampoBusca: [String]] = [
+            .titulo: Tokenizador.palavras(livro.titulo),
             // A parte de um tomo tem o papel do subtítulo (texto médio da folha de rosto): mesmo campo e peso.
-            .subtitulo: Tokenizador.termos(livro.subtitulo ?? "") + Tokenizador.termos(livro.parte ?? ""),
-            .autores: livro.autores.flatMap(Tokenizador.termos),
-            .categorias: livro.categoriaIds.compactMap { nomesDasCategorias[$0] }.flatMap(Tokenizador.termos),
-            .cddirCaminho: livro.cddirCaminho.flatMap(Tokenizador.termos),
-            .sumario: termosDosItens.flatMap { $0 },
+            .subtitulo: Tokenizador.palavras(livro.subtitulo ?? "") + Tokenizador.palavras(livro.parte ?? ""),
+            .autores: livro.autores.flatMap(Tokenizador.palavras),
+            .categorias: livro.categoriaIds.compactMap { nomesDasCategorias[$0] }.flatMap(Tokenizador.palavras),
+            .cddirCaminho: livro.cddirCaminho.flatMap(Tokenizador.palavras),
+            .sumario: palavrasDosItens.flatMap { $0 },
         ]
+
+        let palavrasDoLivro = Set(palavrasPorCampo.values.joined())
+        for palavra in palavrasDoLivro {
+            palavras[palavra, default: 0] += 1
+        }
 
         var tamanhos: [CampoBusca: Int] = [:]
         var termosDoLivro: Set<String> = []
-        for (campo, termos) in termosPorCampo {
+        for (campo, palavras) in palavrasPorCampo {
+            let termos = palavras.map(Singular.forma)
             tamanhos[campo] = termos.count
             somaDosTamanhos[campo, default: 0] += termos.count
             for termo in termos {
@@ -87,7 +99,9 @@ struct IndiceInvertido {
         somaDosTamanhosDosItens += itens.reduce(0) { $0 + $1.tamanho }
         quantidadeDeItens += itens.count
 
-        documentos[livro.id] = Documento(tamanhos: tamanhos, termos: termosDoLivro, itensSumario: itens)
+        documentos[livro.id] = Documento(
+            tamanhos: tamanhos, termos: termosDoLivro, palavras: palavrasDoLivro, itensSumario: itens
+        )
     }
 
     /// Tira o livro do índice. Termos que só ele tinha somem do vocabulário. Id ausente é ignorado.
@@ -98,6 +112,12 @@ struct IndiceInvertido {
             postings[termo]?[id] = nil
             if postings[termo]?.isEmpty == true {
                 postings[termo] = nil
+            }
+        }
+        for palavra in documento.palavras {
+            palavras[palavra, default: 0] -= 1
+            if palavras[palavra] == 0 {
+                palavras[palavra] = nil
             }
         }
         for (campo, tamanho) in documento.tamanhos {
@@ -118,10 +138,18 @@ struct IndiceInvertido {
         postings[termo] ?? [:]
     }
 
-    /// Os termos do vocabulário que começam com o prefixo (o próprio prefixo incluído, se existir),
-    /// em ordem alfabética. Percorre o vocabulário inteiro: O(V), barato para uma biblioteca pessoal.
+    /// Os termos (no singular) das palavras que começam com o prefixo, em ordem alfabética, sem repetir:
+    /// "cautelare" → `cautelar` (pela palavra "cautelares"). O prefixo é procurado nas palavras como foram
+    /// escritas, e não nos termos, porque "cautelare" não é prefixo de `cautelar`. Se o prefixo já é uma
+    /// palavra completa no plural ("prisoes") e só o singular está no índice, ele também volta (`prisao`).
+    /// Percorre as palavras da biblioteca inteira: O(V), barato para uma biblioteca pessoal.
     func termos(comPrefixo prefixo: String) -> [String] {
-        postings.keys.filter { $0.hasPrefix(prefixo) }.sorted()
+        var termos = Set(palavras.keys.lazy.filter { $0.hasPrefix(prefixo) }.map(Singular.forma))
+        let singular = Singular.forma(prefixo)
+        if postings[singular] != nil {
+            termos.insert(singular)
+        }
+        return termos.sorted()
     }
 
     /// `df` do IDF: em quantos livros o termo aparece, em qualquer campo.

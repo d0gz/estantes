@@ -39,6 +39,21 @@ final class MotorDeBuscaTests: XCTestCase {
         XCTAssertEqual(ids(motor.buscar("prisao")), [livroA.id, livroB.id])
     }
 
+    // MARK: - Plural (2.3i)
+
+    func testPluralAchaOSingular() {
+        XCTAssertEqual(ids(motor.buscar("prisoes")), [livroA.id, livroB.id])
+        XCTAssertEqual(ids(motor.buscar("prisoes preventivas")), [livroA.id])
+    }
+
+    func testPrefixoDoPluralNoMeioDaPalavraAchaOSingular() {
+        let plural = Livro(estanteId: estante1, titulo: "Medidas cautelares")
+        let motor = MotorDeBusca(livros: [livroA, plural], categorias: [])
+        // O usuário ainda está digitando "cautelares": "cautelare" casa pela palavra escrita.
+        XCTAssertEqual(ids(motor.buscar("cautelare")), [plural.id])
+        XCTAssertEqual(ids(motor.buscar("cautelar")), [plural.id])
+    }
+
     // MARK: - Prefixo
 
     func testUltimoTermoValeComoPrefixo() {

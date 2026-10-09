@@ -29,7 +29,7 @@ final class TokenizadorTests: XCTestCase {
     }
 
     func testHifenEntreDigitosSepara() {
-        XCTAssertEqual(Tokenizador.termos("Arts. 1.710-1.779"), ["arts", "1710", "1779"])
+        XCTAssertEqual(Tokenizador.termos("Arts. 1.710-1.779"), ["art", "1710", "1779"])
     }
 
     func testHifenEntreLetraEDigitoSepara() {
@@ -58,12 +58,12 @@ final class TokenizadorTests: XCTestCase {
     }
 
     func testPontoNoFimDoNumeroSepara() {
-        XCTAssertEqual(Tokenizador.termos("Lei 8.078. Comentários"), ["lei", "8078", "comentarios"])
+        XCTAssertEqual(Tokenizador.termos("Lei 8.078. Comentários"), ["lei", "8078", "comentario"])
     }
 
     func testRemovePalavrasVaziasInclusiveComAcento() {
         XCTAssertEqual(Tokenizador.termos("Código de Defesa do Consumidor"), ["codigo", "defesa", "consumidor"])
-        XCTAssertEqual(Tokenizador.termos("Às vezes à prova"), ["vezes", "prova"])
+        XCTAssertEqual(Tokenizador.termos("Às vezes à prova"), ["vez", "prova"])
     }
 
     func testMantemTermosJuridicosCurtos() {
@@ -72,6 +72,14 @@ final class TokenizadorTests: XCTestCase {
 
     func testPreservaRepeticoes() {
         XCTAssertEqual(Tokenizador.termos("prisão e prisão preventiva"), ["prisao", "prisao", "preventiva"])
+    }
+
+    // MARK: - Plural (2.3i)
+
+    func testTermosVemNoSingularEPalavrasComoForamEscritas() {
+        XCTAssertEqual(Tokenizador.termos("Prisões cautelares"), ["prisao", "cautelar"])
+        XCTAssertEqual(Tokenizador.termos("Prisões cautelares"), Tokenizador.termos("prisão cautelar"))
+        XCTAssertEqual(Tokenizador.palavras("Prisões cautelares"), ["prisoes", "cautelares"])
     }
 
     func testTextoSemTermosViraVazio() {

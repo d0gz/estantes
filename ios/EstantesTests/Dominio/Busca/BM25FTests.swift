@@ -106,7 +106,9 @@ final class BM25FTests: XCTestCase {
     func testTituloPesaMaisQueAutor() {
         let noTitulo = livro(titulo: "Lopes")
         let noAutor = livro(titulo: "Processo penal", autores: ["Lopes Jr., Aury"])
-        let notas = BM25F.notas(termos: ["lopes"], indice: montarIndice([noTitulo, noAutor]))
+        let notas = BM25F.notas(
+            termos: Tokenizador.termos("Lopes"), indice: montarIndice([noTitulo, noAutor])
+        )
 
         XCTAssertGreaterThan(notas[noTitulo.id] ?? 0, notas[noAutor.id] ?? 0)
         XCTAssertGreaterThan(notas[noAutor.id] ?? 0, 0)

@@ -69,9 +69,11 @@ struct MotorDeBusca {
         parametros: ParametrosBM25F = .padrao
     ) -> [ResultadoBusca] {
         let filtroPreparado = filtro.preparado()
-        let termos = Tokenizador.termos(texto)
+        // O prefixo usa a palavra como foi digitada ("cautelare"); o resto usa o termo no singular.
+        let palavras = Tokenizador.palavras(texto)
+        let termos = palavras.map(Singular.forma)
 
-        guard let ultimo = termos.last else {
+        guard let ultimo = termos.last, let ultimaPalavra = palavras.last else {
             guard !filtroPreparado.estaVazio else { return [] }
             return MotorDeBusca.ordenar(
                 livros.values
@@ -87,8 +89,8 @@ struct MotorDeBusca {
         var anteriores = Set(termos.dropLast())
         let repetido = anteriores.remove(ultimo) != nil
         let fixos = anteriores.sorted()
-        let expansoes = !repetido && ultimo.count >= MotorDeBusca.tamanhoMinimoDoPrefixo
-            ? indice.termos(comPrefixo: ultimo)
+        let expansoes = !repetido && ultimaPalavra.count >= MotorDeBusca.tamanhoMinimoDoPrefixo
+            ? indice.termos(comPrefixo: ultimaPalavra)
             : [ultimo]
         var notas = notasDoUltimo(expansoes, parametros: parametros)
         let conjuntoDeExpansoes = Set(expansoes)
