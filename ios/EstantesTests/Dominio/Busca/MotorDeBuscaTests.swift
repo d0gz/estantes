@@ -23,6 +23,11 @@ final class MotorDeBuscaTests: XCTestCase {
         resultados.map { $0.livro.id }
     }
 
+    /// Os livros com **todos** os termos: vazio quando a resposta veio do OU de reserva.
+    private func comTodos(_ resposta: RespostaBusca) -> [UUID] {
+        resposta.modo == .todosOsTermos ? ids(resposta.resultados) : []
+    }
+
     private func nota(de livro: Livro, em resultados: [ResultadoBusca]) -> Double? {
         resultados.first { $0.livro.id == livro.id }?.nota
     }
@@ -31,7 +36,7 @@ final class MotorDeBuscaTests: XCTestCase {
 
     func testExigeTodosOsTermos() {
         XCTAssertEqual(ids(motor.buscar("prisão preventiva").resultados), [livroA.id])
-        XCTAssertEqual(ids(motor.buscar("prisão civil").resultados), [])
+        XCTAssertEqual(comTodos(motor.buscar("prisão civil")), [])
     }
 
     func testOrdenaPelaNota() {
@@ -72,7 +77,7 @@ final class MotorDeBuscaTests: XCTestCase {
 
     func testNaoCorrigeTermoQueExiste() {
         let resposta = motor.buscar("prisao civil")
-        XCTAssertEqual(resposta.resultados, [])
+        XCTAssertEqual(comTodos(resposta), [])
         XCTAssertEqual(resposta.correcoes, [])
     }
 
@@ -84,7 +89,7 @@ final class MotorDeBuscaTests: XCTestCase {
 
     func testCorrigirFalseDesliga() {
         let resposta = motor.buscar("procesos penal", corrigir: false)
-        XCTAssertEqual(resposta.resultados, [])
+        XCTAssertEqual(comTodos(resposta), [])
         XCTAssertEqual(resposta.correcoes, [])
     }
 
@@ -104,6 +109,63 @@ final class MotorDeBuscaTests: XCTestCase {
         XCTAssertEqual(tresLivros.buscar("vanal").correcoes.first?.usado, "canal")
     }
 
+    // MARK: - OU de reserva (2.3i)
+
+    func testComResultadoNoENuncaViraOU() {
+        let resposta = motor.buscar("prisao preventiva")
+        XCTAssertEqual(resposta.modo, .todosOsTermos)
+        XCTAssertEqual(resposta.resultados.map(\.palavrasAusentes), [[]])
+    }
+
+    func testSemResultadoNoEValeOUComAsPalavrasAusentes() {
+        // Nenhum livro tem "prisão" e "civil".
+        let resposta = motor.buscar("prisao civil")
+        XCTAssertEqual(resposta.modo, .parteDosTermos)
+        XCTAssertEqual(Set(ids(resposta.resultados)), [livroA.id, livroB.id, livroC.id])
+        let ausentes = Dictionary(uniqueKeysWithValues: resposta.resultados.map { ($0.livro.id, $0.palavrasAusentes) })
+        XCTAssertEqual(ausentes[livroA.id], ["civil"])
+        XCTAssertEqual(ausentes[livroC.id], ["prisao"])
+    }
+
+    func testOUPoeQuemTemMaisTermosAntesDaNota() {
+        let tres = Livro(estanteId: estante1, titulo: "Prisão preventiva", subtitulo: "Habeas corpus")
+        let um = Livro(estanteId: estante1, titulo: "Recurso", subtitulo: "Recurso recurso recurso")
+        let motor = MotorDeBusca(livros: [tres, um, livroB], categorias: [])
+        // Ninguém tem os quatro. `tres` tem 3; `um` tem só "recurso", com nota alta (título e subtítulo).
+        let resposta = motor.buscar("prisao preventiva habeas recurso")
+        XCTAssertEqual(resposta.modo, .parteDosTermos)
+        XCTAssertEqual(resposta.resultados.first?.livro.id, tres.id)
+        XCTAssertEqual(resposta.resultados.first?.palavrasAusentes, ["recurso"])
+        XCTAssertEqual(resposta.resultados.map(\.palavrasAusentes.count), [1, 2, 3])
+    }
+
+    func testAusentesVemComAPalavraEscritaENaOrdemDaConsulta() {
+        // "Prisões" vira o termo `prisao`, mas a tela mostra o que o usuário escreveu.
+        let resposta = motor.buscar("prisões tributário civil")
+        let civil = resposta.resultados.first { $0.livro.id == livroC.id }
+        XCTAssertEqual(civil?.palavrasAusentes, ["prisoes", "tributario"])
+    }
+
+    func testOUEscolheOItemDoSumarioComOsTermosPresentes() {
+        // B não tem "civil", mas o item "Prisão" casa com o termo que ele tem.
+        let resposta = motor.buscar("prisao civil")
+        XCTAssertEqual(item(resposta.resultados, de: livroB), "Prisão")
+    }
+
+    func testTermoUnicoSemResultadoContinuaVazio() {
+        let resposta = motor.buscar("tributario")
+        XCTAssertEqual(resposta.resultados, [])
+        XCTAssertEqual(resposta.modo, .todosOsTermos)
+        // O repetido conta como um termo só: não há o que relaxar.
+        XCTAssertEqual(motor.buscar("prev prev").resultados, [])
+    }
+
+    func testOUAplicaOFiltro() {
+        let resposta = motor.buscar("prisao civil", filtro: FiltroBusca(estanteIds: [estante2]))
+        XCTAssertEqual(resposta.modo, .parteDosTermos)
+        XCTAssertEqual(ids(resposta.resultados), [livroC.id])
+    }
+
     // MARK: - Prefixo
 
     func testUltimoTermoValeComoPrefixo() {
@@ -114,7 +176,7 @@ final class MotorDeBuscaTests: XCTestCase {
 
     func testSoOUltimoTermoValeComoPrefixo() {
         XCTAssertEqual(ids(motor.buscar("prisao prevent").resultados), [livroA.id])
-        XCTAssertEqual(ids(motor.buscar("prevent prisao").resultados), [])
+        XCTAssertEqual(comTodos(motor.buscar("prevent prisao")), [])
     }
 
     func testPrefixoDeUmaLetraNaoExpande() {

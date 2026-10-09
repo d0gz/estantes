@@ -77,6 +77,10 @@ struct MotorDeBusca {
     /// próximo, se houver um perto o bastante (`errosAceitos`); a troca vem em `correcoes`. Palavra
     /// que existe nunca é trocada. `corrigir: false` desliga (a tela oferece "buscar exatamente").
     ///
+    /// Se nenhum livro tem todos os termos (já com o filtro) e a consulta tem dois ou mais, vale o OU
+    /// de reserva (`modo == .parteDosTermos`): os livros com parte dos termos, cada um com as palavras
+    /// que faltaram. Com um termo só, não há o que relaxar: a lista fica vazia.
+    ///
     /// Consulta vazia (ou só de palavras vazias): sem filtro, nada; com filtro, todos os livros
     /// que passam nele, em ordem de título.
     func buscar(
@@ -91,11 +95,13 @@ struct MotorDeBusca {
         var termos = palavras.map(Singular.forma)
 
         guard let ultimaPalavra = palavras.last else {
-            guard !filtroPreparado.estaVazio else { return RespostaBusca(resultados: [], correcoes: []) }
+            guard !filtroPreparado.estaVazio else {
+                return RespostaBusca(resultados: [], modo: .todosOsTermos, correcoes: [])
+            }
             let todos = livros.values
                 .filter(filtroPreparado.aceita)
                 .map { ResultadoBusca(livro: $0, itemDoSumario: nil, nota: 0) }
-            return RespostaBusca(resultados: MotorDeBusca.ordenar(todos), correcoes: [])
+            return RespostaBusca(resultados: MotorDeBusca.ordenar(todos), modo: .todosOsTermos, correcoes: [])
         }
 
         var correcoes: [Correcao] = []
@@ -106,6 +112,11 @@ struct MotorDeBusca {
                     termos[i] = usado
                 }
             }
+        }
+        // Para o OU dizer o que faltou com a palavra que o usuário escreveu, e não com o termo.
+        var palavraDoTermo: [String: String] = [:]
+        for (termo, palavra) in zip(termos, palavras) where palavraDoTermo[termo] == nil {
+            palavraDoTermo[termo] = palavra
         }
         let ultimo = termos[termos.count - 1]
 
@@ -127,26 +138,58 @@ struct MotorDeBusca {
             expansoes = [usado]
         }
         let fixos = anteriores.sorted()
-        var notas = notasDoUltimo(expansoes, parametros: parametros)
+        let notasDoUltimo = notasDoUltimo(expansoes, parametros: parametros)
+        let notasDosFixos = fixos.map { BM25F.notas(termos: [$0], indice: indice, parametros: parametros) }
         let conjuntoDeExpansoes = Set(expansoes)
-        for termo in fixos {
-            let notasDoTermo = BM25F.notas(termos: [termo], indice: indice, parametros: parametros)
+
+        // O filtro vem depois do BM25F: aplicado antes, mudaria o IDF e a nota de quem continua.
+        func resultados(_ notas: [UUID: Double], ausentes: [UUID: [String]]) -> [ResultadoBusca] {
+            MotorDeBusca.ordenar(
+                notas.compactMap { id, nota in
+                    guard let livro = livros[id], filtroPreparado.aceita(livro) else { return nil }
+                    let item = melhorItem(de: livro, fixos: fixos, expansoes: conjuntoDeExpansoes, parametros: parametros)
+                    return ResultadoBusca(
+                        livro: livro, itemDoSumario: item, nota: nota, palavrasAusentes: ausentes[id] ?? []
+                    )
+                }
+            )
+        }
+
+        var notas = notasDoUltimo
+        for notasDoTermo in notasDosFixos {
             // E: só continua quem também tem este termo. O `for` percorre uma cópia de `notas`
             // (dicionário é tipo-valor), então alterar `notas` dentro dele é seguro.
             for (id, nota) in notas {
                 notas[id] = notasDoTermo[id].map { nota + $0 }
             }
         }
+        let comTodos = resultados(notas, ausentes: [:])
+        guard comTodos.isEmpty, !fixos.isEmpty else {
+            return RespostaBusca(resultados: comTodos, modo: .todosOsTermos, correcoes: correcoes)
+        }
 
-        // O filtro vem depois do BM25F: aplicado antes, mudaria o IDF e a nota de quem continua.
-        let resultados = MotorDeBusca.ordenar(
-            notas.compactMap { id, nota in
-                guard let livro = livros[id], filtroPreparado.aceita(livro) else { return nil }
-                let item = melhorItem(de: livro, fixos: fixos, expansoes: conjuntoDeExpansoes, parametros: parametros)
-                return ResultadoBusca(livro: livro, itemDoSumario: item, nota: nota)
+        // OU de reserva: a lista ficaria vazia e há dois ou mais termos. Entra quem tem pelo menos um,
+        // com a nota dos que tem (somada na mesma ordem do E) e as palavras que faltaram; a ordenação
+        // põe primeiro quem tem mais termos (nível de coordenação).
+        let porTermo = [(ultimaPalavra, notasDoUltimo)] + zip(fixos, notasDosFixos).map { termo, notas in
+            (palavraDoTermo[termo] ?? termo, notas)
+        }
+        var notasParciais: [UUID: Double] = [:]
+        var ausentes: [UUID: [String]] = [:]
+        for id in Set(porTermo.flatMap { $0.1.keys }) {
+            for (palavra, notasDoTermo) in porTermo {
+                if let nota = notasDoTermo[id] {
+                    notasParciais[id, default: 0] += nota
+                } else {
+                    ausentes[id, default: []].append(palavra)
+                }
             }
+            // Na ordem em que o usuário escreveu.
+            ausentes[id]?.sort { (palavras.firstIndex(of: $0) ?? 0) < (palavras.firstIndex(of: $1) ?? 0) }
+        }
+        return RespostaBusca(
+            resultados: resultados(notasParciais, ausentes: ausentes), modo: .parteDosTermos, correcoes: correcoes
         )
-        return RespostaBusca(resultados: resultados, correcoes: correcoes)
     }
 
     /// O termo do vocabulário que substitui `termo`, se ele não existe na biblioteca e há um perto o
@@ -201,13 +244,17 @@ struct MotorDeBusca {
         return livro.itensSumario.first { $0.id == id }
     }
 
-    /// Nota maior primeiro; no empate, título (sem acento nem maiúsculas) e, por fim, o id,
-    /// para que a ordem seja a mesma em toda execução. O título normalizado é calculado uma vez
-    /// por resultado, e não a cada comparação (a ordenação faz O(n log n) comparações).
+    /// Menos palavras ausentes primeiro (só difere no OU: quem tem 2 de 3 termos vem antes de quem tem
+    /// 1 de 3, qualquer que seja a nota); depois nota maior; no empate, título (sem acento nem
+    /// maiúsculas) e, por fim, o id, para que a ordem seja a mesma em toda execução. O título
+    /// normalizado é calculado uma vez por resultado, e não a cada comparação (a ordenação faz
+    /// O(n log n) comparações).
     private static func ordenar(_ resultados: [ResultadoBusca]) -> [ResultadoBusca] {
         resultados
             .map { (resultado: $0, titulo: Normalizacao.chave($0.livro.titulo), id: $0.livro.id.uuidString) }
             .sorted { a, b in
+                let ausentesA = a.resultado.palavrasAusentes.count, ausentesB = b.resultado.palavrasAusentes.count
+                if ausentesA != ausentesB { return ausentesA < ausentesB }
                 if a.resultado.nota != b.resultado.nota { return a.resultado.nota > b.resultado.nota }
                 if a.titulo != b.titulo { return a.titulo < b.titulo }
                 return a.id < b.id
