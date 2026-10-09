@@ -35,7 +35,7 @@ private struct RaizView: View {
     private var telaDoApp: some View {
         switch montagem {
         case .success(let dependencias):
-            InicioView(viewModel: dependencias.fazerInicioViewModel())
+            NavegacaoView(dependencias: dependencias)
         case .failure:
             MensagemDeErroView(texto: "Não foi possível abrir a biblioteca guardada no aparelho.")
         }

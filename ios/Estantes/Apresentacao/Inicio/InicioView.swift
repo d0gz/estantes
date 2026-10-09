@@ -1,6 +1,8 @@
 import SwiftUI
 
 /// Tela inicial: as estantes em grade. Versão 0.x (só lógica): componentes nativos, sem estilo decidido.
+/// Fica dentro do `NavigationStack` montado em `App/Navegacao`: cada cartão só empurra a `Estante`,
+/// e a montagem decide qual tela abrir.
 struct InicioView: View {
     @StateObject private var viewModel: InicioViewModel
 
@@ -36,62 +38,62 @@ struct InicioView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            conteudo
-                .navigationTitle("Minhas estantes")
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            pedirNome(.nova)
-                        } label: {
-                            Label("Nova estante", systemImage: "plus")
-                        }
+        conteudo
+            .navigationTitle("Minhas estantes")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        pedirNome(.nova)
+                    } label: {
+                        Label("Nova estante", systemImage: "plus")
                     }
                 }
-        }
-        .task {
-            await viewModel.carregar()
-            await executar(acaoInicial)
-        }
-        .alert(tituloDoPedido, isPresented: pedidoAberto) {
-            TextField("Nome da estante", text: $nomeDigitado)
-            Button("Cancelar", role: .cancel) {}
-            // Sem `.disabled`: no iOS 16 o alerta esconde o botão desabilitado e não o reavalia enquanto se digita
-            // (com o campo começando vazio, o "Salvar" nunca aparecia). O ViewModel já ignora nome vazio.
-            Button("Salvar") { confirmarNome() }
-        }
-        .confirmationDialog(
-            tituloDaExclusao, isPresented: $confirmandoExclusao, titleVisibility: .visible, presenting: exclusao
-        ) { pedido in
-            if pedido.podeMover {
-                Button("Mover \(Self.textoDaQuantidade(pedido.quantidadeDeLivros, comArtigo: true)) e apagar…") {
-                    escolhendoDestino = true
+            }
+            .task {
+                await viewModel.carregar()
+                await executar(acaoInicial)
+            }
+            // Ao voltar da estante, a contagem de livros pode ter mudado.
+            .aoVoltar { await viewModel.carregar() }
+            .alert(tituloDoPedido, isPresented: pedidoAberto) {
+                TextField("Nome da estante", text: $nomeDigitado)
+                Button("Cancelar", role: .cancel) {}
+                // Sem `.disabled`: no iOS 16 o alerta esconde o botão desabilitado e não o reavalia enquanto se digita
+                // (com o campo começando vazio, o "Salvar" nunca aparecia). O ViewModel já ignora nome vazio.
+                Button("Salvar") { confirmarNome() }
+            }
+            .confirmationDialog(
+                tituloDaExclusao, isPresented: $confirmandoExclusao, titleVisibility: .visible, presenting: exclusao
+            ) { pedido in
+                if pedido.podeMover {
+                    Button("Mover \(Self.textoDaQuantidade(pedido.quantidadeDeLivros, comArtigo: true)) e apagar…") {
+                        escolhendoDestino = true
+                    }
                 }
-            }
-            Button(textoDeApagar(pedido), role: .destructive) {
-                Task { await viewModel.apagar(pedido, movendoLivrosPara: nil) }
-            }
-            Button("Cancelar", role: .cancel) {}
-        } message: { pedido in
-            Text(mensagemDaExclusao(pedido))
-        }
-        .confirmationDialog(
-            "Mover os livros para…", isPresented: $escolhendoDestino, titleVisibility: .visible, presenting: exclusao
-        ) { pedido in
-            ForEach(pedido.destinosPossiveis) { destino in
-                Button(destino.nome) {
-                    Task { await viewModel.apagar(pedido, movendoLivrosPara: destino) }
+                Button(textoDeApagar(pedido), role: .destructive) {
+                    Task { await viewModel.apagar(pedido, movendoLivrosPara: nil) }
                 }
+                Button("Cancelar", role: .cancel) {}
+            } message: { pedido in
+                Text(mensagemDaExclusao(pedido))
             }
-            Button("Cancelar", role: .cancel) {}
-        } message: { pedido in
-            Text("A estante \"\(pedido.estante.nome)\" será apagada depois de mover os livros.")
-        }
-        .alert("Algo deu errado", isPresented: erroAberto) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.mensagemDeErro ?? "")
-        }
+            .confirmationDialog(
+                "Mover os livros para…", isPresented: $escolhendoDestino, titleVisibility: .visible, presenting: exclusao
+            ) { pedido in
+                ForEach(pedido.destinosPossiveis) { destino in
+                    Button(destino.nome) {
+                        Task { await viewModel.apagar(pedido, movendoLivrosPara: destino) }
+                    }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: { pedido in
+                Text("A estante \"\(pedido.estante.nome)\" será apagada depois de mover os livros.")
+            }
+            .alert("Algo deu errado", isPresented: erroAberto) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.mensagemDeErro ?? "")
+            }
     }
 
     @ViewBuilder
@@ -113,19 +115,22 @@ struct InicioView: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                     ForEach(resumos) { resumo in
-                        cartao(resumo)
-                            .contextMenu {
-                                Button {
-                                    pedirNome(.renomear(resumo.estante))
-                                } label: {
-                                    Label("Renomear", systemImage: "pencil")
-                                }
-                                Button(role: .destructive) {
-                                    Task { await pedirExclusao(de: resumo.estante) }
-                                } label: {
-                                    Label("Apagar", systemImage: "trash")
-                                }
+                        NavigationLink(value: resumo.estante) {
+                            cartao(resumo)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                pedirNome(.renomear(resumo.estante))
+                            } label: {
+                                Label("Renomear", systemImage: "pencil")
                             }
+                            Button(role: .destructive) {
+                                Task { await pedirExclusao(de: resumo.estante) }
+                            } label: {
+                                Label("Apagar", systemImage: "trash")
+                            }
+                        }
                     }
                 }
                 .padding()
@@ -248,9 +253,9 @@ struct InicioView: View {
 #if DEBUG
 struct InicioView_Previews: PreviewProvider {
     static var previews: some View {
-        ComExemplos { InicioView(viewModel: $0.fazerInicioViewModel()) }
+        ComExemplos { NavegacaoView(dependencias: $0) }
             .previewDisplayName("Com estantes")
-        ComExemplos(vazio: true) { InicioView(viewModel: $0.fazerInicioViewModel()) }
+        ComExemplos(vazio: true) { NavegacaoView(dependencias: $0) }
             .previewDisplayName("Vazio")
     }
 }

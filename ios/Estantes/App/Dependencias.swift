@@ -27,4 +27,14 @@ struct Dependencias {
     func fazerInicioViewModel() -> InicioViewModel {
         InicioViewModel(repositorio: repositorio)
     }
+
+    @MainActor
+    func fazerEstanteViewModel(estante: Estante) -> EstanteViewModel {
+        EstanteViewModel(estante: estante, repositorio: repositorio)
+    }
+
+    @MainActor
+    func fazerLivroDetalheViewModel(livroId: UUID) -> LivroDetalheViewModel {
+        LivroDetalheViewModel(livroId: livroId, repositorio: repositorio)
+    }
 }
