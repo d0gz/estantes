@@ -90,7 +90,14 @@ extension LivroMO {
             subtitulo: subtitulo,
             autores: Self.lista(autores, separador: FormatoPersistido.separadorAutores),
             editora: editora,
+            local: local,
             edicao: edicao,
+            volume: volume?.intValue,
+            volumeRotulo: volumeRotulo,
+            parte: parte,
+            serie: serie,
+            artigosInicio: artigosInicio?.intValue,
+            artigosFim: artigosFim?.intValue,
             ano: ano?.intValue,
             isbn13: isbn13,
             paginas: paginas?.intValue,
@@ -116,7 +123,14 @@ extension LivroMO {
         subtitulo = livro.subtitulo
         autores = livro.autores.joined(separator: FormatoPersistido.separadorAutores)
         editora = livro.editora
+        local = livro.local
         edicao = livro.edicao
+        volume = livro.volume.map { NSNumber(value: $0) }
+        volumeRotulo = livro.volumeRotulo
+        parte = livro.parte
+        serie = livro.serie
+        artigosInicio = livro.artigosInicio.map { NSNumber(value: $0) }
+        artigosFim = livro.artigosFim.map { NSNumber(value: $0) }
         ano = livro.ano.map { NSNumber(value: $0) }
         isbn13 = livro.isbn13
         paginas = livro.paginas.map { NSNumber(value: $0) }

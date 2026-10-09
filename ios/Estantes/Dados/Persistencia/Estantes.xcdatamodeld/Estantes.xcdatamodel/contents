@@ -25,6 +25,8 @@
     <entity name="Livro" representedClassName="LivroMO" syncable="YES">
         <attribute name="adicionadoEm" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="ano" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
+        <attribute name="artigosFim" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
+        <attribute name="artigosInicio" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
         <attribute name="autores" attributeType="String" defaultValueString=""/>
         <attribute name="cddir" optional="YES" attributeType="String"/>
         <attribute name="cddirCaminho" attributeType="String" defaultValueString=""/>
@@ -33,12 +35,17 @@
         <attribute name="fotoCapa" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="isbn13" optional="YES" attributeType="String"/>
+        <attribute name="local" optional="YES" attributeType="String"/>
         <attribute name="origem" attributeType="String"/>
         <attribute name="paginas" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
+        <attribute name="parte" optional="YES" attributeType="String"/>
         <attribute name="prateleira" optional="YES" attributeType="String"/>
+        <attribute name="serie" optional="YES" attributeType="String"/>
         <attribute name="subtitulo" optional="YES" attributeType="String"/>
         <attribute name="titulo" attributeType="String"/>
         <attribute name="urn" optional="YES" attributeType="String"/>
+        <attribute name="volume" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
+        <attribute name="volumeRotulo" optional="YES" attributeType="String"/>
         <relationship name="categorias" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Categoria" inverseName="livros" inverseEntity="Categoria"/>
         <relationship name="estante" maxCount="1" deletionRule="Nullify" destinationEntity="Estante" inverseName="livros" inverseEntity="Estante"/>
         <relationship name="itensSumario" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="ItemSumario" inverseName="livro" inverseEntity="ItemSumario"/>

@@ -30,7 +30,14 @@ final class LivroMO: NSManagedObject {
     /// Um autor por linha (`FormatoPersistido.separadorAutores`).
     @NSManaged var autores: String
     @NSManaged var editora: String?
+    @NSManaged var local: String?
     @NSManaged var edicao: String?
+    @NSManaged var volume: NSNumber?
+    @NSManaged var volumeRotulo: String?
+    @NSManaged var parte: String?
+    @NSManaged var serie: String?
+    @NSManaged var artigosInicio: NSNumber?
+    @NSManaged var artigosFim: NSNumber?
     /// `NSNumber?` e não `Int`: um número "escalar" do Core Data não pode ficar vazio.
     @NSManaged var ano: NSNumber?
     @NSManaged var isbn13: String?

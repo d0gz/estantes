@@ -22,7 +22,22 @@ struct Livro: Identifiable, Equatable {
     var subtitulo: String?
     var autores: [String]
     var editora: String?
+    /// Cidade da editora ("Rio de Janeiro").
+    var local: String?
+    /// Texto livre; guarda também a reimpressão ("3.ª ed., 2.ª reimpr.").
     var edicao: String?
+    // Obras em vários volumes (2.3b): cada tomo é um `Livro`, com folha de rosto própria.
+    /// Número do volume: ordena os tomos e desempata títulos iguais no LexML.
+    var volume: Int?
+    /// Como o volume está impresso ("Tomo XLVIII", "Vol. 24"); é o que a tela mostra.
+    var volumeRotulo: String?
+    /// Texto médio da folha de rosto, entre o título e o volume ("Direito de família"). Entra na busca.
+    var parte: String?
+    /// Coleção, como vem na ficha CIP ("Coleção Tratado de direito privado").
+    var serie: String?
+    /// Artigos de lei que o tomo comenta ("Arts. 1.710-1.779" → 1710 e 1779). Opcionais.
+    var artigosInicio: Int?
+    var artigosFim: Int?
     var ano: Int?
     var isbn13: String?
     var paginas: Int?
@@ -46,7 +61,14 @@ struct Livro: Identifiable, Equatable {
         subtitulo: String? = nil,
         autores: [String] = [],
         editora: String? = nil,
+        local: String? = nil,
         edicao: String? = nil,
+        volume: Int? = nil,
+        volumeRotulo: String? = nil,
+        parte: String? = nil,
+        serie: String? = nil,
+        artigosInicio: Int? = nil,
+        artigosFim: Int? = nil,
         ano: Int? = nil,
         isbn13: String? = nil,
         paginas: Int? = nil,
@@ -65,7 +87,14 @@ struct Livro: Identifiable, Equatable {
         self.subtitulo = subtitulo
         self.autores = autores
         self.editora = editora
+        self.local = local
         self.edicao = edicao
+        self.volume = volume
+        self.volumeRotulo = volumeRotulo
+        self.parte = parte
+        self.serie = serie
+        self.artigosInicio = artigosInicio
+        self.artigosFim = artigosFim
         self.ano = ano
         self.isbn13 = isbn13
         self.paginas = paginas

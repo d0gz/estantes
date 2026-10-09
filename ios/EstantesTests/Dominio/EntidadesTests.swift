@@ -22,6 +22,17 @@ final class EntidadesTests: XCTestCase {
         XCTAssertTrue(livro.categoriaIds.isEmpty)
     }
 
+    func testLivroNovoNaoEhTomoDeObraEmVariosVolumes() {
+        let livro = Livro(estanteId: UUID(), titulo: "Manual de direito penal")
+        XCTAssertNil(livro.volume)
+        XCTAssertNil(livro.volumeRotulo)
+        XCTAssertNil(livro.parte)
+        XCTAssertNil(livro.serie)
+        XCTAssertNil(livro.artigosInicio)
+        XCTAssertNil(livro.artigosFim)
+        XCTAssertNil(livro.local)
+    }
+
     func testStructsSaoValores() {
         var original = Livro(estanteId: UUID(), titulo: "Original")
         let copia = original
