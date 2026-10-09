@@ -20,12 +20,17 @@ final class PersistenceController {
 
     let container: NSPersistentContainer
 
-    /// - Parameter emMemoria: grava em `/dev/null`. Continua sendo SQLite (o mesmo motor da produção),
-    ///   só que nada chega ao disco; cada container começa vazio. Usado nos testes e previews.
-    init(emMemoria: Bool = false) throws {
+    /// - Parameters:
+    ///   - emMemoria: grava em `/dev/null`. Continua sendo SQLite (o mesmo motor da produção),
+    ///     só que nada chega ao disco; cada container começa vazio. Usado nos testes e previews.
+    ///   - arquivo: outro arquivo SQLite no lugar do padrão (`Application Support/Estantes.sqlite`).
+    ///     Usado no teste que fecha e reabre o banco.
+    init(emMemoria: Bool = false, arquivo: URL? = nil) throws {
         container = NSPersistentContainer(name: "Estantes", managedObjectModel: Self.modelo)
         if emMemoria {
             container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
+        } else if let arquivo = arquivo {
+            container.persistentStoreDescriptions.first?.url = arquivo
         }
 
         // Por padrão o carregamento é síncrono: quando a função volta, o store já está pronto (ou falhou).
