@@ -1226,4 +1226,115 @@ O *caso* diz a sequência; o valor diz a posição nela. Compare com `Int` + `Bo
 3. Raciocínio: um sumário tem as páginas "XI", "XII", "s/n", "1", "2", "XIV". Quais avisos a `ValidacaoSumario` emite, e em que índice? Depois diga por que comparar com "o último item da mesma sequência" geraria um falso alarme num índice remissivo em romanos no fim do livro.
 
 ### Minhas respostas
+(sem respostas)
+
+## Tarefa 2.3h — Consultas de referência e ajuste dos pesos do BM25F (passo 6 da 2.3) (2026-10-09)
+
+### O que foi feito
+Foram criadas as métricas de qualidade da busca (`MetricasDeBusca.swift`, no alvo de testes), uma biblioteca de 22 fichas de livros (`BibliotecaDeReferencia.swift`) com 25 consultas (`ConsultasDeReferencia.swift`: 19 de ajuste e 6 sondas) e um relatório `[referencia]` que o `scripts/testar.sh` deixa no log. Depois, uma varredura de parâmetros (`testVarreduraDosParametros`) mostrou que só o peso e o `b` do sumário mudam algum resultado. O padrão do peso do sumário passou de 1,0 para 0,5 em `ParametrosBM25F.padrao` (`BM25F.swift`), e um teste de piso (`testMetricasNaoCaemAbaixoDoPiso`) impede regressões. A suíte foi de 171 para 185 testes.
+
+### Conceitos envolvidos
+
+**1. Por que medir a busca.** Até aqui os pesos do BM25F (título 3, sumário 1 etc.) eram palpites razoáveis. Ajustar um parâmetro "a olho" é perigoso: melhora uma consulta e piora outra sem que ninguém perceba. A solução da recuperação de informação é o *conjunto de avaliação*: consultas com a resposta certa conhecida, e métricas que resumem o ranking em um número. Mudar um parâmetro vira um experimento: o número subiu ou desceu? (Manning et al., cap. 8, descrevem o mesmo método, com o corpus de Cranfield como ancestral.)
+
+**2. As métricas.** Seja p a posição do livro esperado no ranking.
+
+| Métrica | Definição | O que mede | O que não vê |
+| --- | --- | --- | --- |
+| top 1 | fração das consultas com p = 1 | o "acerto de primeira" | 2º e 10º valem igual (zero) |
+| top 3 | fração com p ≤ 3 | o livro está na tela sem rolar | diferença entre 1º e 3º |
+| MRR | média de 1/p (0 se ausente) | qualidade média do ranking | quase tudo é dominado pelas primeiras posições |
+| item certo | entre as consultas que esperam um item do sumário e acharam o livro no top 3, fração com o item mostrado certo | o destaque "página 245, § 5.153" | consultas sem item esperado |
+
+O MRR (*mean reciprocal rank*) existe porque top 1 é cego a quase-acertos. 1/p vale 1; 0,5; 0,333; ...; 0,1 para o 10º. Assim ele separa o 2º do 10º, o que o top 1 e o top 3 não fazem. O custo: o MRR é uma média de frações, então a diferença entre p=2 e p=3 (0,5 → 0,333) pesa mais do que a entre p=9 e p=10 (0,111 → 0,1). Isso é desejado: o usuário olha o topo.
+
+Exemplo: 4 consultas com posições 1, 1, 2, 4 dão top 1 = 0,5; top 3 = 0,75; MRR = (1 + 1 + 0,5 + 0,25)/4 = 0,6875.
+
+**3. Empate pessimista.** O motor desempata notas iguais por título e depois por UUID. Se a métrica usasse a posição que o motor devolve, um livro empatado com outro ganharia o 1º lugar só porque o título vem antes no alfabeto, ou seja, pontos por sorte, e uma mudança de nome mudaria a métrica. A regra adotada: p = 1 + (número de outros livros com nota ≥ a do esperado). Num empate a dois, o esperado fica em 2º, nunca em 1º. A comparação usa tolerância de 1e-9 porque ponto flutuante não é exato: em Double, `0.1 + 0.2 != 0.3` (dá 0.30000000000000004). Há um teste com exatamente esse par. Sem tolerância, dois livros "empatados" matematicamente pareceriam desempatados por um erro de arredondamento.
+
+**4. Por que testar o código de teste.** `MetricasDeBusca` não está no app: o app nunca calcula MRR. Por isso mora em `EstantesTests/`. Mas uma métrica errada é pior que nenhuma métrica: todo o ajuste dos pesos se apoiaria nela, sem nenhum sinal de que algo está errado. Daí os 10 testes. Regra geral: o instrumento de medição precisa ser mais confiável do que aquilo que ele mede.
+
+**5. Uma biblioteca de referência precisa de vizinhos parecidos.** Se cada consulta só tem um candidato plausível, qualquer peso acerta tudo e a métrica não distingue nada (o teste é "fácil demais"). Por isso os 18 livros do LexML foram escolhidos em grupos que se confundem (processo penal e prisão, constituição, trabalho, civil), e os 4 livros fotografados entram com os dados reais transcritos (Lassale, Carvalho Santos vol. XXIV, Pontes de Miranda T48 e T1). Fichas inventadas foram descartadas por duas razões: é circular (você escreve o livro que seu algoritmo acha) e os tamanhos de campo seriam irreais, e o `b` do BM25F normaliza justamente por tamanho.
+
+**6. Regra anti-sobreajuste.** Sobreajuste (*overfitting*) é ajustar os parâmetros até as consultas de teste passarem, sem que isso signifique melhoria em consultas novas. Com 19 consultas, é muito fácil. As defesas adotadas: as consultas foram escritas antes de ver o ranking; consulta existente nunca é reescrita para passar; e uma regra de parada (ver "Por que assim").
+
+**7. Ajuste × sonda.** Uma consulta de ajuste pode mudar de resultado com algum peso. Uma sonda é um caso que *nenhum* peso conserta; ela mostra uma limitação da arquitetura. Ficam fora do MRR: se entrassem, baixariam a média de um jeito que nenhum parâmetro corrige, e o número perderia a capacidade de sinalizar. As 6 sondas:
+
+| # | Consulta | Resultado | Causa |
+| --- | --- | --- | --- |
+| 20 | "arts 1710 1779" | nenhum resultado | o E é estrito e os artigos do tomo não estão no índice |
+| 21 | "tratado 48" | nenhum | o volume não está indexado |
+| 22 | "tratado direito privado" | T48 2,236 × T1 2,232 | não empatou: "direito" está no subtítulo e no sumário do T48 |
+| 23 | "prisoes cautelares" | nenhum | plural; falta stemming (RSLP) |
+| 24 | "procesos penal" | nenhum | erro de digitação |
+| 25 | "lassalle" | nenhum | a ficha CIP grafa "Lassale" |
+
+**8. Linha de base e os dois erros.** Com os pesos antigos (sumário 1,0; `b` do sumário 0,75): top 1 = 0,895 (17/19), top 3 = 1,000, MRR = 0,939, item certo = 1,000 (5/5). Todos os casos da 2.3b ("art 1710", "§ 5.108", parte, hífen, "dissídios") já saíam em 1º com o item certo. Os dois erros:
+
+- **#1 "processo penal"**: Badaró ficou em 2º (Rosa 2,075 × Badaró 2,052). O título exato do Badaró perde porque o Rosa ("Teoria dos jogos e processo penal") tem "processo penal" em 3 itens do sumário. Diagnóstico: problema de *peso* (o sumário vale demais perto do título).
+- **#11 "prisao caut"**: Fernandes em 3º (Capez 3,444 · Maluf 3,310 · Fernandes 3,250). Caso *misto*: Maluf tem "prisão cautelar" em 3 itens (peso), mas Capez vence porque a expansão do prefixo `cautelares`, que só existe nele, tem IDF maior, e o livro fica com a MAIOR nota entre as expansões do prefixo (regra da 2.3e). Parte do problema é estrutural, não de peso.
+
+**9. Descida por coordenadas e dependência do caminho.** A varredura (`testVarreduraDosParametros`) faz *coordinate descent*: um parâmetro por vez, variando numa grade e mantendo os outros fixos, repetindo por até 2 voltas, em 9 passos: peso do sumário, `b` do sumário, peso do subtítulo, das categorias, do `cddirCaminho`, dos autores, `k1`, `b` do título, `b` do subtítulo. O título fica fixo em 3 como âncora. Por quê: multiplicar todos os pesos por c equivale a dividir `k1` por c (a nota do BM25F depende de peso × frequência / (k1 + ...)), então peso e `k1` são redundantes na escala; sem uma âncora haveria infinitas soluções equivalentes.
+
+O algoritmo só garante um ótimo *local*. Prova prática: com a grade do sumário começando em 0,5, a descida parou em (peso 0,5, `b` 0), com MRR 0,974 mas item certo 0,800; começando em 0,25 parou em (0,25, `b` 0,75), MRR 0,974 e item 1,000. O ponto de partida e a ordem das coordenadas mudam o destino. A superfície de erro tem vales; o `b` e o peso do sumário interagem (um muda o efeito do outro), e é exatamente isso que a descida por coordenadas trata mal.
+
+**10. O furo do critério de otimização.** Com `b` do sumário = 0, a #11 subiu do 3º para o 2º, mas a #19 passou a mostrar o item errado: o título longo da "Parte VII … dissídios coletivos …" venceu "§ 5.153 Dissídios coletivos", porque `notaDoItem` usa o mesmo `b` do sumário (sem normalização por comprimento, itens longos deixam de ser penalizados). O critério "subir o MRR e depois o top 1" não via isso. Correção, aprovada pelo Ricardo: o *item certo* virou uma **restrição** (nenhuma troca que o piore é aceita). Foi registrado com transparência que essa regra nasceu *depois* de ver o resultado. Isso importa: regra criada após o fato é exatamente o tipo de ajuste que se deve declarar.
+
+**11. "Não discriminado" não é "validado".** Subtítulo, categorias, CDDir, autor, `k1` e `b` do subtítulo: nenhuma consulta mudou em nenhum valor da grade. Isso não prova que os valores de partida estão certos. Prova que *este conjunto de consultas* não os distingue. Eles ficam como estão, rotulados "não discriminados". O único com evidência contrária foi o `b` do título: abaixo de 0,5 piora #1 e #11, o que confirma 0,5.
+
+### Por que assim
+Resultado dos candidatos:
+
+| | peso sumário | b sumário | top 1 | MRR | item | #1 | #11 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| linha de base | 1,0 | 0,75 | 0,895 | 0,939 | 1,000 | 2º | 3º |
+| **A (escolhido)** | **0,5** | **0,75** | 0,947 | 0,965 | 1,000 | 1º | 3º |
+| B (descartado) | 0,25 | 0,75 | 0,947 | 0,974 | 1,000 | 1º | 2º |
+| (b = 0, descartado) | 0,5 | 0 | 0,947 | 0,974 | 0,800 | 1º | 2º |
+
+Grade do peso do sumário a partir da linha de base: 0,25 → MRR 0,974 (#1 e #11 sobem); 0,5 → 0,965 (#1 sobe); de 0,75 a 2,0 → 0,939 (nada muda).
+
+- **Por que A e não B.** A conserta o caso de peso puro (#1). O ganho extra de B vem só da #11, que é um caso misto (parte do erro é a regra do IDF das expansões, não o peso). Além disso, 0,25 está na ponta da grade (o sumário passaria a valer 1/12 do título) e nenhuma consulta mede o risco inverso: um termo que só aparece no sumário de um livro perder para categoria ou CDDir de outro. Regra de parada: **não perseguir uma consulta com valor extremo**. Um parâmetro no limite da grade costuma indicar que o modelo está compensando outro problema.
+- **Por que o código de varredura só imprime.** A varredura "recomenda" 0,25 no relatório, e continuará recomendando. A decisão é humana: um otimizador automático só enxerga o MRR; quem decide enxerga também o risco.
+- **Por que Swift e não JSON** para a biblioteca: o `Livro` ainda muda até a 2.8; no Swift, mudar o modelo vira *erro de compilação* e não erro em execução; e não é preciso tornar o `Livro` `Codable` só por causa de testes. UUIDs fixos (`00000000-…-%012d`) porque o desempate do motor usa título e depois id: com UUIDs aleatórios a ordem em empates mudaria a cada execução e os testes ficariam instáveis.
+- **Por que testes de exemplo à mão mudaram.** `testExemploPrisao` e `testExemploPrisaoFlagrante` (BM25FTests) passaram a usar `parametrosDoExemplo` com os valores do enunciado: testam a *fórmula*, não o valor calibrado. Os números esperados não foram mexidos. Se o teste usasse `.padrao`, toda calibração futura quebraria um teste que não tem relação com ela. `MotorDeBuscaTests` passou sem mudança.
+- **Pisos como snapshot.** `testMetricasNaoCaemAbaixoDoPiso`: top 1 ≥ 0,94; top 3 ≥ 1,00; MRR ≥ 0,96; item certo = 1. Se cair: reverter, ou baixar o piso num commit explicado. A mensagem lista quem piorou em relação às posições gravadas. Verificado de verdade: com o peso antigo o teste reprova com "top 1 … pioraram: #1 "processo penal" 1º→2º". (Um teste que nunca falhou não foi provado.)
+
+### Alternativas descartadas
+- **Um assert por consulta** ("a #1 tem que ser 1º"): qualquer troca 1º↔2º entre consultas legítimas reprovaria, tornando o teste frágil e fazendo as pessoas o desligarem. O piso agregado tolera trocas que se compensam.
+- **Só imprimir o relatório**: a regressão passaria silenciosa na CI.
+- **Busca em grade completa** (todas as combinações dos 9 parâmetros): custo exponencial (com as grades usadas na varredura, 6 · 5⁴ · 4⁴ = 960 mil combinações, cada uma rodando as 25 consultas; a descida por coordenadas testou 41 por volta) e mais sobreajuste, pois testar muitas combinações contra 19 consultas quase sempre acha uma que "acerta tudo" por acaso.
+- **Fichas inventadas**: ver conceito 5.
+- **Escolher B pelo MRR mais alto**: ver "Por que assim".
+- **Encadear `+` no T48**: o T48 usa `Array([[...], paragrafo(...), ...].joined())` em vez de uma cadeia longa de `+`, porque o verificador de tipos do Swift 5.7 (Xcode 14.2) estoura com "expression too complex to be solved in reasonable time" em expressões grandes com tipos inferidos. Construir com `joined()` dá ao compilador tipos explícitos para resolver.
+
+### Padrões e boas práticas
+- **Conjunto de avaliação + métricas antes de otimizar**: não se melhora o que não se mede. Não vale a pena quando não há alguém para decidir o que é "certo" (aqui o Ricardo e as fotos são a verdade).
+- **Separar conjunto de ajuste e de sondas**: separa o que o parâmetro pode consertar do que exige mudar o algoritmo.
+- **Restrição além do objetivo**: otimizar uma métrica sob uma restrição (item certo = 1) é mais seguro do que otimizar um escalar único. Cuidado: quanto mais restrições você inventa depois de ver os resultados, mais seu processo se parece com o sobreajuste que queria evitar. Declarar a ordem dos fatos mitiga isso.
+- **Helpers de dados de teste** (`uuid`, `item`, `paragrafo`, `lexml`): constroem fichas com poucas linhas por livro. O dado fica legível e o ruído de construção, escondido.
+- **Teste de snapshot com piso**: bom para propriedades agregadas que podem variar um pouco; ruim para saídas exatas que você quer congelar.
+- Não vale aplicar isto sem sentido para um corpus de 22 livros: com tão poucos dados, a conclusão é "indícios", não "prova" (ver armadilhas).
+
+### Armadilhas
+- **Amostra pequena**: 19 consultas. Uma única consulta vale 1/19 ≈ 5,3 pontos de top 1. A diferença entre 0,947 e 0,895 é *uma* consulta. Não se conclua demais.
+- **Parâmetro na ponta da grade**: sinal de que o ótimo pode estar além, ou de que você está compensando outro defeito.
+- **Variar um parâmetro e ver "nada mudou"** não significa que ele é inútil: significa que nenhuma consulta o exercita. Cobrir isso exige novas consultas (escritas antes de ver o resultado).
+- **Dependência do caminho** na descida por coordenadas: sempre rode a partir de mais de um ponto inicial e compare.
+- **Empate e ponto flutuante**: comparar `Double` com `==` em métricas (ver conceito 3).
+- **`descricao` do LexML cortada em 400 caracteres**: no Supabase, 10.145 dos 24.118 registros têm a descrição truncada (`MAX_DESCRICAO_CSV` em `data/extrair_livros_lexml.py`). Isso afeta o pré-preenchimento do sumário na Fase 4: o sumário que vem da `descricao` pode estar incompleto. Registrado no PLANO.
+- **Leitor do /urn** às vezes devolve a hierarquia da CDDir repetida (também registrado).
+- **Sondas em aberto** a decidir antes da 2.7: E estrito com fallback para OU quando o resultado é vazio (4 das 6 sondas dão "nenhum resultado"), indexar volume/artigos, plural via stemmer RSLP.
+
+### Para ir além
+- Manning, Raghavan e Schütze, *Introduction to Information Retrieval*, cap. 8 ("Evaluation in information retrieval"): conjuntos de teste, precisão, MRR, e por que a avaliação precisa de julgamentos humanos.
+- Robertson e Zaragoza, "The Probabilistic Relevance Framework: BM25 and Beyond" (2009): a derivação do BM25F e a discussão sobre `k1`, `b` e os pesos por campo.
+- Nocedal e Wright, *Numerical Optimization*, ou qualquer texto sobre *coordinate descent*: por que converge para ótimos locais e quando funciona bem.
+
+### Perguntas
+1. Com suas palavras: por que a métrica usa o empate pessimista (p = 1 + quantos outros têm nota ≥ à do esperado) em vez da posição que o motor devolve? Dê um exemplo concreto de "pontos por sorte".
+2. Aplicação: multiplicar todos os pesos de campo por 2 e dividir `k1` por 2 muda o ranking? E se multiplicar só o peso do sumário por 2? Explique o papel do título fixo em 3 na varredura.
+3. Raciocínio: a varredura mostrou que o peso do subtítulo, as categorias e o CDDir não mudam nenhuma consulta. Alguém propõe escrever em `ConsultasDeReferencia.swift` uma consulta nova que faça o peso das categorias "importar" e depois escolher o valor que a conserta. O que há de errado nisso, e qual é a ordem correta dos passos? Depois explique por que o ótimo (peso 0,5, `b` 0) foi rejeitado apesar de MRR 0,974, e por que a escolha do candidato A em vez do B também é uma decisão sobre risco, não só sobre número.
+
+### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
