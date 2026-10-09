@@ -1612,3 +1612,83 @@ Dois commits. O primeiro (76c8289) corrige o alerta "Nova estante", que só most
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4c — Estante → livros agrupados por prateleira → detalhe (2026-10-09)
+
+### O que foi feito
+Nasceu a regra pura `AgrupamentoPorPrateleira` (`Dominio/Regras`, 9 testes), que transforma a lista de livros de uma estante em grupos por prateleira. Sobre ela vieram `EstanteViewModel` + `EstanteView` (lista com uma `Section` por prateleira) e `LivroDetalheViewModel` + tela de detalhe (com apagar). A navegação foi movida da `InicioView` para `App/NavegacaoView.swift`, usando `NavigationLink(value:)` e `navigationDestination(for:)`. Foram 24 testes novos (266 verdes no Xcode 14.2) e o idioma do app passou a ser pt-BR.
+
+### Conceitos envolvidos
+
+**Agrupar por chave canônica, exibir a grafia mais comum.** "Caixa azul", "caixa azul " e "Cáixa Azul" são a mesma prateleira para o usuário. O agrupamento usa `Normalizacao.chave` (a mesma normalização da busca: minúsculas, sem acento, sem espaços nas pontas) como chave de um dicionário. É o padrão *group by* clássico: uma passada, O(n) para montar os grupos com hash, depois O(g log g) para ordenar os g grupos. O título exibido é a grafia mais usada dentro do grupo (uma contagem por grafia); no empate vale a menor na ordem dos caracteres. Sem esse desempate, o resultado dependeria da ordem de iteração do dicionário, que em Swift é aleatória entre execuções (hash seeding por processo), e o teste ficaria intermitente. Regra geral: **toda ordenação precisa de critério total**, senão o resultado não é determinístico.
+
+**Comparar `String` em Swift.** `String` compara por escalares Unicode canonicamente equivalentes, mas a ordem não é a "do dicionário": "C" < "c" (maiúsculas vêm antes) e "a" < "á". Foi o erro que apareceu na escrita do teste: o valor esperado precisa ser calculado à mão, não deduzido por intuição. Para ordem que o usuário percebe como natural, usa-se `localizedStandardCompare`, que é o mesmo comparador do Finder: trata números dentro do texto como números ("2ª de cima" < "10ª de cima"), ignora diferenças de caixa/acento de forma sensível ao idioma. Cuidado: ele depende do *locale*, então testes que o usam herdam esse comportamento.
+
+**Ordenação com chave composta e `Int.min`.** Dentro do grupo: título normalizado, volume, ano, id. Para "sem volume primeiro", usa-se `volume ?? Int.min` (um `nil` vira o menor inteiro possível). É um truque comum para ordenar opcionais; funciona porque nenhum volume real vale `Int.min`. O `id` fecha o critério só para ser determinístico (ordem total), não por significado.
+
+**Inversão de dependência na navegação.** Esta é a decisão arquitetural central da tarefa. As telas de destino precisam de ViewModels, que precisam de repositórios, que são montados no `Dependencias` (camada App). Se a `InicioView` (Apresentação) construísse a `EstanteView`, Apresentação passaria a conhecer a montagem, invertendo a direção das camadas. Solução: as telas só emitem *valores* (`NavigationLink(value: estante)`), e quem conhece as fábricas (`NavegacaoView`) declara `navigationDestination(for: Estante.self) { ... }`. A tela diz "quero ir para esta estante"; a raiz de composição decide *como* construir o destino. É o mesmo princípio da composition root: só um lugar conhece as classes concretas.
+
+```mermaid
+flowchart LR
+    A[App/NavegacaoView<br/>navigationDestination + Dependencias] --> B[InicioView]
+    A --> C[EstanteView]
+    A --> D[LivroDetalheView]
+    B -. NavigationLink value: Estante .-> A
+    C -. NavigationLink value: RotaDoLivro .-> A
+```
+
+**Navegação por valor (iOS 16).** A `NavigationStack` mantém um *caminho* (lista de valores `Hashable`). `NavigationLink(destination:)` constrói o destino de cada linha ao desenhar a lista (trabalho e inicializações desperdiçados, inclusive `init` de ViewModels). `NavigationLink(value:)` guarda só o valor; o destino é construído quando se navega. Bônus: o caminho é dado, então pode-se abrir já empurrado (`NavigationPath` inicial), o que as capturas usam. Exige `Hashable`, por isso `Estante` deixou de ser só `Equatable`: `Hashable` implica `Equatable` e a conformidade sintetizada funciona quando todos os campos são `Hashable`.
+
+**Tipo de rota próprio.** `RotaDoLivro(livroId:)` em vez de `UUID`: `navigationDestination(for: UUID.self)` capturaria qualquer `UUID` empurrado na pilha, de qualquer tela. Um tipo-rota dá um canal tipado e sem ambiguidade. E leva só o id: se a rota carregasse o `Livro` inteiro, a cópia ficaria velha após uma edição (structs são valores copiados). O detalhe relê do banco, então a fonte da verdade é uma só.
+
+**`.onAppear` × `.task` na pilha.** Ao voltar de uma tela filha, a tela de baixo reaparece, mas o `.task` não roda de novo (a view nunca saiu da hierarquia). O `.aoVoltar { }` é um `ViewModifier` com uma flag `jaApareceu`: ignora o primeiro `onAppear` (que já é coberto pelo `.task`) e executa nos seguintes. Exige `@State` para a flag, pois a struct da View é recriada e só `@State` sobrevive.
+
+**Estado de tela como enum.** Os dois ViewModels expõem `carregando / vazia / pronta / erro` (e `naoEncontrado` no detalhe). Um enum torna estados impossíveis impossíveis de representar (carregando e com erro ao mesmo tempo), ao contrário de três `Bool`.
+
+**Mapeamento Modelo → seções de exibição.** `secoes(de:)` (estático e puro) monta `SecaoDoLivro/CampoDoLivro` só com campos preenchidos; vazio ou só espaços some, e seção sem campos some. A decisão "o que mostrar" fica testável sem SwiftUI. `textoDosArtigos` usa `switch` sobre tupla de opcionais, em que o compilador verifica exaustividade. `LabeledContent` (iOS 16) dá o par rótulo/valor padrão do sistema.
+
+**Idioma de desenvolvimento.** A captura mostrou "Back". O iOS escolhe a localização do sistema (botão Voltar, "Cancelar" da busca etc.) comparando os idiomas do usuário com as localizações que o *bundle* declara. Sem `CFBundleDevelopmentRegion` explícito, o app caía em inglês. `developmentLanguage: pt-BR` no XcodeGen e `CFBundleDevelopmentRegion: pt-BR` no Info.plist resolveram. Quem aprende: o idioma dos textos *do sistema* é decisão do app, não só dos textos que você escreve.
+
+### Por que assim
+- **Agrupamento no Domínio:** sem SwiftUI, testa em milissegundos; reaproveitável (futura exportação, outra tela).
+- **Navegação na raiz de composição:** mantém a regra "Apresentação não conhece montagem".
+- **`apagar() -> Bool` e a tela chama `dismiss()`:** o ViewModel não conhece o ambiente de navegação; ele informa o resultado, a View decide como reagir.
+- **Reler o banco ao voltar:** custa milissegundos num banco local e elimina a sincronização entre telas.
+- **Botões "+" e "Editar" desabilitados:** o escopo vai até o 2.4d, sem funcionalidade pela metade.
+
+### Alternativas descartadas
+- **`NavigationLink(destination:)`:** constrói destinos cedo e acopla a tela à fábrica.
+- **Closures ou notificações para avisar a tela anterior de mudanças:** acoplam telas entre si; reler é mais simples.
+- **Passar o `Livro` na rota:** cópia desatualizada.
+- **Arquivo `Navegacao.swift` em App:** já existe `Componentes/Navegacao.swift`; o Xcode recusa dois arquivos com o mesmo nome no mesmo alvo (os produtos `.o` colidem). Por isso `NavegacaoView.swift`.
+- **Ordenar prateleiras com `<` simples:** colocaria "10ª" antes de "2ª".
+
+### Padrões e boas práticas
+- **Composition root** e **inversão de dependência**: a montagem em um só lugar. Não vale a pena em apps minúsculos; aqui compensa porque há testes e camadas.
+- **Ordem total determinística** em toda ordenação; teste com dados que provoquem empate.
+- **Função estática pura para formatar/mapear** e testar sem a View.
+- **Reproduzir visualmente**: a captura achou o "Back" que nenhum teste acharia.
+
+### Armadilhas
+- **Ordem de iteração de `Dictionary`/`Set`** é indefinida: nunca deixe o resultado depender dela.
+- **`localizedStandardCompare` depende do locale** do processo; teste na CI (Xcode 26) pode divergir se o locale for outro.
+- **`navigationDestination` dentro de uma `List` preguiçosa** ou fora da pilha pode não ser registrado; o lugar seguro é perto da raiz (como aqui). Confirme na documentação da Apple se mudar.
+- **`onAppear` roda mais de uma vez** (reaparição, voltar de sheet); ações com efeito colateral precisam de proteção.
+- **Captura com toque simultâneo no simulador** gera imagem errada; refaça, não interprete.
+
+### Para ir além
+- Documentação Apple: *NavigationStack*, *navigationDestination(for:destination:)* e *NavigationPath*.
+- Mark Seemann, *Dependency Injection: Principles, Practices, and Patterns* (capítulo sobre Composition Root).
+- Documentação Apple: *String Comparison* (`localizedStandardCompare`) e *Internationalization and Localization Guide* (idioma de desenvolvimento do bundle).
+
+### Perguntas
+1. Com suas palavras: por que a `InicioView` não constrói a `EstanteView` diretamente, e o que a `NavegacaoView` faz que ela não pode fazer?
+2. Aplicação: se o usuário pudesse ter duas prateleiras "Direito Civil" e "Direito civil" e quisesse que fossem *distintas*, o que mudaria no agrupamento? Que efeito isso teria na busca, que usa a mesma `Normalizacao.chave`?
+3. Raciocínio: o que aconteceria na ordem dos grupos se o desempate da grafia exibida fosse "a primeira encontrada" e a lista de livros viesse do banco em ordem não garantida? E por que `.aoVoltar` ignora o primeiro `onAppear`?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
