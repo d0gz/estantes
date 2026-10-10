@@ -10,6 +10,8 @@ options:
   # Formato que o Xcode 14.2 (seu Mac) consegue abrir; o Xcode 26 da CI também abre.
   projectFormat: xcode14_0
   createIntermediateGroups: true
+  # Idioma do app: textos do sistema (botão "Voltar", "Cancelar" de folhas e buscas) saem em português.
+  developmentLanguage: pt-BR
 
 settings:
   base:
@@ -27,6 +29,7 @@ targets:
       path: Estantes/Info.plist
       properties:
         CFBundleDisplayName: Estantes
+        CFBundleDevelopmentRegion: pt-BR
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}

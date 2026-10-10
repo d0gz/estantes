@@ -3,7 +3,7 @@ import Foundation
 /// Uma estante física da biblioteca do usuário.
 /// Não guarda a lista de livros: quem aponta é o livro (`Livro.estanteId`), como a chave
 /// estrangeira fica no lado "muitos" de uma relação um-para-muitos no SQL.
-struct Estante: Identifiable, Equatable {
+struct Estante: Identifiable, Hashable {
     let id: UUID
     var nome: String
     let criadaEm: Date

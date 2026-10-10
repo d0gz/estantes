@@ -1480,3 +1480,379 @@ Com 0,25, #29 e #30 continuam em 1º com o item certo, então 0,25 foi adotado. 
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4a — Montagem das dependências e tela inicial com as estantes (2026-10-09)
+
+### O que foi feito
+Criamos `App/Dependencias.swift` (a montagem: escolhe a implementação da porta), o `InicioViewModel` com seu `enum Estado` e a `InicioView` (grade de estantes, criar e renomear). `EstantesApp` passou a guardar um `Result` para não travar se o banco não abrir. Para ver as telas no simulador, há exemplos só em DEBUG (`App/Exemplos.swift`), o `scripts/capturar.sh` e um repositório falso nos testes (`BibliotecaRepositorioEmMemoria`). Antes disso, o PLANO registrou a forma de trabalho das telas: primeiro a lógica (2.4a-e) com componentes nativos, depois o estilo tela por tela.
+
+### Conceitos envolvidos
+**Raiz de composição e injeção de dependência.** Em vez de cada tela criar o que precisa, um único lugar (`Dependencias`) decide "a porta `BibliotecaRepositorio` é o Core Data". As telas recebem o ViewModel pronto, e o ViewModel recebe o repositório pelo `init`. Isso é a *composition root*: só ali o código concreto é conhecido, e o resto depende do protocolo. Ganho prático: nos testes entra o falso; nos previews e nas capturas, o Core Data em memória; em produção, o disco. Nada muda nas telas.
+
+**Estado como `enum` com valores associados.** `Estado` tem quatro casos (`carregando`, `vazio`, `pronto([...])`, `erro(String)`). Com `Bool`s (`carregando`, `temErro`, `lista`) haveria 2^n combinações, e a maioria seria absurda ("carregando e com erro"). O enum torna os estados impossíveis **irrepresentáveis**: o compilador obriga o `switch` da View a tratar todos. Princípio: "make illegal states unrepresentable".
+
+**`@StateObject` e ciclo de vida.** A View é um valor barato que o SwiftUI recria muitas vezes; o que precisa sobreviver é o ViewModel. `@StateObject` guarda o objeto fora da View e só executa a expressão de criação na primeira vez. Por isso o `init` recebe `@autoclosure`: `InicioView(viewModel: deps.fazerInicioViewModel())` não cria nada na hora; vira um closure que o `StateObject` chama uma vez. Com `@ObservedObject` o ViewModel seria recriado a cada reconstrução da View e o estado se perderia.
+
+**`@MainActor`.** `@Published` alimenta a UI, então só pode mudar na thread principal. Marcar o ViewModel como `@MainActor` faz o compilador garantir isso. O custo apareceu no Xcode 14.2: *"call to main actor-isolated instance method ... in a synchronous nonisolated context"*. Naquele SDK só o `body` da `View` é `@MainActor`; propriedades auxiliares da View não são. Quem cria um objeto `@MainActor` precisa estar no main actor também, então a solução foi `@MainActor` na `RaizView` e no tipo do closure (`@MainActor (Dependencias) -> Conteudo`). Em SDKs mais novos a `View` inteira é `@MainActor`, então isso é uma diferença entre os dois Xcodes que o projeto precisa suportar. Esta é uma observação do que o compilador disse; para detalhes de versão confirme nas notas de lançamento do SDK.
+
+**`Binding` derivado.** O alerta precisa de `Binding<Bool>`, mas o estado real é `pedido: PedidoDeNome?` (nil = fechado). Construímos o `Binding` a partir do opcional (`get: pedido != nil`, `set: se false, pedido = nil`). Assim há **uma só fonte de verdade**; guardar também um `Bool` obrigaria a mantê-los sincronizados.
+
+**Tela derivada do banco.** Depois de gravar, o ViewModel chama `carregar()` de novo. Não há `@FetchRequest` nem lista editada na mão. O custo é reler; o ganho é que a tela nunca diverge do que está salvo. Com poucas estantes, o custo é desprezível.
+
+**Contagem: N+1 consultas.** `carregar()` faz 1 consulta de estantes + 1 `quantidadeDeLivros` por estante (N+1). É o padrão que costuma ser um problema com milhares de linhas ou rede. Aqui é aceitável porque N é pequeno, a consulta é um `COUNT` no SQLite local (não carrega livros) e não há latência de rede. Uma consulta agregada (`GROUP BY`) só valeria com muitas estantes.
+
+**Argumentos de lançamento e `UserDefaults`.** O iOS registra argumentos do tipo `-chave valor` no domínio de argumentos do `UserDefaults`. Então `-captura Inicio` é lido com `UserDefaults.standard.string(forKey: "captura")`, sem parser. Isso, mais `#if DEBUG`, permite abrir qualquer tela já preenchida (o `simctl` não toca na tela).
+
+**Dublê de teste (fake).** `BibliotecaRepositorioEmMemoria` é um *fake*: implementação funcional simplificada (dicionários) com chaves `falharAoLer`/`falharAoGravar` para forçar erros. Difere de um *mock* (que verifica chamadas). Precisa seguir o **contrato** da porta (cascata, mover, destino inválido), senão os testes passam contra um comportamento que o repositório real não tem.
+
+### Por que assim
+- `Dependencias` como `struct` criada uma vez, com `producao()` e `emMemoria()`: é visível e testável, e a injeção ocorre pelo `init`, como pede o PLANO.
+- `Result { try Dependencias.producao() }` no `EstantesApp`: se o banco falha (disco cheio, migração quebrada), mostra `MensagemDeErroView` em vez de `try!` (que derruba o app sem explicação).
+- `EstanteResumo` na Apresentação: a contagem é dado da tela; pôr `quantidade` em `Estante` poluiria o Domínio com algo derivado.
+- Erro de gravação em `mensagemDeErro`, separado de `estado`: se virasse `.erro`, a lista sumiria por causa de uma falha que não a invalida.
+- `nomeValido` estático, usado pelo ViewModel **e** pela View: uma regra, dois usos; a View só desabilita o botão, o ViewModel é quem de fato recusa.
+- Exemplos em `App/` e só em DEBUG: montar um repositório concreto é papel da montagem, e o código de exemplo não deve ir para o `.ipa` de produção.
+- Previews com o Core Data em memória real: um segundo falso dentro do app seria código a manter só para previews.
+
+### Alternativas descartadas
+- **Singleton `.shared`:** esconde de quem depende de quê, e testes compartilham estado global.
+- **`.environmentObject`:** funciona, mas a dependência fica implícita (falta de um objeto só aparece em tempo de execução, com crash); o PLANO pede injeção pelo `init`.
+- **`@FetchRequest`:** acopla a View ao `NSManagedObject`, o que o projeto proíbe fora de `Dados/Persistencia/`.
+- **Vários `Bool` no estado:** estados impossíveis possíveis.
+- **Consulta agregada de contagens:** otimização prematura aqui.
+- **Override da barra de status (9:41) nas capturas:** tentado; o simulador do iOS 16 ignorou o `--time`. Retirado em vez de mantido como código morto.
+
+### Padrões e boas práticas
+- **Composition root + injeção por construtor.** Não use quando o objeto não tem variação nenhuma e é puro (uma função utilitária estática não precisa de injeção).
+- **MVVM com estado em enum.** Quando o estado é realmente independente (dois alertas sem relação), campos separados são mais honestos que um enum forçado.
+- **Fake com contrato** em vez de mock verificador, para testar comportamento e não implementação.
+- **Trabalhar em duas passadas (lógica, depois estilo):** evita retrabalho de estilo sobre uma lógica que ainda muda. Cada captura tem versão (0.x lógica, 1.x+ estilo) para comparar.
+- **Parar com margem de uso:** registrar o estado no PLANO antes de acabar o limite, para que a próxima sessão retome sem contexto.
+
+### Armadilhas
+- **Isolamento de ator diferente entre SDKs:** compila no Xcode 26 e falha no 14.2 (ou o contrário). Sempre rode `./scripts/testar.sh` no Mac e olhe a CI.
+- **`@StateObject` sem `@autoclosure`:** se o init avaliar `InicioViewModel(...)` direto, cria-se um ViewModel descartado a cada reconstrução da View (o `StateObject` ignora, mas o custo de criação ocorre).
+- **`.task` repetido:** `.task` roda quando a View aparece; se ela reaparecer, recarrega. Aqui é benigno, mas em telas pesadas vale controlar.
+- **Banco em memória é assíncrono para preencher:** por isso `ComExemplos` espera os dados antes de mostrar a tela; senão a captura sai vazia (condição de corrida).
+- **Argumento de lançamento perdido:** configurado no Edit Scheme do Xcode, some quando o `xcodegen generate` recria o projeto.
+- **Fake que diverge do real:** se o contrato mudar no repositório Core Data e o fake não acompanhar, os testes do ViewModel mentem. Idealmente os mesmos testes de contrato rodariam nos dois.
+
+### Para ir além
+- Documentação da Apple: *Managing model data in your app* e *StateObject* (developer.apple.com/documentation/swiftui), para o ciclo de vida de `@StateObject` vs `@ObservedObject`.
+- Mark Seemann, *Dependency Injection: Principles, Practices, and Patterns* (capítulo sobre Composition Root).
+- Yaron Minsky, "Effective ML" (a ideia de "make illegal states unrepresentable"), disponível como palestra e artigo.
+
+### Perguntas
+1. Com suas palavras: por que o `InicioViewModel` recebe o repositório pelo `init` e quem o monta é `Dependencias`? O que você ganha nos testes e nos previews?
+2. Aplicação: o PLANO pede que a tela de uma estante mostre os livros. Se `InicioViewModel.carregar()` precisasse também do total de livros "sem estante", em que ponto do código você faria isso e o que mudaria no `enum Estado`? Quando a estratégia N+1 deixaria de ser aceitável?
+3. Raciocínio: por que uma falha ao gravar vira `mensagemDeErro` e não `.erro(...)` no estado? Que comportamento ruim o usuário veria se fosse `.erro`? E por que o `@autoclosure` no `init` da View evita o ViewModel ser recriado?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4b — Exclusão de estante com confirmação (e correção do botão Salvar) (2026-10-09)
+
+### O que foi feito
+Dois commits. O primeiro (76c8289) corrige o alerta "Nova estante", que só mostrava "Cancelar". O segundo (bf36e14) adiciona "Apagar" ao menu de contexto da estante: o `InicioViewModel` monta um `PedidoDeExclusao` (estante, quantidade atual de livros, destinos possíveis) e a `InicioView` o apresenta em um `confirmationDialog` com até duas folhas (confirmar; escolher a estante de destino). Foram 7 testes novos (242 verdes no Xcode 14.2), e o `capturar.sh` ganhou `EXTRA="-chave valor"`.
+
+### Conceitos envolvidos
+**Defeito de componente do sistema que o teste de ViewModel não vê.** No iOS 16, o `.alert` do SwiftUI *esconde* (não acinzenta) um botão com `.disabled(true)` e não reavalia os botões enquanto o usuário digita. O campo começava vazio, então o Salvar nascia desabilitado e sumia. Ao renomear, o campo já vinha preenchido e o botão aparecia. O ViewModel estava correto; o defeito estava na camada de apresentação, onde só olhar a tela (e o caso "começa vazio") revela. A correção foi remover o `.disabled` e deixar a proteção contra nome vazio só no ViewModel (`nomeValido`), que já tinha teste. Isso é coerente com a regra: a View é só uma casca; a regra mora onde é testável.
+
+**Estado de interface vs. estado de ViewModel.** Um `confirmationDialog` com `presenting:` amarra a visibilidade a um valor. Quando o usuário toca numa ação, o SwiftUI fecha a folha e zera o binding dela. Se o `PedidoDeExclusao` estivesse nesse binding, sumiria antes da segunda folha (escolher destino) abrir. Por isso o ViewModel *devolve* o pedido (`pedidoDeExclusao(de:) async -> PedidoDeExclusao?`) e a tela guarda `exclusao` + dois `Bool` (`confirmandoExclusao`, `escolhendoDestino`). A pergunta "qual folha está aberta?" é estado de apresentação; "o que será apagado e para onde podem ir os livros?" é dado do pedido. Separar os dois evita o acoplamento ao ciclo de vida da folha.
+
+**Dado fresco em ação destrutiva.** A quantidade de livros é relida do banco ao preparar o pedido, não tomada do cartão da grade (que pode estar desatualizado). Numa confirmação do tipo "apagar a estante e os 3 livros", o número mostrado precisa ser o real naquele instante, senão o usuário consente com informação errada.
+
+**Defesa em profundidade.** `destinosPossiveis` nunca inclui a própria estante (a interface nem oferece a opção), e o repositório mantém a trava `destinoInvalido` (já existente desde a 2.2). Duas camadas independentes: se uma tiver um bug, a outra segura. Não é redundância gratuita: a primeira serve ao usuário (não oferecer opção inválida), a segunda protege os dados.
+
+**Modelar os casos como propriedade derivada.** `podeMover` = há livros *e* há outra estante. Os três casos do diálogo (vazia; com livros e com destino; com livros sem destino) saem de duas informações simples, e o texto muda de acordo. `textoDaQuantidade(_:comArtigo:)` usa `switch` sobre tupla `(quantidade, comArtigo)` para produzir "1 livro", "3 livros", "o livro", "os 3 livros". Pluralização é uma tabela pequena; o `switch` sobre tupla deixa o compilador conferir a exaustividade.
+
+**Ação de lançamento só para captura.** `InicioView.AcaoInicial` (novaEstante, apagar, escolherDestino) roda no `.task` depois de carregar. O `simctl` não toca na tela, então é a forma de fotografar um alerta aberto. Fica atrás de `#if DEBUG` com o resto dos exemplos.
+
+### Por que assim
+- **ViewModel devolve o pedido em vez de guardá-lo em `@Published`:** o ciclo de vida da folha é da tela (ver acima).
+- **Menu de contexto com `role: .destructive`:** o sistema pinta de vermelho e sinaliza a ação perigosa sem estilo próprio.
+- **Mover vs. apagar tudo como escolhas explícitas:** o usuário nunca perde livros sem ler o número no botão vermelho.
+- **Sem teste para "Cancelar":** Cancelar não chama o ViewModel; não há comportamento nosso para verificar. Testar o nada só criaria falsa confiança.
+- **Corrigir o Salvar removendo `.disabled`, e não trocando o alerta por sheet:** a sheet com `Form` é decisão de estilo, adiada para a etapa de estilo (o PLANO separa lógica de estilo).
+
+### Alternativas descartadas
+- **Swipe para apagar:** não existe em grade (só em `List`).
+- **Modo "Editar" com ✕ em cada cartão:** um passo a mais para uma ação rara.
+- **Diálogo único com um botão por destino:** fica enorme com muitas estantes.
+- **Guardar o pedido num `@Published` do ViewModel:** zerado pelo binding antes da segunda folha.
+- **Usar a quantidade do cartão:** pode estar defasada.
+
+### Padrões e boas práticas
+- **Confirmação proporcional ao dano:** estante vazia pede só confirmação simples; com livros, mostra o número. Não use confirmação para ações reversíveis (melhor oferecer "desfazer").
+- **Defesa em profundidade** em operações destrutivas. Não duplique regra complexa nas duas camadas: aqui a segunda é uma checagem simples de invariante.
+- **Reproduzir o bug antes de corrigir** (aqui, abrindo o alerta via argumento de lançamento): confirma a causa em vez de supor.
+
+### Armadilhas
+- **Teste verde não significa tela correta:** o bug do Salvar passou por 235 testes verdes. Casos que começam vazios, estados iniciais e transições entre folhas precisam ser vistos.
+- **Comportamento muda entre versões do iOS:** o `.alert` do iOS 16 pode se comportar diferente do iOS 26 (a CI). Não assuma; veja nos dois quando importar. Confirme o comportamento exato nas notas do SDK, pois aqui só observamos o simulador.
+- **Estado zerado ao tocar uma ação:** em `confirmationDialog`/`alert`, o binding é zerado ao fechar. Qualquer dado necessário depois deve ficar fora dele.
+- **A captura estática não prova a transição** entre as duas folhas; foi preciso o teste manual do Ricardo.
+
+### Para ir além
+- Documentação da Apple: `confirmationDialog(_:isPresented:titleVisibility:presenting:actions:message:)` e *Human Interface Guidelines: Alerts / Action sheets*.
+- Martin Fowler, "Test Double" (martinfowler.com/bliki/TestDouble.html), para fake vs. mock já usado nos testes do ViewModel.
+
+### Perguntas
+1. Com suas palavras: por que o `PedidoDeExclusao` não fica num `@Published` do ViewModel, e quem guarda "qual folha está aberta"?
+2. Aplicação: se o app passasse a permitir mover livros para uma estante *dentro* de outra (estantes aninhadas), o que mudaria em `destinosPossiveis` e na trava `destinoInvalido`? Haveria um novo caso inválido?
+3. Raciocínio: o bug do Salvar tinha 235 testes verdes por cima. Por que nenhum o pegou, e que tipo de teste (ou prática) pegaria? Por que o caso "renomear" funcionava e o "criar" não?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4c — Estante → livros agrupados por prateleira → detalhe (2026-10-09)
+
+### O que foi feito
+Nasceu a regra pura `AgrupamentoPorPrateleira` (`Dominio/Regras`, 9 testes), que transforma a lista de livros de uma estante em grupos por prateleira. Sobre ela vieram `EstanteViewModel` + `EstanteView` (lista com uma `Section` por prateleira) e `LivroDetalheViewModel` + tela de detalhe (com apagar). A navegação foi movida da `InicioView` para `App/NavegacaoView.swift`, usando `NavigationLink(value:)` e `navigationDestination(for:)`. Foram 24 testes novos (266 verdes no Xcode 14.2) e o idioma do app passou a ser pt-BR.
+
+### Conceitos envolvidos
+
+**Agrupar por chave canônica, exibir a grafia mais comum.** "Caixa azul", "caixa azul " e "Cáixa Azul" são a mesma prateleira para o usuário. O agrupamento usa `Normalizacao.chave` (a mesma normalização da busca: minúsculas, sem acento, sem espaços nas pontas) como chave de um dicionário. É o padrão *group by* clássico: uma passada, O(n) para montar os grupos com hash, depois O(g log g) para ordenar os g grupos. O título exibido é a grafia mais usada dentro do grupo (uma contagem por grafia); no empate vale a menor na ordem dos caracteres. Sem esse desempate, o resultado dependeria da ordem de iteração do dicionário, que em Swift é aleatória entre execuções (hash seeding por processo), e o teste ficaria intermitente. Regra geral: **toda ordenação precisa de critério total**, senão o resultado não é determinístico.
+
+**Comparar `String` em Swift.** `String` compara por escalares Unicode canonicamente equivalentes, mas a ordem não é a "do dicionário": "C" < "c" (maiúsculas vêm antes) e "a" < "á". Foi o erro que apareceu na escrita do teste: o valor esperado precisa ser calculado à mão, não deduzido por intuição. Para ordem que o usuário percebe como natural, usa-se `localizedStandardCompare`, que é o mesmo comparador do Finder: trata números dentro do texto como números ("2ª de cima" < "10ª de cima"), ignora diferenças de caixa/acento de forma sensível ao idioma. Cuidado: ele depende do *locale*, então testes que o usam herdam esse comportamento.
+
+**Ordenação com chave composta e `Int.min`.** Dentro do grupo: título normalizado, volume, ano, id. Para "sem volume primeiro", usa-se `volume ?? Int.min` (um `nil` vira o menor inteiro possível). É um truque comum para ordenar opcionais; funciona porque nenhum volume real vale `Int.min`. O `id` fecha o critério só para ser determinístico (ordem total), não por significado.
+
+**Inversão de dependência na navegação.** Esta é a decisão arquitetural central da tarefa. As telas de destino precisam de ViewModels, que precisam de repositórios, que são montados no `Dependencias` (camada App). Se a `InicioView` (Apresentação) construísse a `EstanteView`, Apresentação passaria a conhecer a montagem, invertendo a direção das camadas. Solução: as telas só emitem *valores* (`NavigationLink(value: estante)`), e quem conhece as fábricas (`NavegacaoView`) declara `navigationDestination(for: Estante.self) { ... }`. A tela diz "quero ir para esta estante"; a raiz de composição decide *como* construir o destino. É o mesmo princípio da composition root: só um lugar conhece as classes concretas.
+
+```mermaid
+flowchart LR
+    A[App/NavegacaoView<br/>navigationDestination + Dependencias] --> B[InicioView]
+    A --> C[EstanteView]
+    A --> D[LivroDetalheView]
+    B -. NavigationLink value: Estante .-> A
+    C -. NavigationLink value: RotaDoLivro .-> A
+```
+
+**Navegação por valor (iOS 16).** A `NavigationStack` mantém um *caminho* (lista de valores `Hashable`). `NavigationLink(destination:)` constrói o destino de cada linha ao desenhar a lista (trabalho e inicializações desperdiçados, inclusive `init` de ViewModels). `NavigationLink(value:)` guarda só o valor; o destino é construído quando se navega. Bônus: o caminho é dado, então pode-se abrir já empurrado (`NavigationPath` inicial), o que as capturas usam. Exige `Hashable`, por isso `Estante` deixou de ser só `Equatable`: `Hashable` implica `Equatable` e a conformidade sintetizada funciona quando todos os campos são `Hashable`.
+
+**Tipo de rota próprio.** `RotaDoLivro(livroId:)` em vez de `UUID`: `navigationDestination(for: UUID.self)` capturaria qualquer `UUID` empurrado na pilha, de qualquer tela. Um tipo-rota dá um canal tipado e sem ambiguidade. E leva só o id: se a rota carregasse o `Livro` inteiro, a cópia ficaria velha após uma edição (structs são valores copiados). O detalhe relê do banco, então a fonte da verdade é uma só.
+
+**`.onAppear` × `.task` na pilha.** Ao voltar de uma tela filha, a tela de baixo reaparece, mas o `.task` não roda de novo (a view nunca saiu da hierarquia). O `.aoVoltar { }` é um `ViewModifier` com uma flag `jaApareceu`: ignora o primeiro `onAppear` (que já é coberto pelo `.task`) e executa nos seguintes. Exige `@State` para a flag, pois a struct da View é recriada e só `@State` sobrevive.
+
+**Estado de tela como enum.** Os dois ViewModels expõem `carregando / vazia / pronta / erro` (e `naoEncontrado` no detalhe). Um enum torna estados impossíveis impossíveis de representar (carregando e com erro ao mesmo tempo), ao contrário de três `Bool`.
+
+**Mapeamento Modelo → seções de exibição.** `secoes(de:)` (estático e puro) monta `SecaoDoLivro/CampoDoLivro` só com campos preenchidos; vazio ou só espaços some, e seção sem campos some. A decisão "o que mostrar" fica testável sem SwiftUI. `textoDosArtigos` usa `switch` sobre tupla de opcionais, em que o compilador verifica exaustividade. `LabeledContent` (iOS 16) dá o par rótulo/valor padrão do sistema.
+
+**Idioma de desenvolvimento.** A captura mostrou "Back". O iOS escolhe a localização do sistema (botão Voltar, "Cancelar" da busca etc.) comparando os idiomas do usuário com as localizações que o *bundle* declara. Sem `CFBundleDevelopmentRegion` explícito, o app caía em inglês. `developmentLanguage: pt-BR` no XcodeGen e `CFBundleDevelopmentRegion: pt-BR` no Info.plist resolveram. Quem aprende: o idioma dos textos *do sistema* é decisão do app, não só dos textos que você escreve.
+
+### Por que assim
+- **Agrupamento no Domínio:** sem SwiftUI, testa em milissegundos; reaproveitável (futura exportação, outra tela).
+- **Navegação na raiz de composição:** mantém a regra "Apresentação não conhece montagem".
+- **`apagar() -> Bool` e a tela chama `dismiss()`:** o ViewModel não conhece o ambiente de navegação; ele informa o resultado, a View decide como reagir.
+- **Reler o banco ao voltar:** custa milissegundos num banco local e elimina a sincronização entre telas.
+- **Botões "+" e "Editar" desabilitados:** o escopo vai até o 2.4d, sem funcionalidade pela metade.
+
+### Alternativas descartadas
+- **`NavigationLink(destination:)`:** constrói destinos cedo e acopla a tela à fábrica.
+- **Closures ou notificações para avisar a tela anterior de mudanças:** acoplam telas entre si; reler é mais simples.
+- **Passar o `Livro` na rota:** cópia desatualizada.
+- **Arquivo `Navegacao.swift` em App:** já existe `Componentes/Navegacao.swift`; o Xcode recusa dois arquivos com o mesmo nome no mesmo alvo (os produtos `.o` colidem). Por isso `NavegacaoView.swift`.
+- **Ordenar prateleiras com `<` simples:** colocaria "10ª" antes de "2ª".
+
+### Padrões e boas práticas
+- **Composition root** e **inversão de dependência**: a montagem em um só lugar. Não vale a pena em apps minúsculos; aqui compensa porque há testes e camadas.
+- **Ordem total determinística** em toda ordenação; teste com dados que provoquem empate.
+- **Função estática pura para formatar/mapear** e testar sem a View.
+- **Reproduzir visualmente**: a captura achou o "Back" que nenhum teste acharia.
+
+### Armadilhas
+- **Ordem de iteração de `Dictionary`/`Set`** é indefinida: nunca deixe o resultado depender dela.
+- **`localizedStandardCompare` depende do locale** do processo; teste na CI (Xcode 26) pode divergir se o locale for outro.
+- **`navigationDestination` dentro de uma `List` preguiçosa** ou fora da pilha pode não ser registrado; o lugar seguro é perto da raiz (como aqui). Confirme na documentação da Apple se mudar.
+- **`onAppear` roda mais de uma vez** (reaparição, voltar de sheet); ações com efeito colateral precisam de proteção.
+- **Captura com toque simultâneo no simulador** gera imagem errada; refaça, não interprete.
+
+### Para ir além
+- Documentação Apple: *NavigationStack*, *navigationDestination(for:destination:)* e *NavigationPath*.
+- Mark Seemann, *Dependency Injection: Principles, Practices, and Patterns* (capítulo sobre Composition Root).
+- Documentação Apple: *String Comparison* (`localizedStandardCompare`) e *Internationalization and Localization Guide* (idioma de desenvolvimento do bundle).
+
+### Perguntas
+1. Com suas palavras: por que a `InicioView` não constrói a `EstanteView` diretamente, e o que a `NavegacaoView` faz que ela não pode fazer?
+2. Aplicação: se o usuário pudesse ter duas prateleiras "Direito Civil" e "Direito civil" e quisesse que fossem *distintas*, o que mudaria no agrupamento? Que efeito isso teria na busca, que usa a mesma `Normalizacao.chave`?
+3. Raciocínio: o que aconteceria na ordem dos grupos se o desempate da grafia exibida fosse "a primeira encontrada" e a lista de livros viesse do banco em ordem não garantida? E por que `.aoVoltar` ignora o primeiro `onAppear`?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4d — Formulário de adicionar e editar livro (2026-10-10)
+
+### O que foi feito
+Criamos a regra `RascunhoLivro` em `Dominio/Regras/` (só Foundation, 17 testes): o livro como o formulário o edita, com validação e conversão para `Livro`. Sobre ela veio o `LivroFormularioViewModel` (modos `.novo(estanteId)` e `.edicao(livroId)`, 10 testes) e a `LivroFormularioView`, uma folha (`sheet`) com `NavigationStack` próprio. Junto, a `FolhaPendente` em `App/NavegacaoView.swift`, que decide qual tela abre uma folha por pedido das capturas. O total foi de 266 para 293 testes.
+
+### Conceitos envolvidos
+
+**Rascunho (draft) como tipo próprio.** Formulário não edita o modelo; edita uma *cópia de trabalho* que pode estar inválida. `RascunhoLivro` guarda tudo como `String` (e `autores: [String]`). Motivo: se o campo "ano" fosse `Int?`, digitar "20a" não teria representação, e a tela só saberia dizer "vazio". Com texto, o estado intermediário existe, a regra o aponta (`numeroInvalido`) e a conversão para `Int` acontece uma única vez, em `montar`. É o princípio "parse, don't validate" aplicado ao limite entre a interface e o domínio: dentro do domínio os tipos já são os certos; na borda, texto.
+
+```mermaid
+flowchart LR
+    T[Campos de texto] --> R[RascunhoLivro<br/>Strings]
+    R -->|problemas| E[Campo: Problema<br/>mensagens na tela]
+    R -->|montar sobre base| L[Livro<br/>Int, nil, UUID]
+    L --> P[(Repositório / Core Data)]
+```
+
+**Validação de número com ponto de milhar.** A regra: inteiro > 0, com ponto só *entre dígitos* ("1.710", como artigos aparecem impressos). Rejeita "1..710", ".710", "710." e "½". Detalhe importante: `Character.isNumber` é verdadeiro para "½", "٣" (dígito árabe) e outros; o `Int(...)` depois falharia ou, pior, a regra aceitaria lixo. Por isso a função própria `isASCIIDigit` (compara com "0"..."9"). Overflow (`Int("99999999999999999999")` devolve `nil`) também vira erro, em vez de crash. Lição geral: `isNumber`, `isLetter` etc. seguem o Unicode; para formato de dado, defina o alfabeto explicitamente.
+
+**Edição preserva o que o formulário não mostra.** `montar(sobre base: Livro?)` parte do livro existente e sobrescreve só os campos editáveis. Assim `id`, `adicionadoEm`, `origem`, `itensSumario`, `categoriaIds`, `cddir`, `cddirCaminho` e `urn` sobrevivem. Se o formulário montasse um `Livro` do zero, salvar apagaria o sumário e a classificação sem ninguém notar (perda silenciosa de dados). Livro novo recebe `origem = .manual`.
+
+**Vários autores em camadas.** A mesma informação tem forma diferente em cada camada, e cada forma serve ao seu trabalho:
+
+| Camada | Forma | Por quê |
+| --- | --- | --- |
+| Domínio / formulário | `[String]` | a ordem importa (primeiro autor) e a lista é natural |
+| Core Data | uma `String`, um nome por linha | sem entidade `Autor` (decisão da 2.2): evita relação e junção para um dado que só se exibe e se busca |
+| Detalhe | rótulo "Autor" ou "Autores" | muda conforme a quantidade |
+| Busca | campo `autor` com peso baixo | no BM25F, autor ajuda mas não deve superar o título |
+
+Para a tela havia duas opções. (1) Lista de campos, uma linha por autor, como no app Contatos: não depende da tecla Return e cada nome é inequívoco. (2) Uma caixa multilinha: mais simples, mas Return confunde no iPhone e "Fulano e Beltrano" viraria um autor só. Escolhemos a (1). Papel do autor (coordenador, organizador) ficou fora do escopo.
+
+**Obrigatoriedade só na borda.** O plano dizia "só título". Recomendei isso porque o cadastro manual existe justamente para o livro com dados faltando. O Ricardo escolheu título + autor + editora + ano. Consequência: a exigência vive apenas no formulário (`problemas()`); `Livro`, Core Data e JSON continuam com esses campos opcionais. Razão: LexML, Google Books e Gemini (Fase 3) e livros antigos podem não trazer editora ou ano, e se o banco exigisse, a importação falharia. Efeito colateral aceito: editar um livro importado sem editora/ano obriga a completá-los antes de salvar. É o princípio de "validação depende do contexto": a mesma entidade tem regras diferentes conforme a porta de entrada.
+
+**Erros só depois da primeira tentativa.** `tentouSalvar` evita mostrar vermelho num formulário recém-aberto (ninguém digitou nada ainda). Depois da primeira tentativa, a validação é ao vivo.
+
+**`alterado` e `interactiveDismissDisabled`.** `alterado` é `rascunho != inicial` (exige `Equatable`). Enquanto há mudanças, `.interactiveDismissDisabled(alterado)` impede fechar a folha arrastando e perder o que foi digitado; Cancelar continua disponível.
+
+**Reordenar e remover sem o SwiftUI.** `remove(atOffsets:)` e `move(fromOffsets:toOffset:)` são extensões do SwiftUI, e o ViewModel só importa Foundation; reescrevemos à mão. A convenção do `onMove` é traiçoeira: o `toOffset` é a posição *antes* de retirar os itens movidos. Mover o índice 0 para `toOffset` 2 em `[A,B,C]` dá `[B,A,C]` (a posição final é 1, não 2). Regra prática: se `toOffset > origem`, subtrai-se o número de itens movidos que estavam antes do destino. Testamos 6 casos.
+
+**Binding por posição.** Cada campo de autor usa um `Binding` construído por índice. Ao apagar uma linha, o SwiftUI pode ainda avaliar o binding do índice antigo, já fora do array; o getter/setter precisa tolerar isso (devolver "" e ignorar), senão há crash de índice fora dos limites.
+
+**Fábrica por closure.** As telas recebem `(Modo) -> LivroFormularioViewModel` em vez de `Dependencias`. Elas ficam sem saber como o ViewModel é montado (inversão de dependência), e testes ou capturas injetam qualquer fábrica.
+
+**Folha e ciclo de vida.** Uma `sheet` não faz a tela de trás receber `onAppear` ao fechar. Por isso a releitura do banco foi para o `onDismiss` da sheet.
+
+**`FolhaPendente` e efeito colateral no `body`.** Este foi o aprendizado mais valioso da tarefa; veja "Armadilhas". Em resumo: o SwiftUI chama o bloco do `navigationDestination` (e qualquer `body`) quantas vezes quiser e pode descartar o resultado; esses blocos precisam ser *funções puras do estado*. Efeitos (gastar um pedido, gravar, disparar rede) vão em `onAppear`/`task`/ações.
+
+### Por que assim
+- **Regra no Domínio, não no ViewModel:** é lógica pura, testa sem `@MainActor`, e a tela de confirmação da Fase 3 (pós-leitura de código de barras) reaproveita a mesma validação.
+- **Texto no rascunho, `Int` ao salvar:** o estado inválido precisa existir para ser apontado.
+- **Relê o livro do banco no modo edição:** a mesma fonte única da verdade do detalhe (2.4c); a rota leva só o id.
+- **Lista de campos para autores:** não depende do Return e dá identidade clara a cada nome.
+- **Exigência só no formulário:** protege a importação da Fase 3.
+- **Asterisco no rótulo** (escolha do Ricardo) em vez de "(obrigatório)" no placeholder, que desaparece ao digitar; a nota cinza "* obrigatório" foi tirada por ele, e ficam as mensagens vermelhas.
+
+### Alternativas descartadas
+- **`Int?` direto no ViewModel:** perde o "20a".
+- **`NumberFormatter`/`Int(...)` puro:** `Int("1.710")` é `nil`; e formatadores dependem de locale (aceitariam vírgula em alguns, rejeitariam ponto em outros). Regra explícita é previsível.
+- **Entidade `Autor` no Core Data:** relação muitos-para-muitos, migração e junções para ganho nenhum hoje.
+- **Caixa multilinha para autores:** ver acima.
+- **Obrigar só o título:** a recomendação inicial; o Ricardo preferiu cadastros mais completos, o que é uma decisão legítima de produto, com o custo conhecido.
+- **Validar no banco (Core Data `optional = NO`):** quebraria importação.
+
+### Padrões e boas práticas
+- **Draft / DTO de formulário** e **parse na borda**. Não vale para telas triviais (um campo, sem validação): o custo de um tipo extra não compensa.
+- **Preservar o que não se edita** ao salvar: "copiar e alterar" (`var novo = base`), nunca reconstruir.
+- **Funções puras para regras** e testes de tabela (vários casos de `move`).
+- **Closure fábrica** no lugar de passar um contêiner de dependências inteiro (evita *service locator* disfarçado).
+- **Testar com o estado vazio, o limite e o absurdo** (overflow, "½", "1..710").
+
+### Armadilhas
+- **Bug 1: "Cancelar não fecha e Salvar não funciona".** As capturas abriam o formulário como *raiz* da tela, sem folha por baixo. `dismiss()` só fecha o que foi apresentado; sem apresentação, não faz nada. Salvar gravava no banco, mas a tela ficava parada. Diagnóstico: o Ricardo testou o app que a captura deixou aberto; o código estava certo, o *cenário* estava errado. Moral: ferramenta de teste/captura não pode montar a tela de um jeito que o app real nunca monta.
+- **Bug 2: "a edição abre sozinha ao ver qualquer livro".** O booleano `abrirFormulario` era passado a *toda* `LivroDetalheView` criada pelo `navigationDestination`. O mesmo defeito existia em `abrirConfirmacaoDoLivro` desde a 2.4c. Correção: `FolhaPendente`, classe guardada em `@State`, com um alvo (`Estante` ou `RotaDoLivro`); só a tela pedida abre, uma vez.
+- **Tropeço dentro da correção.** A 1ª versão "consumia" o pedido dentro do bloco do `navigationDestination`. Nenhuma folha abriu: o SwiftUI chamou o bloco mais de uma vez e descartou a primeira view montada; o pedido foi gasto na descartada. Versão final: `folha(em:)` só *lê*; `esquecer(se:)` roda no `.onAppear` da tela-alvo (a que ficou na tela). Usa `@State` porque quem monta a `NavegacaoView` pode recriá-la, e uma referência `let` nova reiniciaria o pedido.
+- **Compilação:** usar `self.rascunho` antes de todas as propriedades estarem inicializadas no `init` é erro em Swift (two-phase initialization: antes de tudo inicializado, `self` não pode ser lido). Calcule num `let inicial` local e atribua às duas propriedades.
+- **"DTXProxyChannel" / Testing failed sem nenhum erro de teste:** falha de infraestrutura do simulador, não do código; rodar de novo resolveu. Diagnóstico: ausência de `error:` ou de asserção falha no log.
+- **Pendências:** campo preenchido perde o nome (o placeholder some; "1965" sem dizer que é o ano), a tratar no estilo do Formulário; arrastar autor no iOS 16 pode exigir toque longo (Ricardo confere).
+
+### Para ir além
+- Alexis King, *Parse, don't validate* (artigo; busque o título).
+- Documentação Apple: *Form*, *sheet(isPresented:onDismiss:content:)*, *DismissAction* e *interactiveDismissDisabled(_:)*.
+- Documentação Apple, *The Swift Programming Language*: "Initialization" (inicialização em duas fases).
+
+### Perguntas
+1. Com suas palavras: por que `RascunhoLivro` guarda o ano como `String` e só vira `Int` em `montar`? O que se perderia com `Int?`?
+2. Aplicação: na Fase 3, o Gemini devolve um livro sem editora. A tela de confirmação reaproveita `RascunhoLivro`. O que acontece ao salvar, e por que isso é desejável ou não? O que mudaria se a exigência estivesse em Core Data?
+3. Raciocínio: no `onMove`, em `[A,B,C,D]`, o usuário arrasta `A` para depois de `C`. Qual é o `toOffset` recebido e qual a lista final? E por que consumir o pedido da `FolhaPendente` dentro do bloco do `navigationDestination` fez nenhuma folha abrir?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4e — Prateleira com sugestões no formulário do livro (2026-10-10)
+
+### O que foi feito
+Nova regra pura `SugestaoDePrateleira.sugerir(para:entre:limite:)` em `Dominio/Regras/` (10 testes). O `LivroFormularioViewModel` ganhou `prateleirasDaEstante`, `carregarPrateleiras()`, `sugestoesDePrateleira` e `escolherPrateleira(_:)` (5 testes). Na `LivroFormularioView`, o campo da prateleira ganhou `@FocusState` e, enquanto está em foco, linhas-botão com as etiquetas já usadas na estante. Total: 293 para 308 testes, e o Ricardo testou no simulador.
+
+### Conceitos envolvidos
+
+**Dado livre que precisa de vocabulário controlado.** "Prateleira" é texto livre (não há entidade `Prateleira`). Texto livre produz variantes ("Caixa azul", "caixa azul ", "caixa  azul"), e a tela da estante agrupa por etiqueta. A sugestão é o remédio barato: em vez de normalizar o banco, empurra o usuário a reutilizar a grafia existente na hora da digitação. É o mesmo problema de uma coluna de "tags" sem tabela de domínio.
+
+**Chave de normalização.** `Normalizacao.chave` (minúsculas, sem acento, espaços reduzidos) define quando duas grafias são "a mesma etiqueta". Padrão: **chave canônica** para comparar, **grafia original** para exibir. Aparece em `semGrafiasRepetidas`: ordena, depois usa `Set.insert(...).inserted` para ficar com a primeira grafia de cada chave. `insert` devolve uma tupla `(inserted, memberAfterInsert)`, e `inserted == false` indica que a chave já existia. É um "distinct by" em O(n) após a ordenação.
+
+**Por que há duplicatas se o Core Data faz DISTINCT?** `returnsDistinctResults` compara os valores *crus* da coluna (byte a byte). "caixa azul" e "Caixa azul " são valores diferentes para o banco, então chegam como duas linhas. O DISTINCT do banco e o "mesmo" do domínio são relações de igualdade diferentes. A regra do domínio é quem sabe o que é igual para o usuário.
+
+**Ordem natural: `localizedStandardCompare`.** É a comparação que o Finder usa: números dentro do texto são comparados como números ("2ª" antes de "10ª") e ignora-se parte da diferença de acentuação conforme o locale. Comparação lexicográfica simples poria "10ª" antes de "2ª" (porque "1" < "2").
+
+**Classificação em dois grupos.** Com texto digitado: grupo 1 (a chave *começa* com o digitado: `hasPrefix`), grupo 2 (apenas *contém*). Cada grupo mantém a ordem natural, porque a lista já vem ordenada e `append` preserva a ordem (um particionamento estável feito à mão). Custo total: O(n log n) pela ordenação, com n em dezenas. Nada que justifique índice.
+
+**Instabilidade do `sorted`.** O `sorted` do Swift não garante estabilidade (a documentação não promete; a implementação atual é um timsort, mas não se deve depender disso). Se o comparador empata dois elementos diferentes, a ordem entre eles pode depender da ordem de entrada. Aqui o empate mudaria *qual grafia sobrevive* ao filtro de repetidas, ou seja, o resultado dependeria da ordem em que o banco devolveu as linhas. O desempate `a < b` torna a ordem total e a função determinística. Regra geral: um comparador deve ser uma ordem total estrita; se não for, desempate.
+
+**Foco no SwiftUI.** `@FocusState` é um estado ligado ao foco do teclado; `.focused($editandoPrateleira)` conecta o campo a ele. Atribuir `false` tira o foco e fecha o teclado. Usado para mostrar as sugestões só enquanto se edita, e para fechá-las ao escolher.
+
+**Falha tolerada com `try?`.** `(try? await repositorio.prateleiras(...)) ?? []`. Em geral `try?` engole erros e é suspeito; aqui é deliberado, porque a sugestão é conveniência e um erro de leitura não deve impedir o cadastro. Foi testado (`testFalhaAoLerPrateleirasNaoAtrapalhaOFormulario`) para documentar a intenção.
+
+**`onChange(of:)` na forma de 1 parâmetro.** `.onChange(of: x) { _ in ... }` é a assinatura do iOS 16; a de dois parâmetros ou sem parâmetros é iOS 17 e fica proibida pela regra dos dois Xcodes. O reload dispara com a troca de estante porque as etiquetas pertencem a cada estante.
+
+### Por que assim
+- **Regra no Domínio:** pura, testável sem SwiftUI e sem Core Data, e reutilizável (a confirmação pós-código-de-barras da Fase 3 pode usá-la).
+- **Normalizar na regra, não no repositório:** a porta continua simples e o conceito de "mesma etiqueta" fica num lugar só, o mesmo de `AgrupamentoPorPrateleira`.
+- **Exibir sem o igual ao digitado:** se já digitou "caixa azul", sugerir "caixa azul" é ruído.
+- **Limite de 5:** a lista fica dentro de um `Form`, empurrando os campos de baixo; cinco cabem sem rolar.
+
+### Alternativas descartadas
+- **Reaproveitar `Tokenizador`/BM25F da busca:** pesado para dezenas de etiquetas; plural e correção de digitação, ótimos para achar livros, confundiriam aqui (digitar "caixa" não deve sugerir "caixas" por heurística).
+- **`Picker`/`Menu`:** não permite criar etiqueta nova no mesmo lugar.
+- **`.searchSuggestions`:** só existe para `.searchable`, não para `TextField`.
+- **Barra sobre o teclado (`inputAccessoryView`):** exige UIKit.
+- **Entidade `Prateleira`:** resolveria a duplicação de vez, mas traz relação, migração e telas de gerenciamento; fica como opção se o texto livre incomodar.
+
+### Padrões e boas práticas
+- **Chave canônica + grafia de exibição**; **"distinct by"** com `Set`.
+- **Degradação graciosa** para recursos auxiliares.
+- **Comparador como ordem total.** Quando NÃO usar `try?`: sempre que a falha precise ser vista pelo usuário ou registrada (salvar, apagar).
+- **Teste que registra a decisão**: o teste de falha existe para que ninguém "conserte" o `try?` sem saber por que ele está lá.
+
+### Armadilhas
+- **O erro instrutivo do teste de empate.** Supus que `localizedStandardCompare` empatasse "Caixa azul" e "caixa azul". Falhou em duas rodadas: (1) " caixa  azul " (espaço duplo interno, só aparado) ganhava por ordenar antes, o que revelou que a grafia exibida também precisava de espaços arrumados (`split` + `joined`); (2) a ordem natural **não** empata maiúsculas: põe a minúscula antes ("caixa azul" < "Caixa azul"). Lição: **não presuma o comportamento de uma comparação localizada; teste-a.** `localizedStandardCompare` ignora algumas diferenças (acentos, em geral) mas a regra exata depende do locale e da ICU; nunca a use para definir igualdade, só ordem. Para igualdade, a chave explícita.
+- **Consequência registrada no PLANO:** a sugestão pode mostrar uma grafia diferente do título do grupo na estante, que usa a grafia *mais usada* (`AgrupamentoPorPrateleira`). A porta não devolve contagens, então a sugestão escolhe a primeira em ordem natural. Se incomodar, a evolução é a porta devolver `(etiqueta, quantidade)`.
+- **`split(whereSeparator:)` descarta sequências vazias** por padrão (`omittingEmptySubsequences: true`), por isso "  " vira `[]` e `joined` dá "". É o que permite o `filter { !$0.isEmpty }` seguinte.
+- **Sugestões só em foco:** se o teste manual no simulador não mostrar a lista, confira se o campo realmente ganhou foco (toque no campo, não só tabulação).
+- **Corrida de carregamento:** `carregarPrateleiras()` dispara em `Task` a cada troca de estante; trocas muito rápidas poderiam terminar fora de ordem e deixar as etiquetas da estante errada. Improvável aqui (leitura local rápida), mas é o tipo de coisa a conferir se houver rede no caminho.
+
+### Para ir além
+- Documentação Apple: *FocusState* e `localizedStandardCompare(_:)` (NSString).
+- Documentação do Swift: `Sequence.sorted(by:)` (critério "strict weak ordering") e `Set.insert(_:)`.
+- Unicode Technical Standard #10 (Unicode Collation Algorithm), para entender por que a comparação localizada se comporta assim.
+
+### Perguntas
+1. Com suas palavras: por que `returnsDistinctResults` do Core Data não bastou, e o que a `Normalizacao.chave` resolve que o banco não resolve?
+2. Aplicação: se você quisesse que a sugestão mostrasse a grafia *mais usada* (como o título do grupo na estante), o que mudaria na porta `prateleiras(naEstante:)` e na regra `sugerir`? Onde ficaria o desempate?
+3. Raciocínio: sem o desempate `a < b`, que cenário concreto daria resultados diferentes para os mesmos dados? E por que `localizedStandardCompare` não serve para decidir se duas etiquetas são "a mesma"?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
