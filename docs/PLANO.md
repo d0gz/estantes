@@ -384,17 +384,19 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [x] `ValidacaoSumario` `[eu escrevo]` (escrita pelo Ricardo; 12 testes)
 - [x] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória) + `BibliotecaRepositorioCoreData` (conversão `[eu escrevo]` em parte; 25 testes de Dados)
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
-  (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário · 2.4e prateleira ·
+  (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário ✅ · 2.4e prateleira ·
   depois o estilo, tela por tela)
-  **Onde paramos (09/10, branch `fase2/telas`, 266 testes):** lógica da 2.4a–c pronta e aprovada no simulador.
-  Próximos, nesta ordem, cada um começando pela explicação e esperando o OK:
-  1. **2.4d** formulário de adicionar/editar livro: `RascunhoLivro` (tudo texto) ↔ `Livro` (título obrigatório, números
-     validados, vazio → nil, autores um por linha; a edição preserva id, adicionadoEm, origem, sumário, categorias, cddirCaminho, urn);
-     `Form` em seções (Essencial · Publicação · Volume recolhível · Estante e prateleira); ativa o "+" da `EstanteView` e o
-     "Editar" do `LivroDetalheView` (hoje desabilitados).
-  2. **2.4e** prateleira com sugestões (`prateleiras(naEstante:)` filtradas pelo texto, com `Normalizacao.chave`; regra pura + testes).
-  3. **Estilo**, uma tela por vez: Inicio → Estante → Detalhe → Formulário → Apagar estante (ver "Forma de trabalho nas telas").
-  4. Fechamento: CI verde, PR pronto para revisão, checklist e CLAUDE.md atualizados.
+  **Onde paramos (10/10, branch `fase2/telas`, 293 testes):** lógica da 2.4a–d pronta e aprovada no simulador.
+  2.4d: `RascunhoLivro` (Domínio; tudo texto, autores em lista; obrigatórios título, ≥ 1 autor, editora e ano, só no
+  formulário; números inteiros > 0 com ponto de milhar; a edição preserva o que o formulário não mostra) +
+  `LivroFormularioView` em folha (asterisco nos obrigatórios, erros em vermelho só depois de tentar salvar, autores com
+  adicionar/apagar/reordenar, "Volume e coleção" recolhível, seletor de estante). Capturas `FormularioNovo`/`FormularioEditar`
+  abrem a folha de verdade via `FolhaPendente` (uma vez só, na tela pedida).
+  Próximos, nesta ordem, cada um começando pela explicação e esperando o OK (o Ricardo testa cada passo à mão):
+  1. **2.4e** prateleira com sugestões (`prateleiras(naEstante:)` filtradas pelo texto, com `Normalizacao.chave`; regra pura + testes).
+  2. **Estilo**, uma tela por vez: Inicio → Estante → Detalhe → Formulário → Apagar estante (ver "Forma de trabalho nas telas").
+     Pendente para o estilo do Formulário: campo preenchido perde o nome (placeholder some; "1965" sem dizer que é o ano).
+  3. Fechamento: CI verde, PR pronto para revisão, checklist e CLAUDE.md atualizados.
   Ferramentas: `./scripts/testar.sh`; `./scripts/capturar.sh <Tela> <versão> [<pasta>]` (casos no enum `Captura`, `App/Exemplos.swift`);
   testar à mão com `xcrun simctl launch "iPhone 14" com.ricardo.estantes -captura Inicio` (exemplos em memória).
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
@@ -613,4 +615,6 @@ do parser e do Gemini.
 | 09/10 | 2.4: primeiro a lógica de todas as telas (componentes nativos), depois o estilo tela por tela, com perguntas a cada captura | Garante o fluxo certo antes de gastar tempo com aparência; decidir o visual olhando cada tela no simulador |
 | 09/10 | Capturas do simulador só locais (`docs/capturas/`, no `.gitignore`), com versão no nome; telas internas via argumento `-captura` só em DEBUG | Histórico visual sem pesar o repositório; o `simctl` não toca na tela |
 | 09/10 | Lista da estante agrupada por prateleira; na 2.4 o Claude escreve tudo (sem `[eu escrevo]`) | Espelha a estante física; escolha do Ricardo |
+| 10/10 | Formulário do livro: obrigatórios título, ao menos um autor, editora e ano (revisa "só título"); a exigência fica só no `RascunhoLivro`, não no `Livro` nem no Core Data | Escolha do Ricardo para fichas mais completas. LexML/Google Books/Gemini e livros antigos podem não ter esses dados: o modelo continua aceitando; editar um livro assim pede para completar |
+| 10/10 | Autores no formulário como lista de campos (adicionar, deslizar para apagar, arrastar para reordenar); obrigatórios marcados com asterisco, sem nota de rodapé | Padrão do iOS (Contatos); separa os nomes sem depender do Return. Escolhas do Ricardo |
 | 09/10 | Parada a 5–8% do limite de uso: PLANO atualizado, commit, PR em rascunho; volta só com uso reiniciado ou ordem do Ricardo | Não perder trabalho no meio; o Claude não vê o `/usage`, então o Ricardo avisa |
