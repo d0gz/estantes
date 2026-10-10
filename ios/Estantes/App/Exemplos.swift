@@ -99,6 +99,8 @@ enum Captura: String {
     case estanteVazia = "EstanteVazia"
     case livroDetalhe = "LivroDetalhe"
     case apagarLivro = "ApagarLivro"
+    case formularioNovo = "FormularioNovo"
+    case formularioEditar = "FormularioEditar"
 
     /// Argumentos `-chave valor` viram entradas do `UserDefaults` (domínio de argumentos), sem parser próprio.
     static var pedida: Captura? {
@@ -133,6 +135,15 @@ enum Captura: String {
                     caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48),
                     abrirConfirmacaoDoLivro: true
                 )
+            }
+        // O formulário abre como raiz (e não na folha): a captura mostra o mesmo conteúdo, sem a animação de subir.
+        case .formularioNovo:
+            ComExemplos {
+                LivroFormularioView(viewModel: $0.fazerLivroFormularioViewModel(modo: .novo(estanteId: DadosDeExemplo.escritorio.id)))
+            }
+        case .formularioEditar:
+            ComExemplos {
+                LivroFormularioView(viewModel: $0.fazerLivroFormularioViewModel(modo: .edicao(livroId: DadosDeExemplo.tratadoTomo48)))
             }
         }
     }

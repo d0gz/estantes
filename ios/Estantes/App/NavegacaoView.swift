@@ -27,11 +27,15 @@ struct NavegacaoView: View {
         NavigationStack(path: $caminho) {
             InicioView(viewModel: dependencias.fazerInicioViewModel(), acaoInicial: acaoInicial)
                 .navigationDestination(for: Estante.self) { estante in
-                    EstanteView(viewModel: dependencias.fazerEstanteViewModel(estante: estante))
+                    EstanteView(
+                        viewModel: dependencias.fazerEstanteViewModel(estante: estante),
+                        formulario: dependencias.fazerLivroFormularioViewModel
+                    )
                 }
                 .navigationDestination(for: RotaDoLivro.self) { rota in
                     LivroDetalheView(
                         viewModel: dependencias.fazerLivroDetalheViewModel(livroId: rota.livroId),
+                        formulario: dependencias.fazerLivroFormularioViewModel,
                         abrirConfirmacao: abrirConfirmacaoDoLivro
                     )
                 }

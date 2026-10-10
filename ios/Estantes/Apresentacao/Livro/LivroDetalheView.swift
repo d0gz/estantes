@@ -5,10 +5,18 @@ struct LivroDetalheView: View {
     @StateObject private var viewModel: LivroDetalheViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var confirmandoExclusao: Bool
+    @State private var editando = false
+    /// Cria o ViewModel do formulário; vem da montagem para a tela não precisar conhecer `Dependencias`.
+    private let formulario: @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel
 
     /// - Parameter abrirConfirmacao: abre a confirmação de apagar logo de início (só as capturas usam).
-    init(viewModel: @autoclosure @escaping () -> LivroDetalheViewModel, abrirConfirmacao: Bool = false) {
+    init(
+        viewModel: @autoclosure @escaping () -> LivroDetalheViewModel,
+        formulario: @escaping @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel,
+        abrirConfirmacao: Bool = false
+    ) {
         _viewModel = StateObject(wrappedValue: viewModel())
+        self.formulario = formulario
         _confirmandoExclusao = State(initialValue: abrirConfirmacao)
     }
 
@@ -17,10 +25,12 @@ struct LivroDetalheView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    // A edição chega no 2.4d.
-                    Button("Editar") {}
-                        .disabled(true)
+                    Button("Editar") { editando = true }
+                        .disabled(!livroCarregado)
                 }
+            }
+            .sheet(isPresented: $editando, onDismiss: { Task { await viewModel.carregar() } }) {
+                LivroFormularioView(viewModel: formulario(.edicao(livroId: viewModel.livroId)))
             }
             .task { await viewModel.carregar() }
             .aoVoltar { await viewModel.carregar() }
@@ -78,6 +88,11 @@ struct LivroDetalheView: View {
                 Task { await viewModel.carregar() }
             }
         }
+    }
+
+    private var livroCarregado: Bool {
+        if case .pronto = viewModel.estado { return true }
+        return false
     }
 
     private var erroAberto: Binding<Bool> {

@@ -37,4 +37,9 @@ struct Dependencias {
     func fazerLivroDetalheViewModel(livroId: UUID) -> LivroDetalheViewModel {
         LivroDetalheViewModel(livroId: livroId, repositorio: repositorio)
     }
+
+    @MainActor
+    func fazerLivroFormularioViewModel(modo: LivroFormularioViewModel.Modo) -> LivroFormularioViewModel {
+        LivroFormularioViewModel(modo: modo, repositorio: repositorio)
+    }
 }
