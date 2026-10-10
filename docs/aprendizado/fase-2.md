@@ -1788,3 +1788,71 @@ Para a tela havia duas opções. (1) Lista de campos, uma linha por autor, como 
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4e — Prateleira com sugestões no formulário do livro (2026-10-10)
+
+### O que foi feito
+Nova regra pura `SugestaoDePrateleira.sugerir(para:entre:limite:)` em `Dominio/Regras/` (10 testes). O `LivroFormularioViewModel` ganhou `prateleirasDaEstante`, `carregarPrateleiras()`, `sugestoesDePrateleira` e `escolherPrateleira(_:)` (5 testes). Na `LivroFormularioView`, o campo da prateleira ganhou `@FocusState` e, enquanto está em foco, linhas-botão com as etiquetas já usadas na estante. Total: 293 para 308 testes, e o Ricardo testou no simulador.
+
+### Conceitos envolvidos
+
+**Dado livre que precisa de vocabulário controlado.** "Prateleira" é texto livre (não há entidade `Prateleira`). Texto livre produz variantes ("Caixa azul", "caixa azul ", "caixa  azul"), e a tela da estante agrupa por etiqueta. A sugestão é o remédio barato: em vez de normalizar o banco, empurra o usuário a reutilizar a grafia existente na hora da digitação. É o mesmo problema de uma coluna de "tags" sem tabela de domínio.
+
+**Chave de normalização.** `Normalizacao.chave` (minúsculas, sem acento, espaços reduzidos) define quando duas grafias são "a mesma etiqueta". Padrão: **chave canônica** para comparar, **grafia original** para exibir. Aparece em `semGrafiasRepetidas`: ordena, depois usa `Set.insert(...).inserted` para ficar com a primeira grafia de cada chave. `insert` devolve uma tupla `(inserted, memberAfterInsert)`, e `inserted == false` indica que a chave já existia. É um "distinct by" em O(n) após a ordenação.
+
+**Por que há duplicatas se o Core Data faz DISTINCT?** `returnsDistinctResults` compara os valores *crus* da coluna (byte a byte). "caixa azul" e "Caixa azul " são valores diferentes para o banco, então chegam como duas linhas. O DISTINCT do banco e o "mesmo" do domínio são relações de igualdade diferentes. A regra do domínio é quem sabe o que é igual para o usuário.
+
+**Ordem natural: `localizedStandardCompare`.** É a comparação que o Finder usa: números dentro do texto são comparados como números ("2ª" antes de "10ª") e ignora-se parte da diferença de acentuação conforme o locale. Comparação lexicográfica simples poria "10ª" antes de "2ª" (porque "1" < "2").
+
+**Classificação em dois grupos.** Com texto digitado: grupo 1 (a chave *começa* com o digitado: `hasPrefix`), grupo 2 (apenas *contém*). Cada grupo mantém a ordem natural, porque a lista já vem ordenada e `append` preserva a ordem (um particionamento estável feito à mão). Custo total: O(n log n) pela ordenação, com n em dezenas. Nada que justifique índice.
+
+**Instabilidade do `sorted`.** O `sorted` do Swift não garante estabilidade (a documentação não promete; a implementação atual é um timsort, mas não se deve depender disso). Se o comparador empata dois elementos diferentes, a ordem entre eles pode depender da ordem de entrada. Aqui o empate mudaria *qual grafia sobrevive* ao filtro de repetidas, ou seja, o resultado dependeria da ordem em que o banco devolveu as linhas. O desempate `a < b` torna a ordem total e a função determinística. Regra geral: um comparador deve ser uma ordem total estrita; se não for, desempate.
+
+**Foco no SwiftUI.** `@FocusState` é um estado ligado ao foco do teclado; `.focused($editandoPrateleira)` conecta o campo a ele. Atribuir `false` tira o foco e fecha o teclado. Usado para mostrar as sugestões só enquanto se edita, e para fechá-las ao escolher.
+
+**Falha tolerada com `try?`.** `(try? await repositorio.prateleiras(...)) ?? []`. Em geral `try?` engole erros e é suspeito; aqui é deliberado, porque a sugestão é conveniência e um erro de leitura não deve impedir o cadastro. Foi testado (`testFalhaAoLerPrateleirasNaoAtrapalhaOFormulario`) para documentar a intenção.
+
+**`onChange(of:)` na forma de 1 parâmetro.** `.onChange(of: x) { _ in ... }` é a assinatura do iOS 16; a de dois parâmetros ou sem parâmetros é iOS 17 e fica proibida pela regra dos dois Xcodes. O reload dispara com a troca de estante porque as etiquetas pertencem a cada estante.
+
+### Por que assim
+- **Regra no Domínio:** pura, testável sem SwiftUI e sem Core Data, e reutilizável (a confirmação pós-código-de-barras da Fase 3 pode usá-la).
+- **Normalizar na regra, não no repositório:** a porta continua simples e o conceito de "mesma etiqueta" fica num lugar só, o mesmo de `AgrupamentoPorPrateleira`.
+- **Exibir sem o igual ao digitado:** se já digitou "caixa azul", sugerir "caixa azul" é ruído.
+- **Limite de 5:** a lista fica dentro de um `Form`, empurrando os campos de baixo; cinco cabem sem rolar.
+
+### Alternativas descartadas
+- **Reaproveitar `Tokenizador`/BM25F da busca:** pesado para dezenas de etiquetas; plural e correção de digitação, ótimos para achar livros, confundiriam aqui (digitar "caixa" não deve sugerir "caixas" por heurística).
+- **`Picker`/`Menu`:** não permite criar etiqueta nova no mesmo lugar.
+- **`.searchSuggestions`:** só existe para `.searchable`, não para `TextField`.
+- **Barra sobre o teclado (`inputAccessoryView`):** exige UIKit.
+- **Entidade `Prateleira`:** resolveria a duplicação de vez, mas traz relação, migração e telas de gerenciamento; fica como opção se o texto livre incomodar.
+
+### Padrões e boas práticas
+- **Chave canônica + grafia de exibição**; **"distinct by"** com `Set`.
+- **Degradação graciosa** para recursos auxiliares.
+- **Comparador como ordem total.** Quando NÃO usar `try?`: sempre que a falha precise ser vista pelo usuário ou registrada (salvar, apagar).
+- **Teste que registra a decisão**: o teste de falha existe para que ninguém "conserte" o `try?` sem saber por que ele está lá.
+
+### Armadilhas
+- **O erro instrutivo do teste de empate.** Supus que `localizedStandardCompare` empatasse "Caixa azul" e "caixa azul". Falhou em duas rodadas: (1) " caixa  azul " (espaço duplo interno, só aparado) ganhava por ordenar antes, o que revelou que a grafia exibida também precisava de espaços arrumados (`split` + `joined`); (2) a ordem natural **não** empata maiúsculas: põe a minúscula antes ("caixa azul" < "Caixa azul"). Lição: **não presuma o comportamento de uma comparação localizada; teste-a.** `localizedStandardCompare` ignora algumas diferenças (acentos, em geral) mas a regra exata depende do locale e da ICU; nunca a use para definir igualdade, só ordem. Para igualdade, a chave explícita.
+- **Consequência registrada no PLANO:** a sugestão pode mostrar uma grafia diferente do título do grupo na estante, que usa a grafia *mais usada* (`AgrupamentoPorPrateleira`). A porta não devolve contagens, então a sugestão escolhe a primeira em ordem natural. Se incomodar, a evolução é a porta devolver `(etiqueta, quantidade)`.
+- **`split(whereSeparator:)` descarta sequências vazias** por padrão (`omittingEmptySubsequences: true`), por isso "  " vira `[]` e `joined` dá "". É o que permite o `filter { !$0.isEmpty }` seguinte.
+- **Sugestões só em foco:** se o teste manual no simulador não mostrar a lista, confira se o campo realmente ganhou foco (toque no campo, não só tabulação).
+- **Corrida de carregamento:** `carregarPrateleiras()` dispara em `Task` a cada troca de estante; trocas muito rápidas poderiam terminar fora de ordem e deixar as etiquetas da estante errada. Improvável aqui (leitura local rápida), mas é o tipo de coisa a conferir se houver rede no caminho.
+
+### Para ir além
+- Documentação Apple: *FocusState* e `localizedStandardCompare(_:)` (NSString).
+- Documentação do Swift: `Sequence.sorted(by:)` (critério "strict weak ordering") e `Set.insert(_:)`.
+- Unicode Technical Standard #10 (Unicode Collation Algorithm), para entender por que a comparação localizada se comporta assim.
+
+### Perguntas
+1. Com suas palavras: por que `returnsDistinctResults` do Core Data não bastou, e o que a `Normalizacao.chave` resolve que o banco não resolve?
+2. Aplicação: se você quisesse que a sugestão mostrasse a grafia *mais usada* (como o título do grupo na estante), o que mudaria na porta `prateleiras(naEstante:)` e na regra `sugerir`? Onde ficaria o desempate?
+3. Raciocínio: sem o desempate `a < b`, que cenário concreto daria resultados diferentes para os mesmos dados? E por que `localizedStandardCompare` não serve para decidir se duas etiquetas são "a mesma"?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
