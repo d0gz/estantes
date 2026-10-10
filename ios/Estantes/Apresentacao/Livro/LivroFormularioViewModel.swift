@@ -105,8 +105,13 @@ final class LivroFormularioViewModel: ObservableObject {
 
     /// Relida a cada troca de estante: as etiquetas são de cada estante.
     func carregarPrateleiras() async {
+        let estanteId = rascunho.estanteId
         // A sugestão é só uma ajuda: se a leitura falhar, o formulário segue sem ela.
-        prateleirasDaEstante = (try? await repositorio.prateleiras(naEstante: rascunho.estanteId)) ?? []
+        let etiquetas = (try? await repositorio.prateleiras(naEstante: estanteId)) ?? []
+        // Trocando de estante duas vezes depressa, duas leituras correm juntas e a primeira pode voltar
+        // por último: a resposta só vale se o formulário ainda estiver na estante pedida.
+        guard rascunho.estanteId == estanteId else { return }
+        prateleirasDaEstante = etiquetas
     }
 
     func escolherPrateleira(_ etiqueta: String) {

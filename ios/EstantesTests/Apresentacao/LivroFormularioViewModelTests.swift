@@ -201,6 +201,22 @@ final class LivroFormularioViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.prateleirasDaEstante, ["aparador"])
     }
 
+    func testRespostaAtrasadaDeOutraEstanteEDescartada() async {
+        let repositorio = repositorioComPrateleiras()
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio)
+        await viewModel.carregar()
+
+        // Enquanto a leitura do Escritório não volta, o usuário troca para a Sala e a leitura dela termina antes.
+        repositorio.durantePrateleiras = { [sala] in
+            repositorio.durantePrateleiras = nil
+            viewModel.rascunho.estanteId = sala.id
+            await viewModel.carregarPrateleiras()
+        }
+        await viewModel.carregarPrateleiras()
+
+        XCTAssertEqual(viewModel.prateleirasDaEstante, ["aparador"])
+    }
+
     func testEscolherPrateleiraPreencheORascunho() async {
         let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras())
         await viewModel.carregar()

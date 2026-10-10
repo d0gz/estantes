@@ -14,6 +14,8 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
     /// Ligados, fazem as leituras ou as gravações lançarem `FalhaSimulada`.
     var falharAoLer = false
     var falharAoGravar = false
+    /// Roda no meio da leitura das prateleiras, antes da resposta: simula o usuário mexendo na tela enquanto espera.
+    var durantePrateleiras: (@MainActor () async -> Void)?
 
     init(estantes: [Estante] = [], livros: [Livro] = []) {
         for estante in estantes { estantesGuardadas[estante.id] = estante }
@@ -95,6 +97,7 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
 
     func prateleiras(naEstante estanteId: UUID) async throws -> [String] {
         try lendo()
+        await durantePrateleiras?()
         let etiquetas = livrosGuardados.values
             .filter { $0.estanteId == estanteId }
             .compactMap { $0.prateleira }
