@@ -60,8 +60,6 @@ struct LivroFormularioView: View {
             Section {
                 campo("Título *", \.titulo, problema: .titulo)
                 campo("Subtítulo", \.subtitulo)
-            } footer: {
-                Text("* obrigatório")
             }
 
             Section {

@@ -7,8 +7,8 @@ import SwiftUI
 struct NavegacaoView: View {
     let dependencias: Dependencias
     private let acaoInicial: InicioView.AcaoInicial?
-    private let abrirConfirmacaoDoLivro: Bool
-    private let abrirFormulario: Bool
+    /// Em `@State` para sobreviver quando quem monta esta view a recria (o pedido já usado não volta).
+    @State private var folhaPendente: FolhaPendente?
     @State private var caminho: NavigationPath
 
     /// Os parâmetros além de `dependencias` só servem às capturas do simulador (abrir já numa tela ou folha).
@@ -16,13 +16,11 @@ struct NavegacaoView: View {
         dependencias: Dependencias,
         acaoInicial: InicioView.AcaoInicial? = nil,
         caminhoInicial: NavigationPath = NavigationPath(),
-        abrirConfirmacaoDoLivro: Bool = false,
-        abrirFormulario: Bool = false
+        folhaInicial: FolhaPendente? = nil
     ) {
         self.dependencias = dependencias
         self.acaoInicial = acaoInicial
-        self.abrirConfirmacaoDoLivro = abrirConfirmacaoDoLivro
-        self.abrirFormulario = abrirFormulario
+        _folhaPendente = State(initialValue: folhaInicial)
         _caminho = State(initialValue: caminhoInicial)
     }
 
@@ -33,18 +31,54 @@ struct NavegacaoView: View {
                     EstanteView(
                         viewModel: dependencias.fazerEstanteViewModel(estante: estante),
                         formulario: dependencias.fazerLivroFormularioViewModel,
-                        // Só a tela do topo abre a folha: com a estante embaixo do livro, as duas tentariam.
-                        abrirFormulario: abrirFormulario && caminho.count == 1
+                        abrirFormulario: folhaPendente?.folha(em: estante) == .formulario
                     )
+                    .onAppear { folhaPendente?.esquecer(se: estante) }
                 }
                 .navigationDestination(for: RotaDoLivro.self) { rota in
+                    let folha = folhaPendente?.folha(em: rota)
                     LivroDetalheView(
                         viewModel: dependencias.fazerLivroDetalheViewModel(livroId: rota.livroId),
                         formulario: dependencias.fazerLivroFormularioViewModel,
-                        abrirConfirmacao: abrirConfirmacaoDoLivro,
-                        abrirFormulario: abrirFormulario
+                        abrirConfirmacao: folha == .confirmacaoDeApagar,
+                        abrirFormulario: folha == .formulario
                     )
+                    .onAppear { folhaPendente?.esquecer(se: rota) }
                 }
         }
+    }
+}
+
+/// Folha que uma captura pede para abrir logo de início, numa tela só e uma vez só.
+///
+/// Classe (referência) porque precisa "esquecer" o pedido depois de usado, de dentro do `body` da
+/// `NavegacaoView`, que é uma struct. Sem isso, toda tela criada depois (outro livro aberto, a mesma
+/// estante revisitada) abriria a folha sozinha.
+///
+/// Ler (`folha(em:)`) e esquecer (`esquecer(se:)`) são passos separados: o SwiftUI pode chamar o bloco do
+/// `navigationDestination` mais de uma vez e descartar a primeira tela montada. Esquecer ao montar gastaria
+/// o pedido nessa tela descartada; o `onAppear` só roda na tela que ficou.
+final class FolhaPendente {
+    enum Folha {
+        case formulario
+        case confirmacaoDeApagar
+    }
+
+    private var pedido: (folha: Folha, alvo: AnyHashable)?
+
+    /// - Parameter alvo: o valor empurrado na pilha cuja tela abre a folha (`Estante` ou `RotaDoLivro`).
+    init(_ folha: Folha, em alvo: AnyHashable) {
+        pedido = (folha, alvo)
+    }
+
+    /// A folha, se `valor` é a tela pedida.
+    func folha(em valor: AnyHashable) -> Folha? {
+        guard let pedido = pedido, pedido.alvo == valor else { return nil }
+        return pedido.folha
+    }
+
+    /// Chamado quando a tela aparece: se é a tela pedida, as próximas já abrem normais.
+    func esquecer(se valor: AnyHashable) {
+        if pedido?.alvo == valor { pedido = nil }
     }
 }

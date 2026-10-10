@@ -133,21 +133,25 @@ enum Captura: String {
                 NavegacaoView(
                     dependencias: $0,
                     caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48),
-                    abrirConfirmacaoDoLivro: true
+                    folhaInicial: FolhaPendente(.confirmacaoDeApagar, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo48))
                 )
             }
         // O formulário abre na folha de verdade, sobre a estante ou o detalhe: assim "Cancelar" e "Salvar"
         // fecham a folha também quando o app fica aberto depois da captura (como raiz, não haveria o que fechar).
         case .formularioNovo:
             ComExemplos {
-                NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.escritorio), abrirFormulario: true)
+                NavegacaoView(
+                    dependencias: $0,
+                    caminhoInicial: Self.caminho(DadosDeExemplo.escritorio),
+                    folhaInicial: FolhaPendente(.formulario, em: DadosDeExemplo.escritorio)
+                )
             }
         case .formularioEditar:
             ComExemplos {
                 NavegacaoView(
                     dependencias: $0,
                     caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48),
-                    abrirFormulario: true
+                    folhaInicial: FolhaPendente(.formulario, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo48))
                 )
             }
         }
