@@ -136,14 +136,19 @@ enum Captura: String {
                     abrirConfirmacaoDoLivro: true
                 )
             }
-        // O formulário abre como raiz (e não na folha): a captura mostra o mesmo conteúdo, sem a animação de subir.
+        // O formulário abre na folha de verdade, sobre a estante ou o detalhe: assim "Cancelar" e "Salvar"
+        // fecham a folha também quando o app fica aberto depois da captura (como raiz, não haveria o que fechar).
         case .formularioNovo:
             ComExemplos {
-                LivroFormularioView(viewModel: $0.fazerLivroFormularioViewModel(modo: .novo(estanteId: DadosDeExemplo.escritorio.id)))
+                NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.escritorio), abrirFormulario: true)
             }
         case .formularioEditar:
             ComExemplos {
-                LivroFormularioView(viewModel: $0.fazerLivroFormularioViewModel(modo: .edicao(livroId: DadosDeExemplo.tratadoTomo48)))
+                NavegacaoView(
+                    dependencias: $0,
+                    caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48),
+                    abrirFormulario: true
+                )
             }
         }
     }

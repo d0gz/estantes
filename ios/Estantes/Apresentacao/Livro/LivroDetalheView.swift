@@ -5,19 +5,23 @@ struct LivroDetalheView: View {
     @StateObject private var viewModel: LivroDetalheViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var confirmandoExclusao: Bool
-    @State private var editando = false
+    @State private var editando: Bool
     /// Cria o ViewModel do formulário; vem da montagem para a tela não precisar conhecer `Dependencias`.
     private let formulario: @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel
 
-    /// - Parameter abrirConfirmacao: abre a confirmação de apagar logo de início (só as capturas usam).
+    /// - Parameters:
+    ///   - abrirConfirmacao: abre a confirmação de apagar logo de início (só as capturas usam).
+    ///   - abrirFormulario: abre a edição logo de início (só as capturas usam).
     init(
         viewModel: @autoclosure @escaping () -> LivroDetalheViewModel,
         formulario: @escaping @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel,
-        abrirConfirmacao: Bool = false
+        abrirConfirmacao: Bool = false,
+        abrirFormulario: Bool = false
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
         self.formulario = formulario
         _confirmandoExclusao = State(initialValue: abrirConfirmacao)
+        _editando = State(initialValue: abrirFormulario)
     }
 
     var body: some View {

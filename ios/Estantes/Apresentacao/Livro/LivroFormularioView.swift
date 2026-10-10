@@ -58,8 +58,10 @@ struct LivroFormularioView: View {
     private var formulario: some View {
         Form {
             Section {
-                campo("Título (obrigatório)", \.titulo, problema: .titulo)
+                campo("Título *", \.titulo, problema: .titulo)
                 campo("Subtítulo", \.subtitulo)
+            } footer: {
+                Text("* obrigatório")
             }
 
             Section {
@@ -75,16 +77,16 @@ struct LivroFormularioView: View {
                     Label("Adicionar autor", systemImage: "plus.circle.fill")
                 }
             } header: {
-                Text("Autores (ao menos um)")
+                Text("Autores *")
             } footer: {
                 erro(.autores)
             }
 
             Section("Publicação") {
-                campo("Editora (obrigatório)", \.editora, problema: .editora)
+                campo("Editora *", \.editora, problema: .editora)
                 campo("Local", \.local)
                 campo("Edição (ex.: 3.ª ed.)", \.edicao)
-                campo("Ano (obrigatório)", \.ano, problema: .ano, teclado: .numberPad)
+                campo("Ano *", \.ano, problema: .ano, teclado: .numberPad)
                 campo("Páginas", \.paginas, problema: .paginas, teclado: .numberPad)
                 campo("ISBN", \.isbn13, teclado: .numberPad)
             }

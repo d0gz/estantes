@@ -3,16 +3,18 @@ import SwiftUI
 /// Os livros de uma estante, em seções por prateleira. Versão 0.x (só lógica).
 struct EstanteView: View {
     @StateObject private var viewModel: EstanteViewModel
-    @State private var adicionando = false
+    @State private var adicionando: Bool
     /// Cria o ViewModel do formulário; vem da montagem para a tela não precisar conhecer `Dependencias`.
     private let formulario: @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel
 
     init(
         viewModel: @autoclosure @escaping () -> EstanteViewModel,
-        formulario: @escaping @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel
+        formulario: @escaping @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel,
+        abrirFormulario: Bool = false
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
         self.formulario = formulario
+        _adicionando = State(initialValue: abrirFormulario)
     }
 
     var body: some View {
