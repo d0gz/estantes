@@ -1692,3 +1692,99 @@ flowchart LR
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4d — Formulário de adicionar e editar livro (2026-10-10)
+
+### O que foi feito
+Criamos a regra `RascunhoLivro` em `Dominio/Regras/` (só Foundation, 17 testes): o livro como o formulário o edita, com validação e conversão para `Livro`. Sobre ela veio o `LivroFormularioViewModel` (modos `.novo(estanteId)` e `.edicao(livroId)`, 10 testes) e a `LivroFormularioView`, uma folha (`sheet`) com `NavigationStack` próprio. Junto, a `FolhaPendente` em `App/NavegacaoView.swift`, que decide qual tela abre uma folha por pedido das capturas. O total foi de 266 para 293 testes.
+
+### Conceitos envolvidos
+
+**Rascunho (draft) como tipo próprio.** Formulário não edita o modelo; edita uma *cópia de trabalho* que pode estar inválida. `RascunhoLivro` guarda tudo como `String` (e `autores: [String]`). Motivo: se o campo "ano" fosse `Int?`, digitar "20a" não teria representação, e a tela só saberia dizer "vazio". Com texto, o estado intermediário existe, a regra o aponta (`numeroInvalido`) e a conversão para `Int` acontece uma única vez, em `montar`. É o princípio "parse, don't validate" aplicado ao limite entre a interface e o domínio: dentro do domínio os tipos já são os certos; na borda, texto.
+
+```mermaid
+flowchart LR
+    T[Campos de texto] --> R[RascunhoLivro<br/>Strings]
+    R -->|problemas| E[Campo: Problema<br/>mensagens na tela]
+    R -->|montar sobre base| L[Livro<br/>Int, nil, UUID]
+    L --> P[(Repositório / Core Data)]
+```
+
+**Validação de número com ponto de milhar.** A regra: inteiro > 0, com ponto só *entre dígitos* ("1.710", como artigos aparecem impressos). Rejeita "1..710", ".710", "710." e "½". Detalhe importante: `Character.isNumber` é verdadeiro para "½", "٣" (dígito árabe) e outros; o `Int(...)` depois falharia ou, pior, a regra aceitaria lixo. Por isso a função própria `isASCIIDigit` (compara com "0"..."9"). Overflow (`Int("99999999999999999999")` devolve `nil`) também vira erro, em vez de crash. Lição geral: `isNumber`, `isLetter` etc. seguem o Unicode; para formato de dado, defina o alfabeto explicitamente.
+
+**Edição preserva o que o formulário não mostra.** `montar(sobre base: Livro?)` parte do livro existente e sobrescreve só os campos editáveis. Assim `id`, `adicionadoEm`, `origem`, `itensSumario`, `categoriaIds`, `cddir`, `cddirCaminho` e `urn` sobrevivem. Se o formulário montasse um `Livro` do zero, salvar apagaria o sumário e a classificação sem ninguém notar (perda silenciosa de dados). Livro novo recebe `origem = .manual`.
+
+**Vários autores em camadas.** A mesma informação tem forma diferente em cada camada, e cada forma serve ao seu trabalho:
+
+| Camada | Forma | Por quê |
+| --- | --- | --- |
+| Domínio / formulário | `[String]` | a ordem importa (primeiro autor) e a lista é natural |
+| Core Data | uma `String`, um nome por linha | sem entidade `Autor` (decisão da 2.2): evita relação e junção para um dado que só se exibe e se busca |
+| Detalhe | rótulo "Autor" ou "Autores" | muda conforme a quantidade |
+| Busca | campo `autor` com peso baixo | no BM25F, autor ajuda mas não deve superar o título |
+
+Para a tela havia duas opções. (1) Lista de campos, uma linha por autor, como no app Contatos: não depende da tecla Return e cada nome é inequívoco. (2) Uma caixa multilinha: mais simples, mas Return confunde no iPhone e "Fulano e Beltrano" viraria um autor só. Escolhemos a (1). Papel do autor (coordenador, organizador) ficou fora do escopo.
+
+**Obrigatoriedade só na borda.** O plano dizia "só título". Recomendei isso porque o cadastro manual existe justamente para o livro com dados faltando. O Ricardo escolheu título + autor + editora + ano. Consequência: a exigência vive apenas no formulário (`problemas()`); `Livro`, Core Data e JSON continuam com esses campos opcionais. Razão: LexML, Google Books e Gemini (Fase 3) e livros antigos podem não trazer editora ou ano, e se o banco exigisse, a importação falharia. Efeito colateral aceito: editar um livro importado sem editora/ano obriga a completá-los antes de salvar. É o princípio de "validação depende do contexto": a mesma entidade tem regras diferentes conforme a porta de entrada.
+
+**Erros só depois da primeira tentativa.** `tentouSalvar` evita mostrar vermelho num formulário recém-aberto (ninguém digitou nada ainda). Depois da primeira tentativa, a validação é ao vivo.
+
+**`alterado` e `interactiveDismissDisabled`.** `alterado` é `rascunho != inicial` (exige `Equatable`). Enquanto há mudanças, `.interactiveDismissDisabled(alterado)` impede fechar a folha arrastando e perder o que foi digitado; Cancelar continua disponível.
+
+**Reordenar e remover sem o SwiftUI.** `remove(atOffsets:)` e `move(fromOffsets:toOffset:)` são extensões do SwiftUI, e o ViewModel só importa Foundation; reescrevemos à mão. A convenção do `onMove` é traiçoeira: o `toOffset` é a posição *antes* de retirar os itens movidos. Mover o índice 0 para `toOffset` 2 em `[A,B,C]` dá `[B,A,C]` (a posição final é 1, não 2). Regra prática: se `toOffset > origem`, subtrai-se o número de itens movidos que estavam antes do destino. Testamos 6 casos.
+
+**Binding por posição.** Cada campo de autor usa um `Binding` construído por índice. Ao apagar uma linha, o SwiftUI pode ainda avaliar o binding do índice antigo, já fora do array; o getter/setter precisa tolerar isso (devolver "" e ignorar), senão há crash de índice fora dos limites.
+
+**Fábrica por closure.** As telas recebem `(Modo) -> LivroFormularioViewModel` em vez de `Dependencias`. Elas ficam sem saber como o ViewModel é montado (inversão de dependência), e testes ou capturas injetam qualquer fábrica.
+
+**Folha e ciclo de vida.** Uma `sheet` não faz a tela de trás receber `onAppear` ao fechar. Por isso a releitura do banco foi para o `onDismiss` da sheet.
+
+**`FolhaPendente` e efeito colateral no `body`.** Este foi o aprendizado mais valioso da tarefa; veja "Armadilhas". Em resumo: o SwiftUI chama o bloco do `navigationDestination` (e qualquer `body`) quantas vezes quiser e pode descartar o resultado; esses blocos precisam ser *funções puras do estado*. Efeitos (gastar um pedido, gravar, disparar rede) vão em `onAppear`/`task`/ações.
+
+### Por que assim
+- **Regra no Domínio, não no ViewModel:** é lógica pura, testa sem `@MainActor`, e a tela de confirmação da Fase 3 (pós-leitura de código de barras) reaproveita a mesma validação.
+- **Texto no rascunho, `Int` ao salvar:** o estado inválido precisa existir para ser apontado.
+- **Relê o livro do banco no modo edição:** a mesma fonte única da verdade do detalhe (2.4c); a rota leva só o id.
+- **Lista de campos para autores:** não depende do Return e dá identidade clara a cada nome.
+- **Exigência só no formulário:** protege a importação da Fase 3.
+- **Asterisco no rótulo** (escolha do Ricardo) em vez de "(obrigatório)" no placeholder, que desaparece ao digitar; a nota cinza "* obrigatório" foi tirada por ele, e ficam as mensagens vermelhas.
+
+### Alternativas descartadas
+- **`Int?` direto no ViewModel:** perde o "20a".
+- **`NumberFormatter`/`Int(...)` puro:** `Int("1.710")` é `nil`; e formatadores dependem de locale (aceitariam vírgula em alguns, rejeitariam ponto em outros). Regra explícita é previsível.
+- **Entidade `Autor` no Core Data:** relação muitos-para-muitos, migração e junções para ganho nenhum hoje.
+- **Caixa multilinha para autores:** ver acima.
+- **Obrigar só o título:** a recomendação inicial; o Ricardo preferiu cadastros mais completos, o que é uma decisão legítima de produto, com o custo conhecido.
+- **Validar no banco (Core Data `optional = NO`):** quebraria importação.
+
+### Padrões e boas práticas
+- **Draft / DTO de formulário** e **parse na borda**. Não vale para telas triviais (um campo, sem validação): o custo de um tipo extra não compensa.
+- **Preservar o que não se edita** ao salvar: "copiar e alterar" (`var novo = base`), nunca reconstruir.
+- **Funções puras para regras** e testes de tabela (vários casos de `move`).
+- **Closure fábrica** no lugar de passar um contêiner de dependências inteiro (evita *service locator* disfarçado).
+- **Testar com o estado vazio, o limite e o absurdo** (overflow, "½", "1..710").
+
+### Armadilhas
+- **Bug 1: "Cancelar não fecha e Salvar não funciona".** As capturas abriam o formulário como *raiz* da tela, sem folha por baixo. `dismiss()` só fecha o que foi apresentado; sem apresentação, não faz nada. Salvar gravava no banco, mas a tela ficava parada. Diagnóstico: o Ricardo testou o app que a captura deixou aberto; o código estava certo, o *cenário* estava errado. Moral: ferramenta de teste/captura não pode montar a tela de um jeito que o app real nunca monta.
+- **Bug 2: "a edição abre sozinha ao ver qualquer livro".** O booleano `abrirFormulario` era passado a *toda* `LivroDetalheView` criada pelo `navigationDestination`. O mesmo defeito existia em `abrirConfirmacaoDoLivro` desde a 2.4c. Correção: `FolhaPendente`, classe guardada em `@State`, com um alvo (`Estante` ou `RotaDoLivro`); só a tela pedida abre, uma vez.
+- **Tropeço dentro da correção.** A 1ª versão "consumia" o pedido dentro do bloco do `navigationDestination`. Nenhuma folha abriu: o SwiftUI chamou o bloco mais de uma vez e descartou a primeira view montada; o pedido foi gasto na descartada. Versão final: `folha(em:)` só *lê*; `esquecer(se:)` roda no `.onAppear` da tela-alvo (a que ficou na tela). Usa `@State` porque quem monta a `NavegacaoView` pode recriá-la, e uma referência `let` nova reiniciaria o pedido.
+- **Compilação:** usar `self.rascunho` antes de todas as propriedades estarem inicializadas no `init` é erro em Swift (two-phase initialization: antes de tudo inicializado, `self` não pode ser lido). Calcule num `let inicial` local e atribua às duas propriedades.
+- **"DTXProxyChannel" / Testing failed sem nenhum erro de teste:** falha de infraestrutura do simulador, não do código; rodar de novo resolveu. Diagnóstico: ausência de `error:` ou de asserção falha no log.
+- **Pendências:** campo preenchido perde o nome (o placeholder some; "1965" sem dizer que é o ano), a tratar no estilo do Formulário; arrastar autor no iOS 16 pode exigir toque longo (Ricardo confere).
+
+### Para ir além
+- Alexis King, *Parse, don't validate* (artigo; busque o título).
+- Documentação Apple: *Form*, *sheet(isPresented:onDismiss:content:)*, *DismissAction* e *interactiveDismissDisabled(_:)*.
+- Documentação Apple, *The Swift Programming Language*: "Initialization" (inicialização em duas fases).
+
+### Perguntas
+1. Com suas palavras: por que `RascunhoLivro` guarda o ano como `String` e só vira `Int` em `montar`? O que se perderia com `Int?`?
+2. Aplicação: na Fase 3, o Gemini devolve um livro sem editora. A tela de confirmação reaproveita `RascunhoLivro`. O que acontece ao salvar, e por que isso é desejável ou não? O que mudaria se a exigência estivesse em Core Data?
+3. Raciocínio: no `onMove`, em `[A,B,C,D]`, o usuário arrasta `A` para depois de `C`. Qual é o `toOffset` recebido e qual a lista final? E por que consumir o pedido da `FolhaPendente` dentro do bloco do `navigationDestination` fez nenhuma folha abrir?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
