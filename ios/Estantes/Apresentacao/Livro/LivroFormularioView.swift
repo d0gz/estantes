@@ -5,6 +5,7 @@ struct LivroFormularioView: View {
     @StateObject private var viewModel: LivroFormularioViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var volumeAberto = false
+    @FocusState private var editandoPrateleira: Bool
 
     init(viewModel: @autoclosure @escaping () -> LivroFormularioViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -33,6 +34,9 @@ struct LivroFormularioView: View {
         .task {
             await viewModel.carregar()
             volumeAberto = temDadosDeVolume
+        }
+        .onChange(of: viewModel.rascunho.estanteId) { _ in
+            Task { await viewModel.carregarPrateleiras() }
         }
         .alert("Algo deu errado", isPresented: erroAberto) {
             Button("OK", role: .cancel) {}
@@ -106,7 +110,19 @@ struct LivroFormularioView: View {
                         Text(estante.nome).tag(estante.id)
                     }
                 }
-                campo("Prateleira (ex.: 2ª de cima)", \.prateleira)
+                TextField("Prateleira (ex.: 2ª de cima)", text: $viewModel.rascunho.prateleira)
+                    .focused($editandoPrateleira)
+                // Só com o campo em foco: fora dele, as sugestões só ocupariam espaço.
+                if editandoPrateleira {
+                    ForEach(viewModel.sugestoesDePrateleira, id: \.self) { etiqueta in
+                        Button {
+                            viewModel.escolherPrateleira(etiqueta)
+                            editandoPrateleira = false
+                        } label: {
+                            Label(etiqueta, systemImage: "arrow.turn.down.right")
+                        }
+                    }
+                }
             }
         }
     }

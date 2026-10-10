@@ -20,6 +20,8 @@ final class LivroFormularioViewModel: ObservableObject {
     @Published private(set) var estado: Estado = .carregando
     /// Opções do seletor de estante.
     @Published private(set) var estantes: [Estante] = []
+    /// Etiquetas já usadas na estante escolhida, de onde saem as sugestões do campo da prateleira.
+    @Published private(set) var prateleirasDaEstante: [String] = []
     @Published private(set) var salvando = false
     @Published var mensagemDeErro: String?
     /// Os erros só aparecem depois da primeira tentativa de salvar: um formulário novo todo em vermelho assusta à toa.
@@ -73,6 +75,7 @@ final class LivroFormularioViewModel: ObservableObject {
                 rascunho = RascunhoLivro(livro: livro)
                 rascunhoInicial = rascunho
             }
+            await carregarPrateleiras()
             estado = .pronto
         } catch {
             estado = .erro("Não foi possível abrir o formulário.")
@@ -92,6 +95,22 @@ final class LivroFormularioViewModel: ObservableObject {
             mensagemDeErro = "Não foi possível salvar o livro."
             return false
         }
+    }
+
+    // MARK: Prateleira
+
+    var sugestoesDePrateleira: [String] {
+        SugestaoDePrateleira.sugerir(para: rascunho.prateleira, entre: prateleirasDaEstante)
+    }
+
+    /// Relida a cada troca de estante: as etiquetas são de cada estante.
+    func carregarPrateleiras() async {
+        // A sugestão é só uma ajuda: se a leitura falhar, o formulário segue sem ela.
+        prateleirasDaEstante = (try? await repositorio.prateleiras(naEstante: rascunho.estanteId)) ?? []
+    }
+
+    func escolherPrateleira(_ etiqueta: String) {
+        rascunho.prateleira = etiqueta
     }
 
     // MARK: Autores

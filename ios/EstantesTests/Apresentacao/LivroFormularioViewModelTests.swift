@@ -162,4 +162,67 @@ final class LivroFormularioViewModelTests: XCTestCase {
             XCTAssertEqual(viewModel.rascunho.autores, esperado, "\(Array(origem)) → \(destino)")
         }
     }
+
+    // MARK: Prateleira
+
+    private func repositorioComPrateleiras() -> BibliotecaRepositorioEmMemoria {
+        BibliotecaRepositorioEmMemoria(estantes: [escritorio, sala], livros: [
+            Livro(estanteId: escritorio.id, titulo: "A", prateleira: "caixa azul"),
+            Livro(estanteId: escritorio.id, titulo: "B", prateleira: "2ª de cima"),
+            Livro(estanteId: sala.id, titulo: "C", prateleira: "aparador"),
+        ])
+    }
+
+    func testCarregaAsPrateleirasDaEstanteDoRascunho() async {
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras())
+
+        await viewModel.carregar()
+
+        XCTAssertEqual(viewModel.prateleirasDaEstante, ["2ª de cima", "caixa azul"])
+        XCTAssertEqual(viewModel.sugestoesDePrateleira, ["2ª de cima", "caixa azul"])
+    }
+
+    func testSugestoesSeguemOTextoDigitado() async {
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras())
+        await viewModel.carregar()
+
+        viewModel.rascunho.prateleira = "AZ"
+
+        XCTAssertEqual(viewModel.sugestoesDePrateleira, ["caixa azul"])
+    }
+
+    func testTrocarDeEstanteRecarregaAsPrateleiras() async {
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras())
+        await viewModel.carregar()
+
+        viewModel.rascunho.estanteId = sala.id
+        await viewModel.carregarPrateleiras()
+
+        XCTAssertEqual(viewModel.prateleirasDaEstante, ["aparador"])
+    }
+
+    func testEscolherPrateleiraPreencheORascunho() async {
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras())
+        await viewModel.carregar()
+        viewModel.rascunho.prateleira = "cai"
+
+        viewModel.escolherPrateleira("caixa azul")
+
+        XCTAssertEqual(viewModel.rascunho.prateleira, "caixa azul")
+        XCTAssertEqual(viewModel.sugestoesDePrateleira, [])
+    }
+
+    func testFalhaAoLerPrateleirasNaoAtrapalhaOFormulario() async {
+        let repositorio = repositorioComPrateleiras()
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio)
+        await viewModel.carregar()
+
+        repositorio.falharAoLer = true
+        viewModel.rascunho.estanteId = sala.id
+        await viewModel.carregarPrateleiras()
+
+        XCTAssertEqual(viewModel.prateleirasDaEstante, [])
+        XCTAssertEqual(viewModel.estado, .pronto)
+        XCTAssertNil(viewModel.mensagemDeErro)
+    }
 }
