@@ -44,6 +44,13 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 - Toda regra nova do Domínio nasce com teste XCTest em `EstantesTests/Dominio/`.
 - A busca é **só local** (biblioteca do usuário, offline): índice invertido + BM25F em `Dominio/Busca/`.
 
+## Testes
+<!-- Adaptado de skills/engineering/tdd (Matt Pocock, github.com/mattpocock/skills, licença MIT). -->
+Antes de escrever testes, liste no plano da tarefa as fronteiras (interfaces públicas) a testar, com
+uma linha sobre o que cada uma pega e o que deixa passar, e espere o OK do Ricardo. Nada de teste
+tautológico: o valor esperado vem de fonte independente (literal conhecido, exemplo resolvido, PLANO),
+nunca recalculado como o código calcula. Um teste e uma implementação por vez (vermelho → verde).
+
 ## Estrutura
 - `ios/project.yml` — definição do projeto (XcodeGen)
 - `ios/Estantes/`, `ios/EstantesTests/` — código e testes

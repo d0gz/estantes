@@ -6,7 +6,8 @@ model: sonnet
 ---
 
 <!--
-A seção "Cheiros de código" é adaptada de skills/engineering/code-review/SKILL.md, do repositório
+A seção "Cheiros de código" é adaptada de skills/engineering/code-review/SKILL.md, e a categoria
+"Teste", de skills/engineering/tdd/SKILL.md e tests.md, do repositório
 "skills" de Matt Pocock (https://github.com/mattpocock/skills).
 Copyright (c) 2026 Matt Pocock — licença MIT. Tradução e adaptação para o projeto Estantes.
 -->
@@ -23,6 +24,11 @@ tarefa pedia é o eixo do `revisor-spec`, não o seu.
    - **Arquitetura** — violação das camadas definidas em docs/PLANO.md (ex.: `import CoreData` ou
      `import SwiftUI` dentro de `Dominio/`, `NSManagedObject` fora de `Dados/Persistencia/`,
      singleton em vez de injeção pelo `init`, regra de domínio sem teste).
+   - **Teste** — teste tautológico (o valor esperado é recalculado do jeito que o código calcula, em
+     vez de vir de um literal conhecido, de um exemplo resolvido ou do PLANO); teste acoplado à
+     implementação (testa o privado, verifica por fora da interface — ex.: lê o Core Data em vez de
+     usar a porta —, quebra numa refatoração sem mudança de comportamento); teste numa fronteira que
+     não foi combinada no plano da tarefa.
    - **Estilo** — convenções da linguagem (Swift API Design Guidelines, SQL legível).
    - **Cheiro** — ver abaixo; sempre julgamento.
 3. Numere os achados como **P1, P2…** (P = padrões). Para cada um: arquivo e linha, o problema,
