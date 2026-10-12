@@ -347,12 +347,29 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 ### Interface
 
 - Botão da câmera embaixo, centralizado.
-- Estantes em grade; estado vazio com livros esmaecidos `#cbe8f5` e "+" azul-escuro (conferir contraste).
+- Estantes em grade; estado vazio com livros esmaecidos na cor `superficie` (`#AED3FC`) e "+" na cor `destaque` (petróleo).
 - Topo: último livro escaneado + campo de busca (`.searchable`): título, autor e assunto →
   "Livro · item do sumário, p. N · Estante X · prateleira". Com a busca ativa, aparecem os chips de filtro.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
   menu (⋯) no canto superior.
+
+- **Fundamentos do estilo (Estilo 0, decididos em 12/10):**
+  - Referências: Apple Books (disposição dos livros: capas protagonistas, serifa, transição capa → detalhe), Bevel (forma e
+    movimento: cartões macios, molas), Goodreads (densidade de informação do Detalhe) e Shelf Life (simplicidade).
+  - Cores por papel (60-30-10): branco `fundo`; `#AED3FC` `superficie`/seleção (nunca texto sobre branco: 1,55:1);
+    petróleo `#1F5F73` único `destaque` (7,1:1 no branco; 4,6:1 sobre `#AED3FC`). No escuro, `#AED3FC` vira destaque
+    (11:1 sobre `#1C1C1E`) e o petróleo, superfície (branco sobre ele 7,1:1).
+  - Tipografia: SF na interface; New York (`design: .serif`) só em títulos de livros e estantes; tudo Dynamic Type.
+  - Forma: cantos contínuos, raios 8/12/20; sem contornos (separação por cor e sombra leve; no escuro, elevação por cor).
+  - Movimento: animações por mola com tokens nomeados; transições de entrada e saída em vez de aparecer seco; respeitar
+    "Reduzir movimento".
+  - "Vidro" (Liquid Glass) imitado no iOS 16 (`.ultraThinMaterial`, brilho claro fino na borda, pressão com mola) só nos
+    elementos flutuantes (botão da câmera, barra de filtros); as barras do sistema ganham o vidro real sozinhas no `.ipa`
+    da CI (Xcode 26) em iPhone com iOS 26.
+  - Categorias (2.5): cores do sistema da Apple sem azul/ciano/teal (~9), em pastel: chip com fundo da cor a ~20% e texto
+    na cor padrão (12,8–15,5:1); cor cheia só num ponto ou ícone.
+  - Fica para a tela Estante: capas × lombadas.
 
 ### Forma de trabalho nas telas (2.4 em diante)
 
@@ -398,8 +415,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   em foco (`@FocusState`), relidas ao trocar de estante; falha na leitura não atrapalha o formulário.
   Próximos, nesta ordem, cada um começando pela explicação e esperando o OK (o Ricardo testa cada passo à mão):
   1. **Estilo 0 — fundamentos** (antes de qualquer tela; base: Human Interface Guidelines da Apple):
-     a. Referências: o Ricardo escolhe 2–3 apps (ex.: Apple Books, Notas, Things, Goodreads); o Claude aponta o que cada um faz bem.
-     b. Tokens semânticos em `Apresentacao/Componentes/` (cores por papel — `fundo`, `superficie`, `destaque`, `textoSecundario`…;
+     a. ✅ Referências e direção (12/10, via `/decidir`): ver "Fundamentos do estilo" na seção Interface.
+     b. **Próximo.** Tokens semânticos em `Apresentacao/Componentes/` (cores por papel — `fundo`, `superficie`, `destaque`, `textoSecundario`…;
         escala de espaçamento; raios; estilos de texto do Dynamic Type; SF Symbols). Partir das cores do sistema; regra 60-30-10,
         um destaque só; contraste ≥ 4,5:1 medido (a mesma conferência serve à paleta de categorias da 2.5, que é separada).
      c. Tela de catálogo só em DEBUG (`-captura Estilo`), com capturas em par claro/escuro (`xcrun simctl ui booted appearance dark`)
@@ -638,3 +655,7 @@ do parser e do Gemini.
 | 09/10 | Parada a 5–8% do limite de uso: PLANO atualizado, commit, PR em rascunho; volta só com uso reiniciado ou ordem do Ricardo | Não perder trabalho no meio; o Claude não vê o `/usage`, então o Ricardo avisa |
 | 12/10 | Skills do Matt Pocock (MIT) adaptadas em português, não instaladas: `/decidir`, `revisor-spec`, cheiros de Fowler e regras de teste no `revisor`, `GLOSSARY.md`, `/diagnosticar`, hook de git em Python | O plugin vem em inglês, duplica PLANO, revisor, teacher e fechar-fase, supõe rastreador de issues e jq (ausente no Monterey); adaptar só as peças que faltam mantém um fluxo só |
 | 12/10 | `auditor-testes` no `/fechar-fase` (só os testes alterados na fase); mutação manual (~10 mutações nas regras críticas, numa branch sem commit) a cada fase | O auditor lê o teste e acha esperado recalculado ou fraco; a mutação prova se algum teste percebe o código errado. 1ª rodada: 2 tautológicos e 14 fracos; 13/13 mutações mortas |
+| 12/10 | Paleta por papel: branco `fundo` (60), `#AED3FC` `superficie` (30), petróleo `#1F5F73` único `destaque` (10); no escuro, `#AED3FC` vira destaque e o petróleo, superfície | Escolha do Ricardo a partir das referências; cores do sistema (azul padrão) descartadas por falta de identidade. `#AED3FC` sobre branco dá 1,55:1 e por isso nunca é texto; o petróleo dá 7,1:1 no branco e 2,4:1 no escuro, daí a troca de papéis |
+| 12/10 | Fonte serifada (New York) só em títulos de livros e estantes; SF no resto, tudo Dynamic Type | Dá cara de livro (referência: Apple Books) sem perder a legibilidade dos controles; "só SF" e "serifa também nos títulos de tela" descartadas |
+| 12/10 | "Vidro" (Liquid Glass) imitado no iOS 16 — material translúcido, brilho fino e pressão com mola — só nos elementos flutuantes; o vidro real fica com as barras do sistema no build da CI | `glassEffect`/`.buttonStyle(.glass)` são só iOS 26 e não compilam no Xcode 14.2; com `#if compiler` o efeito existiria só no `.ipa`, sem como ver ou testar. Vidro em tudo perde legibilidade sobre listas |
+| 12/10 | Paleta de categorias = cores do sistema da Apple, sem azul/ciano/teal, em estilo pastel (fundo ~20%, texto padrão); implementada na 2.5 (complementa a linha de 03/10 da paleta fixa) | Tons claro/escuro e "Aumentar contraste" de graça; como texto sobre branco quase todas reprovam (amarelo 1,5:1), como fundo pastel passam (≥ 12,8:1). Pastel do Plotly descartado (hex fixos, sem modo escuro); azuis confundiriam com o destaque |
