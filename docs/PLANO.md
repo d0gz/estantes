@@ -410,7 +410,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
      Nota: com "Caixa azul" e "caixa azul" na estante, a sugestão mostra "caixa azul" (ordem natural), e o grupo da
      estante, a grafia mais usada; podem diferir (a porta não traz contagem).
   3. Fechamento: CI verde, PR pronto para revisão, checklist e CLAUDE.md atualizados.
-  Ferramentas: `./scripts/testar.sh`; `./scripts/capturar.sh <Tela> <versão> [<pasta>]` (casos no enum `Captura`, `App/Exemplos.swift`);
+  Ferramentas: `./scripts/testar.sh` (com `TEST_RUNNER_RELATORIO=1` na frente, roda também o relatório `[referencia]`
+  e a varredura `[varredura]` da busca, que fora disso ficam pulados; a saída fica no log); `./scripts/capturar.sh <Tela> <versão> [<pasta>]` (casos no enum `Captura`, `App/Exemplos.swift`);
   testar à mão com `xcrun simctl launch "iPhone 14" com.ricardo.estantes -captura Inicio` (exemplos em memória).
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)

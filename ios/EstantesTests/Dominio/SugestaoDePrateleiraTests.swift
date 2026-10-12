@@ -42,6 +42,8 @@ final class SugestaoDePrateleiraTests: XCTestCase {
             sugerir("2", ["caixa 2", "2ª de cima", "sem número"]),
             ["2ª de cima", "caixa 2"]
         )
+        // Aqui a ordem natural poria "bica" antes: só a regra coloca "caixa" na frente.
+        XCTAssertEqual(sugerir("ca", ["bica", "caixa"]), ["caixa", "bica"])
     }
 
     func testAchaNoMeioDaEtiqueta() {

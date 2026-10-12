@@ -67,9 +67,13 @@ final class SingularTests: XCTestCase {
     func testSingularDoSingularEhOMesmo() {
         // Aplicar duas vezes não pode mudar de novo: o índice guarda o termo e a consulta pode chegar
         // já no singular.
-        for plural in ["prisoes", "penais", "imoveis", "ordens", "cautelares", "juizes", "direitos", "arts"] {
-            let singular = Singular.forma(plural)
-            XCTAssertEqual(Singular.forma(singular), singular, plural)
+        let pares = [
+            ("prisoes", "prisao"), ("penais", "penal"), ("imoveis", "imovel"), ("ordens", "ordem"),
+            ("cautelares", "cautelar"), ("juizes", "juiz"), ("direitos", "direito"), ("arts", "art"),
+        ]
+        for (plural, singular) in pares {
+            XCTAssertEqual(Singular.forma(plural), singular, plural)
+            XCTAssertEqual(Singular.forma(singular), singular, singular)
         }
     }
 }

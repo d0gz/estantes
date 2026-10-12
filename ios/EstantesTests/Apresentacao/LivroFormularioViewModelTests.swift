@@ -61,6 +61,9 @@ final class LivroFormularioViewModelTests: XCTestCase {
         XCTAssertTrue(salvou)
         let gravado = try XCTUnwrap(repositorio.livrosGuardados.values.first)
         XCTAssertEqual(gravado.titulo, "Teoria pura do direito")
+        XCTAssertEqual(gravado.autores, ["Kelsen, Hans"])
+        XCTAssertEqual(gravado.editora, "Martins Fontes")
+        XCTAssertEqual(gravado.ano, 1998)
         XCTAssertEqual(gravado.origem, .manual)
         XCTAssertEqual(gravado.estanteId, escritorio.id)
     }
@@ -98,7 +101,13 @@ final class LivroFormularioViewModelTests: XCTestCase {
 
         await viewModel.carregar()
 
-        XCTAssertEqual(viewModel.rascunho, RascunhoLivro(livro: livro))
+        // Os valores de `livroImportado()`; o ano vira texto, como o formulário o edita.
+        XCTAssertEqual(viewModel.rascunho.estanteId, escritorio.id)
+        XCTAssertEqual(viewModel.rascunho.titulo, "Tratado de direito privado")
+        XCTAssertEqual(viewModel.rascunho.autores, ["Miranda, Pontes de"])
+        XCTAssertEqual(viewModel.rascunho.editora, "Borsoi")
+        XCTAssertEqual(viewModel.rascunho.ano, "1965")
+        XCTAssertEqual(viewModel.rascunho.local, "")
         XCTAssertEqual(viewModel.titulo, "Editar livro")
         XCTAssertFalse(viewModel.alterado)
     }

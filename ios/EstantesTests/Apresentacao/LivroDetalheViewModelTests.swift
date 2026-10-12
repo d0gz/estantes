@@ -78,6 +78,12 @@ final class LivroDetalheViewModelTests: XCTestCase {
             CampoDoLivro(rotulo: "Artigos", valor: "Arts. 1710–1779"),
         ])
         XCTAssertEqual(secoes[1].campos, [CampoDoLivro(rotulo: "Autor", valor: "Miranda, Pontes de")])
+        // Edição, páginas e ISBN vazios não aparecem; o ano sem ponto de milhar.
+        XCTAssertEqual(secoes[2].campos, [
+            CampoDoLivro(rotulo: "Editora", valor: "Borsoi"),
+            CampoDoLivro(rotulo: "Local", valor: "Rio de Janeiro"),
+            CampoDoLivro(rotulo: "Ano", valor: "1965"),
+        ])
         XCTAssertEqual(secoes[3].campos, [
             CampoDoLivro(rotulo: "Prateleira", valor: "caixa azul"),
             CampoDoLivro(rotulo: "Origem", valor: "LexML"),

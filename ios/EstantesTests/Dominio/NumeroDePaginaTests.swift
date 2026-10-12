@@ -48,6 +48,16 @@ final class NumeroDePaginaTests: XCTestCase {
         XCTAssertNil(NumeroDePagina.romano(4000))
     }
 
+    /// Romanos feitos à mão, nos dois sentidos: a ida e volta abaixo não pega um erro de `romano`
+    /// que `inteiro` repita (ele confere a forma canônica chamando `romano`).
+    func testRomanosConhecidosNosDoisSentidos() {
+        let pares = [(14, "XIV"), (90, "XC"), (400, "CD"), (1999, "MCMXCIX"), (2024, "MMXXIV")]
+        for (numero, texto) in pares {
+            XCTAssertEqual(NumeroDePagina.romano(numero), texto, texto)
+            XCTAssertEqual(NumeroDePagina.inteiro(romano: texto), numero, texto)
+        }
+    }
+
     func testIdaEVoltaDeTodosOsNumeros() {
         for numero in 1...3999 {
             let texto = NumeroDePagina.romano(numero)!

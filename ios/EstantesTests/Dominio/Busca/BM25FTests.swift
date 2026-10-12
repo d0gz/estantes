@@ -82,6 +82,11 @@ final class BM25FTests: XCTestCase {
 
         let nota = BM25F.notas(termos: ["penal"], indice: indice)[completo.id] ?? 0
         XCTAssertLessThan(nota, BM25F.idf(totalDeLivros: 2, livrosComOTermo: 1))
+        // À mão, com o `padrao` (médias sobre os 2 livros; o outro só tem título, de tamanho 2):
+        // título 3·3/1,1 = 8,1818 · subtítulo 2/1,5 = 1,3333 · categorias 1,5/1,3 = 1,1538
+        // · cddir ("direito penal", média 1) 1,5/1,3 = 1,1538 · autores 0,5 · sumário 0,25/1,75 = 0,1429
+        // soma 12,4657 → ln 2 · 12,4657/13,6657 = 0,6931 · 0,9122
+        XCTAssertEqual(nota, 0.6323, accuracy: precisao)
     }
 
     func testRepeticaoSaturaSemDobrarANota() {
@@ -121,6 +126,11 @@ final class BM25FTests: XCTestCase {
     }
 
     func testTermoRepetidoNaConsultaContaUmaVez() {
+        // Os mesmos valores de testExemploPrisao: repetir "prisao" não muda nada.
+        let notas = BM25F.notas(termos: ["prisao", "prisao"], indice: exemplo, parametros: parametrosDoExemplo)
+        XCTAssertEqual(notas.count, 2)
+        XCTAssertEqual(notas[livroA.id] ?? 0, 0.3615, accuracy: precisao)
+        XCTAssertEqual(notas[livroB.id] ?? 0, 0.1774, accuracy: precisao)
         XCTAssertEqual(
             BM25F.notas(termos: ["prisao", "prisao"], indice: exemplo),
             BM25F.notas(termos: ["prisao"], indice: exemplo)
