@@ -561,6 +561,8 @@ do parser e do Gemini.
   Ricardo responde por escrito e o teacher corrige na entrada seguinte.
 - `teacher-consolidador` (Opus) + `/fechar-fase`: guia da fase em `docs/guias/fase-N.md`.
 - `revisor` (Sonnet): revisa as tarefas marcadas `[eu escrevo]`, sem reescrever.
+- `revisor-spec` (Sonnet): em paralelo com o `revisor`, compara o diff com o item do checklist e as
+  decisões deste plano (o que faltou, o que sobrou, o que parece feito mas está errado).
 
 ## Histórico de decisões
 

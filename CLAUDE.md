@@ -75,6 +75,9 @@ OU de reserva, peso do sumário 0,25; 224 testes). PR da branch `fase2/busca` ab
 6. Segredos (chaves de API, service role do Supabase) nunca entram no repositório.
 7. Ao iniciar uma tarefa nova do checklist, ou quando surgir uma decisão com alternativas reais no
    meio de uma tarefa, sugira ao Ricardo rodar /decidir; não decida sozinho.
+8. **Revisão em dois eixos.** Antes de commit relevante, rode `revisor` (padrões) e `revisor-spec`
+   (item do checklist e decisões do PLANO) em paralelo; apresente os relatórios separados, sem
+   misturar nem reordenar os achados (P1… e E1…).
 
 ## Uso de modelos (para economizar)
 | Uso | Modelo |
@@ -84,6 +87,7 @@ OU de reserva, peso do sumário 0,25; 224 testes). PR da branch `fase2/busca` ab
 | `teacher` — registro por tarefa | Sonnet |
 | `teacher-consolidador` — guia de fim de fase | Opus |
 | `revisor` — revisão de código | Sonnet |
+| `revisor-spec` — revisão contra o plano | Sonnet |
 
 Troque o modelo da sessão com `/model` conforme a tarefa.
 
