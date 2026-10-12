@@ -4,6 +4,7 @@
 - `docs/PLANO.md` — arquitetura, decisões já tomadas (com motivo) e checklist de cada fase.
   Não reabra uma decisão registrada ali sem avisar o Ricardo e explicar por quê.
 - `docs/aprendizado/fase-N.md` da fase atual — o que já foi feito e aprendido.
+- `GLOSSARY.md` — termos do domínio (use-os em nomes, testes e textos; evite os sinônimos listados).
 
 ## Objetivo do projeto
 Este projeto existe para **aprender**, não só para entregar um app. O dono do repositório
