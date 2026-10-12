@@ -16,11 +16,18 @@ Argumento opcional: número da fase. Se não vier, use a "Fase atual" do `CLAUDE
    - Se a última entrada tiver respostas ainda não corrigidas, chame o subagente `teacher`
      pedindo apenas a correção dessa entrada.
 
-2. **Consolidar**
+2. **Auditar os testes da fase**
+   - Liste os testes alterados na fase:
+     `git diff --name-only fase-<N-1>..HEAD -- ios/EstantesTests` (para a fase 0, todos).
+   - Chame o subagente `auditor-testes` só com esses arquivos (em lotes paralelos, se forem muitos).
+   - Mostre o relatório ao Ricardo e pergunte o que corrigir antes de consolidar. Não corrija nada
+     sem ele: alguns testes ele mesmo escreve.
+
+3. **Consolidar**
    - Chame o subagente `teacher-consolidador` com o número da fase.
    - Ao terminar, confirme que existe `docs/guias/fase-N.md` (só Markdown; não há PDF).
 
-3. **Registrar e preparar a próxima fase**
+4. **Registrar e preparar a próxima fase**
    - Commit: `Fecha fase N: guia de aprendizado`.
    - Crie uma tag git `fase-N`.
    - Atualize a linha "Fase atual" do `CLAUDE.md` para N+1.
