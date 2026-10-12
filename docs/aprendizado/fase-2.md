@@ -1855,4 +1855,118 @@ Nova regra pura `SugestaoDePrateleira.sugerir(para:entre:limite:)` em `Dominio/R
 3. Raciocínio: sem o desempate `a < b`, que cenário concreto daria resultados diferentes para os mesmos dados? E por que `localizedStandardCompare` não serve para decidir se duas etiquetas são "a mesma"?
 
 ### Minhas respostas
+(sem respostas)
+
+## Tarefa 2.4 / Estilo 0a — Referências e direção visual (2026-10-12)
+
+### O que foi feito
+Sessão de decisão (sem código Swift) que fixou a direção visual do app antes de estilizar as telas: referências e o papel de cada uma, paleta por papel com contraste medido, tipografia, forma e movimento, posição sobre o Liquid Glass e paleta de categorias. Tudo registrado em `docs/PLANO.md` (Histórico de decisões de 12/10) e na linha de status do `CLAUDE.md`. Próximo passo: Estilo 0b, os tokens em `Apresentacao/Componentes/`.
+
+### Conceitos envolvidos
+
+**Referências com papéis separados.** Em vez de "copiar um app", cada referência responde a uma pergunta distinta de design:
+
+| Referência | O que emprestamos |
+| --- | --- |
+| Apple Books | Disposição: capas protagonistas, títulos em serifa (New York), transição capa para detalhe |
+| Bevel | Forma e movimento: cartões macios, cantos arredondados, sem divisórias, animações por mola |
+| Goodreads | Densidade de informação (útil à tela de Detalhe; a estética foi descartada por ser pesada) |
+| Shelf Life | Simplicidade: prateleiras por estado, sem conta |
+
+Observação honesta registrada na sessão: as páginas de Shelf Life e Bevel não descreviam o visual; essas leituras vieram do conhecimento geral dos apps, não de fonte verificada. Vale conferir olhando os apps.
+
+**Regra 60-30-10.** 60% da área é fundo, 30% é superfície (cartões, seleção), 10% é destaque. Um destaque só: quando tudo chama atenção, nada chama. Cores são escolhidas por *papel* (fundo, superfície, destaque), não por "gosto".
+
+**Contraste WCAG.** Luminância relativa L de cada cor (cada canal sRGB é linearizado e ponderado: L = 0,2126 R + 0,7152 G + 0,0722 B). Razão = (L1 + 0,05) / (L2 + 0,05), com L1 a mais clara. Mínimo para texto normal: 4,5:1 (AA). O 0,05 evita divisão por zero no preto e modela a luz ambiente. Resultados medidos:
+
+| Par | Contraste | Veredito |
+| --- | --- | --- |
+| #AED3FC (azul claro) × branco | 1,55 | reprova: nunca texto/ícone sobre branco |
+| petróleo #1F5F73 × branco | 7,14 | passa |
+| petróleo #1F5F73 × #AED3FC | 4,60 | passa |
+| petróleo #1F5F73 × #1C1C1E (fundo escuro) | 2,38 | reprova |
+| #AED3FC × #1C1C1E | 10,96 | passa |
+| #0E4C5A × branco / × azul claro | 9,55 / 6,15 | passa (alternativa) |
+| #2A6F85 × branco / × azul claro | 5,66 / 3,64 | reprova sobre azul claro |
+
+Consequência importante: **no modo escuro os papéis trocam.** O petróleo, ótimo no claro, some no fundo escuro (2,38); então o azul claro vira destaque (10,96) e o petróleo vira superfície (texto branco sobre ele: 7,1). O "tom escuro" de uma cor não é "a mesma cor mais escura": é a cor que cumpre o mesmo papel com contraste suficiente.
+
+**Tipografia.** SF (fonte do sistema) na interface; New York (`Font.system(..., design: .serif)`, disponível no iOS 16) só em títulos de livros e estantes, onde carrega a identidade de "livro". Tudo com Dynamic Type (tamanhos relativos às preferências do usuário) para acessibilidade.
+
+**Cantos contínuos ("squircle").** `RoundedRectangle(cornerRadius:style: .continuous)` usa uma curva de transição gradual entre a reta e o arco (curvatura contínua), em vez de um quarto de círculo preso à reta. Visualmente é mais suave e é o que o iOS usa nos ícones. Raios escolhidos: 8, 12 e 20.
+
+**Elevação sem contorno.** Sem linhas de contorno: a separação vem de cor e sombra leve. No escuro a sombra quase não aparece (sombra preta sobre quase preto), então a elevação passa a ser por cor: superfícies mais elevadas ficam mais claras.
+
+**Animação por mola.** Em vez de curva com duração fixa, a mola (`Animation.spring`) simula massa e rigidez, e responde bem a interrupções (o toque pode mudar de ideia no meio). Tokens nomeados evitam números espalhados. Respeitar "Reduzir movimento" via `@Environment(\.accessibilityReduceMotion)`: quem ativa isso não deve ver deslocamentos grandes.
+
+**Liquid Glass e compilação condicional.** Liquid Glass é a linguagem visual do iOS 26; as APIs `.glassEffect()`, `GlassEffectContainer` e `.buttonStyle(.glass/.glassProminent)` são só iOS 26. A lição central:
+
+```mermaid
+flowchart LR
+  A[Código usa API do iOS 26] --> B{Compila no Xcode 14.2?}
+  B -- "não: SDK desconhece o símbolo" --> C["if #available não ajuda"]
+  C --> D["#if compiler(>=6.2) ajuda, mas só vale no .ipa da CI"]
+  D --> E[Impossível ver no simulador iOS 16 local]
+```
+
+`#available` é checagem em **tempo de execução**: o código dentro do `if` ainda precisa **compilar**, e o compilador do Xcode 14.2 não conhece o símbolo, então dá erro. `#if compiler(>=6.2)` é **compilação condicional**: o trecho nem é analisado em compiladores antigos. Mas aí o efeito existiria só no binário da CI, sem como ser visto aqui. (Do conhecimento geral, não confirmado na pesquisa: app compilado com o SDK do iOS 26 ganha o vidro nas barras do sistema ao rodar no iOS 26.)
+
+**Paleta de categorias.** Cores do sistema da Apple (HIG), medidas como texto sobre branco e como chip pastel (cor a 20% sobre branco, texto #1C1C1E):
+
+| Cor | texto × branco | chip pastel × texto escuro |
+| --- | --- | --- |
+| red FF3B30 | 3,55 | 13,00 |
+| orange FF9500 | 2,20 | 14,50 |
+| yellow FFCC00 | 1,51 | 15,54 |
+| green 34C759 | 2,22 | 14,47 |
+| mint 00C7BE | 2,12 | 14,41 |
+| teal 30B0C7 | 2,57 | 14,19 |
+| cyan 32ADE6 | 2,54 | 14,25 |
+| blue 007AFF | 4,02 | 13,05 |
+| indigo 5856D6 | 5,65 | 12,79 |
+| purple AF52DE | 4,13 | 13,18 |
+| pink FF2D55 | 3,65 | 12,81 |
+| brown A2845E | 3,50 | 13,73 |
+
+Leitura: como **texto**, só o índigo passa (4,5); como **fundo pastel com texto padrão**, todas passam com folga. Daí o desenho: chip com fundo a ~20% e texto na cor padrão, cor cheia apenas num pontinho. Nota: o chip pastel sobre branco tem só ~1,2:1 contra o fundo; quem o distingue é a forma, não o contraste, o que é aceitável porque o chip não carrega informação *só* pela cor (tem texto).
+
+### Por que assim
+- **Um destaque só (petróleo):** coerência e hierarquia; o que é tocável se reconhece de longe.
+- **Contraste medido, não "no olho":** a decisão sobre papéis no escuro só aparece quando se calcula; olho engana (o azul claro "parece" legível sobre branco e dá 1,55).
+- **Serifa só em títulos de livros/estantes:** a serifa sinaliza "isto é um livro"; usada em tudo, perde esse significado.
+- **Vidro imitado só nos flutuantes** (botão da câmera, barra de filtros): `.ultraThinMaterial` + brilho fino na borda + pressão por mola (`ButtonStyle` com `configuration.isPressed`). Material translúcido sobre listas prejudica a leitura; em elementos que flutuam acima do conteúdo, ele faz sentido.
+- **Cores do sistema sem azul/ciano/teal:** esses tons se confundiriam com o destaque e com o que é tocável. Sobram cerca de 9 cores.
+
+### Alternativas descartadas
+- **"Só SF"** (sem identidade) e **serifa também nos títulos de tela** (cansa, dilui o papel da serifa).
+- **Liquid Glass real via `#if compiler(>=6.2)`:** não verificável localmente; arriscaria divergência entre o que o Ricardo vê e o que a CI gera.
+- **Vidro em tudo:** perde legibilidade sobre listas.
+- **Plotly Pastel para categorias:** hex fixos, sem variante para modo escuro, enquanto as cores do sistema se adaptam.
+- **Modo escuro removido:** mantido (decidido em 10/10).
+- Padrões de HIG (por exemplo, usar mola, transições) ficaram fora do Histórico por não serem surpreendentes.
+
+### Padrões e boas práticas
+- **Tokens de design** (cor, tipografia, raio, animação com nomes por papel): mudar o visual vira mudar um lugar. Quando NÃO usar: protótipo descartável de uma tela só.
+- **Cor nunca como único canal de informação** (acessibilidade para daltonismo): o chip tem texto.
+- **Cores semânticas por papel**, com variante clara e escura via asset catalog.
+- **Decisão registrada com o motivo** no PLANO, para não ser reaberta sem argumento.
+
+### Armadilhas
+- **Confundir `#available` com `#if`:** o primeiro é execução, o segundo é compilação. Sintoma: "Cannot find 'glassEffect' in scope" no Xcode 14.2 mesmo dentro de `if #available(iOS 26, *)`.
+- **Adaptar cor ao escuro escurecendo:** o petróleo escurecido falha (2,38). Meça sempre os dois modos.
+- **Sombra no modo escuro:** quase invisível; a elevação precisa vir da cor.
+- **Fonte serifa sem Dynamic Type:** `Font.system(size:design:)` com tamanho fixo ignora a preferência do usuário; prefira `Font.system(.title, design: .serif)` (estilo de texto) ou `relativeTo`. Verifique na documentação a variante disponível no iOS 16.
+- **Cálculos de contraste sobre cores com transparência:** o chip a 20% precisa ser composto sobre o fundo real antes de medir (e muda entre claro e escuro).
+
+### Para ir além
+- Apple, *Human Interface Guidelines*: Color, Typography e Accessibility (contraste).
+- W3C, *WCAG 2.x*, critério 1.4.3 (Contrast Minimum) e a definição de luminância relativa.
+- Documentação Apple de `RoundedRectangle` / `RoundedCornerStyle.continuous` e de `accessibilityReduceMotion`.
+
+### Perguntas
+1. Com suas palavras: por que `if #available(iOS 26, *)` não permite usar `.glassEffect()` no Xcode 14.2, e o que `#if compiler(>=6.2)` muda? Por que, mesmo assim, ele foi descartado?
+2. Aplicação: se você trocasse o destaque do app para #2A6F85, em quais pares de superfície ele deixaria de ser seguro para texto, e que valor de contraste você usaria para decidir? Calcule o que puder à mão.
+3. Raciocínio: por que, no modo escuro, o petróleo vira superfície em vez de continuar destaque, e por que "chip pastel com texto escuro" funciona para as 12 cores do sistema enquanto "texto colorido sobre branco" quase nunca funciona?
+
+### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
