@@ -73,6 +73,8 @@ OU de reserva, peso do sumário 0,25; 224 testes). PR da branch `fase2/busca` ab
 4. **Ao fim da fase**, Ricardo roda `/fechar-fase`, que gera o guia consolidado em Markdown.
 5. Commits pequenos, com mensagens em português no imperativo ("Adiciona modelo Estante").
 6. Segredos (chaves de API, service role do Supabase) nunca entram no repositório.
+7. Ao iniciar uma tarefa nova do checklist, ou quando surgir uma decisão com alternativas reais no
+   meio de uma tarefa, sugira ao Ricardo rodar /decidir; não decida sozinho.
 
 ## Uso de modelos (para economizar)
 | Uso | Modelo |
