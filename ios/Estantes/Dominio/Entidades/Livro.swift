@@ -13,7 +13,7 @@ enum OrigemLivro: String, CaseIterable {
 ///
 /// É a raiz de um agregado: os `itensSumario` vivem e morrem com o livro e são salvos junto com ele.
 /// Já as categorias têm vida própria, então o livro guarda só os ids delas.
-/// A foto da capa fica fora da struct (é carregada à parte pelo repositório): o índice da busca
+/// A foto da miniatura (livre: capa, folha de rosto…) fica fora da struct (é carregada à parte pelo repositório): o índice da busca
 /// carrega todos os livros ao abrir o app, e as imagens pesariam na memória.
 struct Livro: Identifiable, Equatable {
     let id: UUID

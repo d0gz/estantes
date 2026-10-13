@@ -105,12 +105,12 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
         return Set(etiquetas).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
-    func fotoCapa(doLivro livroId: UUID) async throws -> Data? {
+    func fotoMiniatura(doLivro livroId: UUID) async throws -> Data? {
         try lendo()
         return fotos[livroId]
     }
 
-    func salvarFotoCapa(_ foto: Data?, doLivro livroId: UUID) async throws {
+    func salvarFotoMiniatura(_ foto: Data?, doLivro livroId: UUID) async throws {
         try gravando()
         guard livrosGuardados[livroId] != nil else { throw ErroPersistencia.livroNaoEncontrado(livroId) }
         fotos[livroId] = foto

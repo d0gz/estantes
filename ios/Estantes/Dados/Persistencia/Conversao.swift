@@ -10,7 +10,7 @@ import CoreData
 // Divisão do trabalho:
 // - `paraDominio()`: lê o objeto do Core Data e monta a struct.
 // - `preencher(com:)`: copia os campos da struct para o objeto (inclusive o `id`).
-//   Só ATRIBUTOS: as relações (estante, categorias, itens do sumário) e a `fotoCapa` são do repositório,
+//   Só ATRIBUTOS: as relações (estante, categorias, itens do sumário) e a `fotoMiniatura` são do repositório,
 //   que precisa buscar outros objetos no contexto para ligá-los.
 //
 // Enums com valor desconhecido no banco (`?? .cinza`, `?? .manual`): de propósito, o app mostra um valor
@@ -116,7 +116,7 @@ extension LivroMO {
         )
     }
 
-    /// Só atributos. Estante, categorias, itens do sumário e foto da capa ficam com o repositório.
+    /// Só atributos. Estante, categorias, itens do sumário e foto da miniatura ficam com o repositório.
     func preencher(com livro: Livro) {
         id = livro.id
         titulo = livro.titulo

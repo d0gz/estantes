@@ -50,7 +50,7 @@ final class LivroMO: NSManagedObject {
     @NSManaged var origem: String
     @NSManaged var prateleira: String?
     /// Fora da struct `Livro`; só o repositório lê e grava (Allows External Storage no modelo).
-    @NSManaged var fotoCapa: Data?
+    @NSManaged var fotoMiniatura: Data?
     @NSManaged var adicionadoEm: Date
 
     /// Obrigatória no modelo: salvar um livro sem estante falha na validação do Core Data.

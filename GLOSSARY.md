@@ -95,6 +95,11 @@ _Evitar_: ficha técnica, ficha catalográfica
 Página do início do livro com título, autor, edição, editora e local; a fonte principal para livros antigos.
 _Evitar_: capa, página de título
 
+**Foto da miniatura**:
+A foto que identifica o livro na lista da estante; livre, escolhida pelo usuário (capa, folha de rosto ou outra).
+Uma por livro.
+_Evitar_: capa, foto da capa (a capa lisa não identifica o livro; a foto pode ser outra)
+
 **Local de publicação**:
 A cidade onde o livro foi publicado.
 _Evitar_: "local" sozinho (confunde com prateleira)

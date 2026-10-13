@@ -34,9 +34,10 @@ protocol BibliotecaRepositorio {
     func apagarLivro(id: UUID) async throws
     /// Etiquetas de prateleira já usadas na estante, para sugerir ao usuário.
     func prateleiras(naEstante estanteId: UUID) async throws -> [String]
-    func fotoCapa(doLivro livroId: UUID) async throws -> Data?
+    /// A foto que identifica o livro na lista: livre (capa, folha de rosto…), escolhida pelo usuário.
+    func fotoMiniatura(doLivro livroId: UUID) async throws -> Data?
     /// `nil` remove a foto.
-    func salvarFotoCapa(_ foto: Data?, doLivro livroId: UUID) async throws
+    func salvarFotoMiniatura(_ foto: Data?, doLivro livroId: UUID) async throws
 
     // MARK: Categorias
 
