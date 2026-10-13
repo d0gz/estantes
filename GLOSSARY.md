@@ -91,6 +91,11 @@ Ficha de Catalogação na Publicação, impressa no verso da folha de rosto, com
 ISBN, CDD e assuntos.
 _Evitar_: ficha técnica, ficha catalográfica
 
+**ISBN**:
+Número internacional do livro. O app guarda sempre a forma de 13 dígitos, sem hífens (começa com 978 ou
+979); o ISBN-10 dos livros anteriores a 2007 é convertido ao salvar.
+_Evitar_: código de barras (é o EAN-13 que carrega o ISBN), ISBN-10 como valor guardado
+
 **Folha de rosto**:
 Página do início do livro com título, autor, edição, editora e local; a fonte principal para livros antigos.
 _Evitar_: capa, página de título

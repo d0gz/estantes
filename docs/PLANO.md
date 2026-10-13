@@ -252,7 +252,7 @@ create index edicoes_obra on edicoes (obra_id);
 | Entidade | Campos | Regras |
 | --- | --- | --- |
 | `Estante` | id (UUID), nome, criadaEm | `livros` com exclusão em cascata; a interface confirma quantos livros serão apagados e oferece movê-los |
-| `Livro` | id (UUID), titulo, subtitulo, autores, editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoMiniatura (foto livre: capa, folha de rosto…; era `fotoCapa`), adicionadoEm; **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
+| `Livro` | id (UUID), titulo, subtitulo, autores, editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoMiniatura (foto livre: capa, folha de rosto…; era `fotoCapa`), adicionadoEm; isbn13 sempre com 13 dígitos sem hífens, prefixo 978/979 e verificador válido (regra `ISBN`, 13/10: toda porta de entrada passa por ela); **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
 | `ItemSumario` | id (UUID), ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3", "Art. 1.710", "§ 5.108"), titulo, pagina (opcional, **texto** desde a 2.3b: "245", "XI"), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
 | `Categoria` | id (UUID), nome (único, sem diferenciar maiúsculas/acentos), cor (identificador da paleta) | muitos-para-muitos com `Livro`; apagar a categoria = **nullify** (os livros só perdem a etiqueta) |
 
@@ -401,6 +401,23 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   livro"); o "+" da barra só com livros. Exemplos: duas fotos desenhadas em código (sem fotos reais). Descartados: grade
   de capas, lombadas, `List` restilizada, seta ›, miniatura de 56 pt. Os chips de categoria entram na 2.5 (abaixo).
 
+- **Detalhe (estilo aprovado em 13/10, capturas 1.0–1.2, via `/decidir`):** `ScrollView` com cabeçalho centralizado
+  (referência: Apple Books): `MiniaturaDoLivro` de 140 pt (`@ScaledMetric`, teto de 180 pt nos tamanhos de
+  acessibilidade) com `.sombraSuave()`, título em `Fonte.tituloLivro`, subtítulo em `textoSecundario`, volume em
+  semibold e a linha dos autores. **Autores no cabeçalho só pelos sobrenomes, como na ABNT (NBR 6023):** um autor,
+  nome inteiro; 2–3, "Cintra, Grinover e Dinamarco"; 4 ou mais, "Sarlet et al."; sobrenome = o que vem antes da
+  vírgula ("Sobrenome, Nome"), sem vírgula vai o nome inteiro. Depois, um cartão por seção (modificador `.cartao()`,
+  comum a Inicio, Estante e Detalhe; título fora do cartão como na Estante): **Autor/Autores** primeiro (nomes
+  inteiros, um por linha, sem rótulo), Obra (parte, número do volume quando há rótulo impresso, série, artigos),
+  Publicação e Na estante; campos com rótulo pequeno (`.caption`, `textoSecundario`) em cima e valor embaixo.
+  "Apagar livro" no fim, em cartão próprio, em `Cor.perigo` (vermelho de alto contraste da Apple, `#D70015`/`#FF6961`:
+  o `systemRed` dá 3,6:1 no branco). Barra só com voltar e "Editar"; empurrão padrão com entrada pela mola `suave`.
+  Sem espaço reservado para sumário (2.6) e categorias (2.5). Descartados: `List` restilizada, cabeçalho lado a
+  lado, todos os autores com nome inteiro no cabeçalho (com texto grande a quebra dentro de um nome parecia outro
+  autor), "e mais N" (soava traduzido), "+ N" (colide com o "+ Categoria" da 2.5), título na barra (pediria medir a
+  rolagem à mão no iOS 16). Exemplos: na Sala, um livro com 3 autores e outro com 2 de nome longo (capturas
+  `LivroDetalheTresAutores` e `LivroDetalheDoisAutores`).
+
 ### Forma de trabalho nas telas (2.4 em diante)
 
 - **Primeiro a lógica, depois o estilo.** A 2.4 faz todas as telas funcionarem com componentes nativos do SwiftUI, sem
@@ -434,7 +451,10 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
   (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário ✅ · 2.4e prateleira ✅ ·
   depois o estilo, tela por tela)
-  **Onde paramos (13/10, branch `fase2/telas`, 323 testes):** estilo do Inicio e da Estante aprovados; próximo: Detalhe.
+  **Onde paramos (13/10, branch `fase2/telas`, 347 testes):** estilo do Inicio, da Estante e do Detalhe aprovados;
+  próximo: Formulário. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
+  cartão Obra quando há rótulo impresso (antes não aparecia em lugar nenhum) e o ISBN passou a ser validado
+  (regra `ISBN` no Domínio; teclado `.numbersAndPunctuation` no formulário, para o hífen e o "X").
   Antes (12/10): lógica da 2.4a–e pronta e aprovada no simulador.
   2.4d: `RascunhoLivro` (Domínio; tudo texto, autores em lista; obrigatórios título, ≥ 1 autor, editora e ano, só no
   formulário; números inteiros > 0 com ponto de milhar; a edição preserva o que o formulário não mostra) +
@@ -461,13 +481,14 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
         Página de categorias (`-captura EstiloCategorias`): 1.2 cor padrão × alto contraste; 1.3 propostas A, B e alto
         contraste; 1.4/1.5 a A com rosa próprio (escolhida). Texto grande das três páginas na 1.2.
         Pendências para as telas (cada uma no seu passo de estilo):
-        - Trocar `.secondary` por `Cor.textoSecundario`: falta só o Detalhe (Inicio, Estante e `MensagemDeErroView` feitos).
+        - ✅ Trocar `.secondary` por `Cor.textoSecundario` (Inicio, Estante, Detalhe e `MensagemDeErroView`).
         - Com texto grande, chips lado a lado quebram letra a letra (rolagem horizontal ou quebra de linha; busca).
         - Promover o chip do catálogo a componente em `Componentes/` (o cartão de estante já foi, no Inicio).
         Revisão adiada: lista de pares do `PaletaTests` à mão (revisitar com cor nova); tokens sem uso apagados ao fim
         do estilo. O modificador de pressão foi extraído no Inicio (terceiro estilo de botão).
   2. **Estilo**, uma tela por vez: Inicio ✅ (12/10, ver "Inicio" na seção Interface; destaque claro revisto para
-     `#0579B8`) → Estante ✅ (13/10, ver "Estante" na seção Interface) → **próximo: Detalhe** → Formulário → Apagar estante (ver "Forma de trabalho nas telas");
+     `#0579B8`) → Estante ✅ (13/10, ver "Estante" na seção Interface) → Detalhe ✅ (13/10, ver "Detalhe" na seção
+     Interface) → **próximo: Formulário** → Apagar estante (ver "Forma de trabalho nas telas");
      cada tela decide só a composição, sobre os fundamentos já aprovados.
      Pendente para o estilo do Formulário: campo preenchido perde o nome (placeholder some; "1965" sem dizer que é o ano).
      Pendente para o Formulário ou a Fase 3: escolher a foto da miniatura (`PhotosPicker`); ao trocar a foto, o
@@ -529,8 +550,9 @@ altura normalizados 0–1, confiança), montada em `Dados/Visao` a partir do Vis
   - ano = 4 dígitos no terço inferior; editora = Editor/Editora/Livraria/Ltda/S.A.; local = lista de cidades;
   - subtítulo/parte = texto de tamanho médio entre o título e o volume (entra na busca).
 - **Capa**: maior texto (altura da caixa) = candidato a título.
-- Regex de ISBN (com dígito verificador; ISBN-10 → 13) e ano; conversão romano/arábico (regra da 2.3b,
-  reaproveitada para volume e página).
+- ISBN: reaproveitar `ISBN.normalizar` (`Dominio/Regras/ISBN.swift`, 13/10: dígito verificador, ISBN-10 → 13,
+  prefixo 978/979, que já descarta o EAN de produto no código de barras); falta só achar o ISBN no texto (regex).
+  Ano e conversão romano/arábico (regra da 2.3b, reaproveitada para volume e página).
 - Mandar a `buscar_livro` **só o título extraído**, nunca o texto inteiro: autor e editora no texto
   derrubam a `similarity` abaixo do limiar (Fase 1, opção (c″)). Medir no conjunto de avaliação.
 - NLTagger (`.personalName`) e NLGazetteer (editoras jurídicas) como apoio para autor e editora.
@@ -715,4 +737,6 @@ do parser e do Gemini.
 | 13/10 | Uma foto livre por livro (`fotoMiniatura`, renomeia `fotoCapa`), escolhida pelo usuário: capa, folha de rosto ou outra | Capas lisas não identificam o livro, e a folha de rosto (já pedida na captura, 09/10) sim. Duas fotos (capa + rosto) descartadas: mais dados no export e uma regra para escolher. O nome evita conflito com outras fotos que vão chegar |
 | 13/10 | Tela Estante em lista com miniatura 2:3 em cartões por prateleira (resolve "capas × lombadas") | Títulos jurídicos longos e volumes ("Tomo XLVII") pedem texto horizontal; grade de capas descartada (sem fotos até a Fase 3 e sem autor/ano); lombadas descartadas (texto girado ruim com títulos longos e Dynamic Type) |
 | 13/10 | Miniatura carregada por linha, reduzida com ImageIO e em cache em memória (com o tamanho guardado); no banco só a original | Miniatura gravada à parte descartada (dois campos em sincronia e uma dúvida no export); carregar a estante inteira descartado (200 fotos completas na memória) |
+| 13/10 | Detalhe: cabeçalho centralizado (miniatura, título em serifa, volume e autores só pelos sobrenomes, como na ABNT: até 3, depois "et al.") e cartões por seção, com o cartão Autores listando os nomes completos | Com texto grande, a quebra dentro de um nome no cabeçalho se confundia com outro autor (vista nas capturas com 3 autores); "e mais N" soava traduzido e "+ N" colidiria com o "+ Categoria" da 2.5. List restilizada e cabeçalho lado a lado descartados |
+| 13/10 | ISBN validado no Domínio (`ISBN.normalizar`): 10 ou 13 dígitos (hífens, inclusive Unicode, e espaços ignorados), "X" só no fim do ISBN-10, prefixo 978/979 e dígito verificador; guarda só os 13 dígitos (o ISBN-10 é convertido) | Antes aceitava letras. Livros anteriores a 2007 trazem ISBN-10; um formato só compara com código de barras e catálogos. Validar só quando o usuário muda o ISBN foi descartado: deixaria passar ISBN inválido de outra porta (como o "pede para completar" de 10/10). Sem o prefixo, o EAN de um produto passaria como livro na Fase 3 |
 | 13/10 | Categoria no cartão do livro (2.5): chip fantasma "+ Categoria" só sem categoria, tocar nos chips abre a escolha, e o menu de contexto | Pedido do Ricardo. Um "+" em todo cartão foi descartado: alvo sobreposto ao link, 44 pt engordando cada linha, repetido em todas |
