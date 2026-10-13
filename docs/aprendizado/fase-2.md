@@ -2106,3 +2106,109 @@ A variante de alto contraste do sistema (obtida com `resolvedColor(with: UITrait
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4 — Estilo da tela Inicio (2026-10-12)
+
+### O que foi feito
+Primeira tela do estilo "tela por tela", depois do Estilo 0. `InicioView.swift` passou a usar os tokens; o cartão e a ilustração do vazio viraram componentes em `Apresentacao/Componentes/CartaoDeEstante.swift` (`CartaoDeEstante`, `EstiloCartao`, `IlustracaoEstanteVazia`), que o catálogo DEBUG (`App/CatalogoDeEstilo.swift`) reaproveita em vez de manter uma cópia. `Estilo.swift` ganhou `.pressao(_:)` e `AnyTransition.entrada(reduzirMovimento:)`. A cor de destaque do claro mudou de `#0A5FD6` para `#0579B8` (`Cor.swift`). Três commits (7279017, fa5bacb, c73f4fa); 318 testes passam.
+
+### Conceitos envolvidos
+
+**1. Regra 60-30-10 e hierarquia de superfícies.** Fundo ~60%, superfície ~30%, destaque ~10%. Por isso o cartão é branco (`Cor.cartao`) com `.sombraSuave()`, e não azul na `superficie`: uma grade de cartões todos azuis tomaria a tela inteira e o "30" viraria "90". A sombra, além de separar do fundo, sinaliza "isto é tocável". No escuro a sombra não aparece no preto, então a separação vem da cor (`#1C1C1E`).
+
+**2. Dynamic Type e layout adaptativo.** Duas colunas por padrão, uma quando `dynamicTypeSize.isAccessibilitySize`. Motivo: com texto grande, "Escritório" quebrava letra a letra. Descartados:
+- `GridItem(.adaptive(minimum:))`: decide o número de colunas pela *largura disponível*, não pelo tamanho do texto; num iPhone largo ainda caberiam duas colunas com texto enorme.
+- `minimumScaleFactor`: encolhe a fonte para caber, o que desfaz exatamente o que o usuário pediu ao aumentar o texto.
+A regra (qual tamanho vira uma coluna) é decisão de apresentação, por isso fica na View e não no Domínio.
+
+**3. Alinhamento por `Spacer` e altura mínima.** Dentro de um `VStack`, `Spacer(minLength:)` empurra nome e contagem para a base, de modo que os cartões da mesma linha ficam alinhados mesmo quando um nome ocupa duas linhas. `minHeight: 96` (antes 110, que deixava um vão grande no cartão de 1 livro); com texto grande o conteúdo passa de 96 e o cartão cresce sozinho.
+
+**4. Extração de modificador reutilizável.** O terceiro estilo de botão (`EstiloCartao`) disparou a extração que o PLANO já previa: `.pressao(_:)`, um `ViewModifier` privado que lê `@Environment(\.accessibilityReduceMotion)`, escala 0,97 e anima com a mola `rapida`. A regra prática é "três usos, extrai" (duas repetições ainda são tolerável; antes disso a abstração é palpite). Efeito colateral deliberado: escala única 0,97, enquanto o vidro usava 0,96. Consistência vale mais que a diferença imperceptível.
+
+**5. "Reduzir movimento" precisa de um sinal estático.** Se a única pista de pressão é o encolhimento, quem ativou "Reduzir movimento" fica sem feedback (achado E3). Solução: um véu do `destaque` a 8% sobre o cartão. Véu e não escurecer, porque `#1C1C1E` no modo escuro mal escurece (já está quase preto).
+
+**6. Transições do SwiftUI: fato aprendido na revisão.** `.transition` só roda na view que é *inserida ou removida diretamente* pelo `if`/`switch`/`ForEach`. Quando a lista inteira entra (o `ScrollView` com a `transition`), os cartões filhos não repetem a própria transição; ela só vale quando se cria ou apaga uma estante individual. Por isso não existe transição dupla (P2 descartado). A entrada é mola `suave` (esmaecer + subir 8 pt; só esmaecer com "Reduzir movimento", porque deslocar é movimento), centralizada em `AnyTransition.entrada(reduzirMovimento:)` para não duplicar a regra. Sem cascata: a lista recarrega a cada volta da estante e uma cascata repetida cansaria.
+
+**7. Estado vazio segundo a HIG.** O padrão da Apple (o mesmo do `ContentUnavailableView`, iOS 17+, que aqui não podemos usar): imagem que só informa, título, frase curta e no máximo uma ação. O Ricardo contou três botões de adicionar ao mesmo tempo ("+" da barra, "+" em círculo na ilustração, "Criar a primeira estante"). Um "+" em círculo azul *tem forma de botão do iOS*, então confunde mesmo sendo desenho. Variantes capturadas:
+
+| Variante | Ilustração | Botão central | "+" da barra | Ações |
+| --- | --- | --- | --- | --- |
+| A | sem "+" | sim | fica | 2 |
+| B (escolhida) | sem "+" | sim | some sem estantes | 1 |
+| C (estilo Notas) | sem "+" | não (frase "Toque em +…") | só ele | 1 |
+
+Na revisão, o "+" passou a aparecer só em `.pronto` (antes piscava no carregamento e aparecia no erro). O `if temEstantes` ficou *fora* do `ToolbarItem`: dentro, sobraria um item vazio na barra (no iOS 26, uma bolha de vidro sem nada).
+
+**8. Cor, percepção e o critério que decide.** O Ricardo achou o `#0369A1` "amarelado". Medição de pixels: o fundo era `#FFFFFF` puro nas duas capturas. Hipóteses: a capa clara de exemplo `#F2E8D1` ao lado e o *contraste simultâneo* (um azul puxado para o ciano, matiz 201° contra 215° do `#0A5FD6`, faz o branco vizinho parecer mais quente). Mas o critério que decidiu foi funcional: na barra de busca (2.7), os chips de filtro (destaque no ícone, sobre a superfície) convivem com os de categoria, então o destaque precisa ficar longe de todas as cores de categoria. Distâncias em ΔE76 (fórmula simples, imprecisa nos azuis: vale a ordem, não os números):
+
+| Cor da categoria | vs #0A5FD6 | vs #0369A1 |
+| --- | --- | --- |
+| Índigo (Trabalho) texto #5654D6 | ΔE 14 (26° de matiz) | ΔE 52 |
+| Menta (Tributário) texto #007873 | ΔE 82 | ΔE 41 |
+| Roxo (Administrativo) | ΔE 46 | ΔE 80 |
+| Verde (Processo) | ΔE 117 | ΔE 77 |
+| Petróleo #1F5F73 (descartado) | ΔE 62 | ΔE 23 |
+| Superfície #AED3FC | 3° de matiz | 10° de matiz |
+
+O contraste WCAG não desempatava (5,80 × 5,93 no branco; 3,73 × 3,82 como ícone na superfície). Alternativa descartada: manter `#0A5FD6` e tirar o índigo das categorias. Moral: dois critérios (legibilidade e distinguibilidade) e só um deles estava no teste automático.
+
+**9. OKLCH: gerar degraus de um mesmo matiz.** OKLab/OKLCH é um espaço perceptualmente mais uniforme que o HSL: L (luz), C (croma) e H (matiz) são eixos separados, então dá para subir a luz mantendo o matiz do `#0369A1`. Fixou-se o matiz e subiram-se L e C em 4 degraus. O teto vem do piso de 3:1 do ícone sobre `#AED3FC`: como `#AED3FC` sobre branco é só 1,55:1, o destaque precisa de ≥ ~4,7:1 no branco para o ícone chegar a 3:1 sobre a superfície. O croma quase não sobe porque o `#0369A1` já está perto do limite do gamut sRGB nesse matiz; o que muda é a luz. Distância entre degraus ≈ 1–1,5 em OKLab (perto do limite do perceptível).
+
+| Tom | Hex | Branco (≥4,5) | Ícone sobre #AED3FC (≥3,0) |
+| --- | --- | --- | --- |
+| base | #0369A1 | 5,93 | 3,82 |
+| t1 | #026DA8 | 5,59 | 3,60 |
+| t2 | #0471AC | 5,30 | 3,41 |
+| t3 | #0476B4 | 4,93 | 3,18 |
+| t4 | #0579B8 | 4,74 | 3,05 (no piso) |
+| original | #0A5FD6 | 5,80 | 3,73 |
+
+Distância ao índigo em OKLab: `#0A5FD6` = 6, `#0579B8` = 12. Escolhido t4. O modo escuro (destaque `#AED3FC`, superfície `#12305A`) ficou como estava por escolha do Ricardo (ΔE 63 do índigo escuro, 34 da menta escura; 13,5:1 no preto).
+
+### Por que assim
+- **Componentes recebendo só textos** (`nome`, `detalhe`): o catálogo mostra o componente real sem precisar de um `Estante`. É o princípio de depender do mínimo necessário (a View do componente não conhece o modelo).
+- **Adaptador inline** (P11) em vez de função extra para transformar `EstanteResumo` em textos: usado num lugar só.
+- **Escala única e transição centralizada:** a regra do "Reduzir movimento" e os números mágicos ficam em `Estilo.swift`, ao lado de `Animacao.escolher`.
+- **Destaque mais claro e mais ciano** (`#0579B8`): ganha distância do índigo (6 → 12 em OKLab) pagando contraste (5,80 → 4,74, ainda ≥4,5) e ficando no piso do ícone (3,05). Margem pequena, por isso o comentário em `Cor.swift` avisa que é "o mais claro do matiz que ainda passa" e os testes de `PaletaTests` protegem o piso.
+- **Registro no PLANO:** linha nova no Histórico revisando a de 12/10 (`#0A5FD6`), porque decisão registrada só se reabre por escrito.
+
+### Alternativas descartadas
+- Cartão na `superficie`: encheria a tela de azul.
+- `GridItem(.adaptive)` e `minimumScaleFactor`: ver conceito 2.
+- Cascata de entrada: cansa quando a lista recarrega.
+- Escurecer o cartão pressionado: não funciona no escuro.
+- Variantes A e C do vazio: A mantém duas ações; C esconde a ação principal na barra (menos descobrível para quem abre o app pela primeira vez).
+- Manter `#0A5FD6` e remover o índigo: troca um problema de paleta de categorias por outro.
+- Petróleo como destaque (já descartado antes, ΔE 23 da menta).
+
+### Padrões e boas práticas
+- **Rule of three:** extrair abstração no terceiro uso, não no segundo. Quando NÃO: se os usos divergem de verdade (aqui divergiam só em 0,96 × 0,97, sem importância).
+- **Um só caminho para a mesma regra** (`entrada(reduzirMovimento:)`, `pressao`, `Animacao.escolher`).
+- **Estado de UI como enum** (`carregando/vazio/pronto/erro`) e a barra reagindo a ele (`temEstantes`).
+- **Decidir com amostras lado a lado** (variantes A/B/C, degraus t1–t4): comparar no simulador, não na cabeça.
+- **Revisão em dois eixos**, aprovada por número (P1/E1, P3, P4, P6, P8, P10, P11, P12, E3, E4/E5); descartes justificados (P2, P5, P7, P9, E2).
+- P9: a regra de colunas é Apresentação, não Domínio (Domínio não sabe o que é Dynamic Type).
+
+### Armadilhas
+- **`if` dentro do `ToolbarItem`** deixa um item vazio (bolha vazia no iOS 26). Coloque o `if` por fora.
+- **`.transition` não é herdada pelos filhos** de uma view inserida: teste o caso de inserir e o de a lista inteira aparecer.
+- **ΔE76 é imprecisa nos azuis**: use para ordenar, não para fixar limites (CIEDE2000 ou OKLab são melhores).
+- **Percepção ≠ pixel:** o "amarelado" não estava no fundo (medido `#FFFFFF`); o contexto de cores vizinhas muda o que se vê. Meça antes de culpar.
+- **Processo (erros reais desta sessão):** duas vezes a captura clara foi sobrescrita pela escura porque o nome do arquivo era o mesmo antes do `mv`: dê nome único já na captura. E um laço `for t in "..."; do set -- $t` falhou no zsh, que, ao contrário do bash, não separa palavras de `$t` sem aspas (sem word splitting por padrão); resolveu-se rodando o laço em `bash -c`. Dica: em scripts, declare o interpretador (`#!/bin/bash`) ou use arrays.
+
+### Para ir além
+- Apple, *Human Interface Guidelines*: Empty states / Loading e Accessibility (Dynamic Type, Reduce Motion).
+- Björn Ottosson, "A perceptual color space for image processing" (OKLab), em bottosson.github.io.
+- Documentação do SwiftUI sobre `AnyTransition` e `ToolbarContentBuilder`.
+
+### Perguntas
+1. Com suas palavras: por que o cartão branco com sombra serve melhor que o cartão na `superficie` na grade do Inicio, usando a regra 60-30-10?
+2. Aplicação: se o app tivesse um quarto estilo de botão que também usa `.pressao(_:)`, o que você teria de checar sobre "Reduzir movimento"? E se o tamanho de texto de acessibilidade fosse ativado, o que mudaria na grade e por que `minimumScaleFactor` não seria a solução?
+3. Raciocínio: o `#0579B8` tem 3,05:1 como ícone sobre `#AED3FC`. Se alguém escurecesse a superfície para `#9CC8F5`, o teste de 3:1 continuaria passando? Raciocine sem calcular tudo: a superfície ficou mais clara ou mais escura, e o que acontece com o contraste do ícone? E por que a distância ao índigo foi o critério que decidiu, se o contraste empatava?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
