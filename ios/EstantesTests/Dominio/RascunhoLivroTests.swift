@@ -15,12 +15,13 @@ final class RascunhoLivroTests: XCTestCase {
         return rascunho
     }
 
+    /// ISBN válido: 978852030000 com pesos 1,3,1,3… soma 82 → dígito verificador (10 − 2) = 8.
     private func livroCompleto() -> Livro {
         Livro(
             estanteId: escritorio, titulo: "Tratado de direito privado", subtitulo: "Parte especial",
             autores: ["Miranda, Pontes de", "Nery Jr., Nelson"], editora: "Borsoi", local: "Rio de Janeiro",
             edicao: "2.ª ed.", volume: 48, volumeRotulo: "Tomo XLVIII", parte: "Direito de família",
-            serie: "Coleção Tratado", artigosInicio: 1710, artigosFim: 1779, ano: 1965, isbn13: "9788520300000",
+            serie: "Coleção Tratado", artigosInicio: 1710, artigosFim: 1779, ano: 1965, isbn13: "9788520300008",
             paginas: 512, cddir: "341.1", cddirCaminho: ["Direito civil", "Família"], urn: "urn:lex:br:1965",
             origem: .lexml, prateleira: "caixa azul", categoriaIds: [UUID()],
             itensSumario: [ItemSumario(nivel: 1, titulo: "Do casamento")],
@@ -138,6 +139,28 @@ final class RascunhoLivroTests: XCTestCase {
         XCTAssertEqual(livro.artigosInicio, 1710)
         XCTAssertEqual(livro.artigosFim, 1779)
         XCTAssertEqual(livro.paginas, 1024)
+    }
+
+    func testISBNComLetraOuDigitoVerificadorErradoEhProblema() {
+        for texto in ["978-0-306-40615-8", "978030640615A", "12345"] {
+            var rascunho = rascunhoMinimo()
+            rascunho.isbn13 = texto
+            XCTAssertEqual(rascunho.problemas(), [.isbn: .isbnInvalido], texto)
+            XCTAssertNil(rascunho.montar(sobre: nil), texto)
+        }
+    }
+
+    func testISBNEmBrancoContinuaOpcional() throws {
+        var rascunho = rascunhoMinimo()
+        rascunho.isbn13 = "   "
+        XCTAssertEqual(rascunho.problemas(), [:])
+        XCTAssertNil(try XCTUnwrap(rascunho.montar(sobre: nil)).isbn13)
+    }
+
+    func testISBNGuardaOs13DigitosSemHifens() throws {
+        var rascunho = rascunhoMinimo()
+        rascunho.isbn13 = "0-306-40615-2"
+        XCTAssertEqual(try XCTUnwrap(rascunho.montar(sobre: nil)).isbn13, "9780306406157")
     }
 
     func testArtigoFinalAntesDoInicialEhProblema() {

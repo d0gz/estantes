@@ -125,8 +125,10 @@ final class LivroDetalheViewModelTests: XCTestCase {
         // Subtítulo e volume ficam só no cabeçalho; os autores, no primeiro cartão, sem rótulo por linha.
         XCTAssertEqual(secoes.map(\.titulo), ["Autor", "Obra", "Publicação", "Na estante"])
         XCTAssertEqual(secoes[0].campos, [CampoDoLivro(rotulo: nil, valor: "Miranda, Pontes de")])
+        // O cabeçalho mostra o rótulo ("Tomo XLVIII"); o número aparece aqui, para não sumir.
         XCTAssertEqual(secoes[1].campos, [
             CampoDoLivro(rotulo: "Parte", valor: "Parte especial"),
+            CampoDoLivro(rotulo: "Número do volume", valor: "48"),
             CampoDoLivro(rotulo: "Artigos", valor: "Arts. 1710–1779"),
         ])
         // Edição, páginas e ISBN vazios não aparecem; o ano sem ponto de milhar.
@@ -154,6 +156,24 @@ final class LivroDetalheViewModelTests: XCTestCase {
             CampoDoLivro(rotulo: nil, valor: "Um"),
             CampoDoLivro(rotulo: nil, valor: "Dois"),
         ]))
+    }
+
+    func testVolumeSoComNumeroFicaSoNoCabecalho() {
+        let livro = Livro(estanteId: sala.id, titulo: "A", volume: 3)
+        XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro).volume, "Vol. 3")
+        XCTAssertFalse(LivroDetalheViewModel.secoes(de: livro).contains { $0.titulo == "Obra" })
+    }
+
+    func testRotuloSemNumeroNaoGeraALinhaDoNumero() {
+        let livro = Livro(estanteId: sala.id, titulo: "A", volumeRotulo: "Tomo II")
+        XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro).volume, "Tomo II")
+        XCTAssertFalse(LivroDetalheViewModel.secoes(de: livro).contains { $0.titulo == "Obra" })
+    }
+
+    func testRotuloSoDeEspacosValeComoSemRotulo() {
+        let livro = Livro(estanteId: sala.id, titulo: "A", volume: 48, volumeRotulo: "  ")
+        XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro).volume, "Vol. 48")
+        XCTAssertFalse(LivroDetalheViewModel.secoes(de: livro).contains { $0.titulo == "Obra" })
     }
 
     func testVolumeSemRotuloUsaONumero() {

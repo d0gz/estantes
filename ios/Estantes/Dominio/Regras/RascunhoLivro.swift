@@ -11,7 +11,7 @@ import Foundation
 /// e livros antigos podem não trazê-los.
 struct RascunhoLivro: Equatable {
     enum Campo: Hashable, CaseIterable {
-        case titulo, autores, editora, ano, paginas, volume, artigosInicio, artigosFim
+        case titulo, autores, editora, ano, paginas, isbn, volume, artigosInicio, artigosFim
     }
 
     enum Problema: Equatable {
@@ -20,6 +20,8 @@ struct RascunhoLivro: Equatable {
         case numeroInvalido
         /// O artigo final vem antes do inicial ("Arts. 1779-1710").
         case fimAntesDoInicio
+        /// Não é um ISBN-10 nem um ISBN-13 válido (letra, tamanho ou dígito verificador; ver `ISBN`).
+        case isbnInvalido
     }
 
     var estanteId: UUID
@@ -86,6 +88,10 @@ struct RascunhoLivro: Equatable {
             }
         }
 
+        if Self.texto(isbn13) != nil, ISBN.normalizar(isbn13) == nil {
+            problemas[.isbn] = .isbnInvalido
+        }
+
         if case .valor(let inicio) = Self.numero(artigosInicio), case .valor(let fim) = Self.numero(artigosFim), fim < inicio {
             problemas[.artigosFim] = .fimAntesDoInicio
         }
@@ -109,7 +115,8 @@ struct RascunhoLivro: Equatable {
         livro.edicao = Self.texto(edicao)
         livro.ano = Self.numero(ano).valor
         livro.paginas = Self.numero(paginas).valor
-        livro.isbn13 = Self.texto(isbn13)
+        // Já validado em `problemas()`: aqui só vira os 13 dígitos (o ISBN-10 é convertido).
+        livro.isbn13 = Self.texto(isbn13).flatMap(ISBN.normalizar)
         livro.volume = Self.numero(volume).valor
         livro.volumeRotulo = Self.texto(volumeRotulo)
         livro.parte = Self.texto(parte)

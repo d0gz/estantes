@@ -109,6 +109,7 @@ final class LivroDetalheViewModel: ObservableObject {
             ),
             SecaoDoLivro(titulo: "Obra", campos: campos([
                 ("Parte", livro.parte),
+                ("Número do volume", numeroDoVolumeForaDoCabecalho(livro)),
                 ("Série", livro.serie),
                 ("Artigos", textoDosArtigos(inicio: livro.artigosInicio, fim: livro.artigosFim)),
             ])),
@@ -148,7 +149,14 @@ final class LivroDetalheViewModel: ObservableObject {
 
     /// O rótulo impresso ("Tomo XLVIII") vence; sem ele, o número ("Vol. 48").
     static func textoDoVolume(_ livro: Livro) -> String? {
-        livro.volumeRotulo ?? livro.volume.map { "Vol. \($0)" }
+        preenchido(livro.volumeRotulo) ?? livro.volume.map { "Vol. \($0)" }
+    }
+
+    /// Com rótulo, o cabeçalho mostra só ele (`textoDoVolume`); o número vai para o cartão Obra, senão não
+    /// apareceria em lugar nenhum. Sem rótulo, o número já está no cabeçalho ("Vol. 48").
+    private static func numeroDoVolumeForaDoCabecalho(_ livro: Livro) -> String? {
+        guard preenchido(livro.volumeRotulo) != nil else { return nil }
+        return livro.volume.map(String.init)
     }
 
     static func textoDosArtigos(inicio: Int?, fim: Int?) -> String? {

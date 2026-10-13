@@ -151,6 +151,7 @@ final class LivroFormularioViewModel: ObservableObject {
         case (.numeroInvalido, .ano): return "Use só números (ex.: 2014)."
         case (.numeroInvalido, _): return "Use um número inteiro maior que zero."
         case (.fimAntesDoInicio, _): return "O artigo final vem antes do inicial."
+        case (.isbnInvalido, _): return "ISBN inválido: confira os 10 ou 13 dígitos."
         }
     }
 }

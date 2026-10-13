@@ -90,7 +90,8 @@ struct LivroFormularioView: View {
                 campo("Edição (ex.: 3.ª ed.)", \.edicao)
                 campo("Ano *", \.ano, problema: .ano, teclado: .numberPad)
                 campo("Páginas", \.paginas, problema: .paginas, teclado: .numberPad)
-                campo("ISBN", \.isbn13, teclado: .numberPad)
+                // Números e hífen à vista; o "X" do ISBN-10 fica na tecla "ABC" (o `numberPad` não tem nenhum dos dois).
+                campo("ISBN", \.isbn13, problema: .isbn, teclado: .numbersAndPunctuation)
             }
 
             Section {
