@@ -252,7 +252,7 @@ create index edicoes_obra on edicoes (obra_id);
 | Entidade | Campos | Regras |
 | --- | --- | --- |
 | `Estante` | id (UUID), nome, criadaEm | `livros` com exclusão em cascata; a interface confirma quantos livros serão apagados e oferece movê-los |
-| `Livro` | id (UUID), titulo, subtitulo, autores, editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoCapa, adicionadoEm; **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
+| `Livro` | id (UUID), titulo, subtitulo, autores, editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoMiniatura (foto livre: capa, folha de rosto…; era `fotoCapa`), adicionadoEm; **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
 | `ItemSumario` | id (UUID), ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3", "Art. 1.710", "§ 5.108"), titulo, pagina (opcional, **texto** desde a 2.3b: "245", "XI"), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
 | `Categoria` | id (UUID), nome (único, sem diferenciar maiúsculas/acentos), cor (identificador da paleta) | muitos-para-muitos com `Livro`; apagar a categoria = **nullify** (os livros só perdem a etiqueta) |
 
@@ -380,7 +380,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     na 2.5, tons fixos por cor com teste de contraste (inclusive o texto sobre o véu escuro) e ajuste do verde se preciso.
   - Texto e controles sobre a `superficie` vão em `.primary` (o tint global daria 3,05:1 no claro).
   - SF Symbols: `.symbolRenderingMode(.hierarchical)`; variante `.fill` só no estado selecionado; tamanho acompanha o texto; sem enum de ícones.
-  - Fica para a tela Estante: capas × lombadas.
+  - Capas × lombadas: resolvido na Estante (13/10) com lista e miniatura; ver "Estante" abaixo.
 
 - **Inicio (estilo aprovado em 12/10, capturas 1.4–1.5; degraus do azul em `Inicio_1.3-t1…t4` e `Estilo_1.4-t1…t4`):** `CartaoDeEstante` em `Componentes/` (fundo `cartao` com
   `.sombraSuave()`, ícone `books.vertical.fill` no destaque, nome em serifa e contagem em `textoSecundario` presos à base,
@@ -389,6 +389,17 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   um pouco; só esmaecer com "Reduzir movimento"; sem cascata). Vazio no padrão da HIG: ilustração que só informa
   (lombadas, sem "+"), título, frase e **uma** ação (`EstiloPrincipal`); o "+" da barra some sem estantes e surge com o
   primeiro cartão. Variantes descartadas: duas ações (botão + "+" da barra) e só o "+" da barra (estilo Notas).
+
+- **Estante (estilo aprovado em 13/10, capturas 1.0–1.1, via `/decidir`):** um cartão por prateleira (`ScrollView` +
+  `LazyVStack`, fundo `cartao`, `.sombraSuave()`, `Raio.grande`), cabeçalho fora do cartão em SF semibold
+  `textoSecundario` com a contagem ("Caixa azul · 2"; o VoiceOver lê "Caixa azul, 2 livros"). Linha: `MiniaturaDoLivro`
+  2:3 (44 pt, cresce com o texto até 66 pt), título em serifa (`Fonte.tituloLivroNaLista`, até 3 linhas; inteiro nos
+  tamanhos de acessibilidade), volume, autor · ano; sem seta; toque com véu do destaque sem encolher (`EstiloLinha`).
+  Sem foto, a substituta: `superficie` com `book.closed` em `.primary`. A miniatura é a **foto livre** do livro
+  (`fotoMiniatura`), lida por linha pelo `CarregadorDeMiniaturas` (ImageIO + `NSCache` com o tamanho guardado).
+  Vazio igual ao Inicio ("Nenhum livro nesta estante", "Adicione os livros que ficam neste móvel.", "Adicionar
+  livro"); o "+" da barra só com livros. Exemplos: duas fotos desenhadas em código (sem fotos reais). Descartados: grade
+  de capas, lombadas, `List` restilizada, seta ›, miniatura de 56 pt. Os chips de categoria entram na 2.5 (abaixo).
 
 ### Forma de trabalho nas telas (2.4 em diante)
 
@@ -423,7 +434,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
   (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário ✅ · 2.4e prateleira ✅ ·
   depois o estilo, tela por tela)
-  **Onde paramos (12/10, branch `fase2/telas`, 318 testes):** lógica da 2.4a–e pronta e aprovada no simulador.
+  **Onde paramos (13/10, branch `fase2/telas`, 323 testes):** estilo do Inicio e da Estante aprovados; próximo: Detalhe.
+  Antes (12/10): lógica da 2.4a–e pronta e aprovada no simulador.
   2.4d: `RascunhoLivro` (Domínio; tudo texto, autores em lista; obrigatórios título, ≥ 1 autor, editora e ano, só no
   formulário; números inteiros > 0 com ponto de milhar; a edição preserva o que o formulário não mostra) +
   `LivroFormularioView` em folha (asterisco nos obrigatórios, erros em vermelho só depois de tentar salvar, autores com
@@ -449,15 +461,17 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
         Página de categorias (`-captura EstiloCategorias`): 1.2 cor padrão × alto contraste; 1.3 propostas A, B e alto
         contraste; 1.4/1.5 a A com rosa próprio (escolhida). Texto grande das três páginas na 1.2.
         Pendências para as telas (cada uma no seu passo de estilo):
-        - Trocar `.secondary` por `Cor.textoSecundario` (Estante, Detalhe, `MensagemDeErroView`); Inicio feito.
+        - Trocar `.secondary` por `Cor.textoSecundario`: falta só o Detalhe (Inicio, Estante e `MensagemDeErroView` feitos).
         - Com texto grande, chips lado a lado quebram letra a letra (rolagem horizontal ou quebra de linha; busca).
         - Promover o chip do catálogo a componente em `Componentes/` (o cartão de estante já foi, no Inicio).
         Revisão adiada: lista de pares do `PaletaTests` à mão (revisitar com cor nova); tokens sem uso apagados ao fim
         do estilo. O modificador de pressão foi extraído no Inicio (terceiro estilo de botão).
   2. **Estilo**, uma tela por vez: Inicio ✅ (12/10, ver "Inicio" na seção Interface; destaque claro revisto para
-     `#0579B8`) → **próximo: Estante** → Detalhe → Formulário → Apagar estante (ver "Forma de trabalho nas telas");
+     `#0579B8`) → Estante ✅ (13/10, ver "Estante" na seção Interface) → **próximo: Detalhe** → Formulário → Apagar estante (ver "Forma de trabalho nas telas");
      cada tela decide só a composição, sobre os fundamentos já aprovados.
      Pendente para o estilo do Formulário: campo preenchido perde o nome (placeholder some; "1965" sem dizer que é o ano).
+     Pendente para o Formulário ou a Fase 3: escolher a foto da miniatura (`PhotosPicker`); ao trocar a foto, o
+     `CarregadorDeMiniaturas` precisa esquecer o livro (o `esquecer` saiu por falta de uso) e a `MiniaturaDoLivro`, saber.
      Nota: com "Caixa azul" e "caixa azul" na estante, a sugestão mostra "caixa azul" (ordem natural), e o grupo da
      estante, a grafia mais usada; podem diferir (a porta não traz contagem).
   3. Fechamento: CI verde, PR pronto para revisão, checklist e CLAUDE.md atualizados.
@@ -465,6 +479,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   e a varredura `[varredura]` da busca, que fora disso ficam pulados; a saída fica no log); `./scripts/capturar.sh <Tela> <versão> [<pasta>]` (casos no enum `Captura`, `App/Exemplos.swift`);
   testar à mão com `xcrun simctl launch "iPhone 14" com.ricardo.estantes -captura Inicio` (exemplos em memória).
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
+  + chips no cartão do livro na Estante (linha abaixo de autor · ano): chip fantasma "+ Categoria" só nos livros sem
+  categoria; tocar nos chips abre a escolha; menu de contexto "Categorias…" (decisão de 13/10)
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
@@ -696,3 +712,7 @@ do parser e do Gemini.
 | 12/10 | Destaque claro azul vibrante `#0A5FD6` e superfície escura azul-marinho `#12305A` no lugar do petróleo; sobre a `superficie` clara, texto `.primary` e destaque só como ícone ou forma (≥ 3:1, WCAG 1.4.11) | Revisa a linha de 12/10 da paleta por papel: no catálogo o petróleo ficou opaco e "triste". O azul do sistema `#007AFF` reprova como texto no branco (4,0:1) e nenhum azul vibrante passa 4,5:1 sobre o `#AED3FC`, daí a regra da superfície. Escolhido olhando quatro candidatos no catálogo (`#2563EB`, `#0369A1` e o petróleo descartados) |
 | 12/10 | Chip de categoria: etiqueta e contorno na cor viva, fundo pastel e texto no tom escuro do mesmo matiz (claro); alto contraste do sistema no escuro; rosa próprio `#FF2D92` no lugar do `systemPink` | Revisa a linha de 12/10 da paleta de categorias (pastel com texto padrão). Desenho do Ricardo; texto na cor viva reprova no branco (amarelo 1,5:1) e o alto contraste puro perdia a identidade pastel no claro. O fundo pastel e o contorno guardam a identidade, o texto escurecido passa 4,5:1. Fundo branco com texto preto (B) descartado por perder o texto na cor. `systemPink` (349°) se confundia com o vermelho (3°) |
 | 12/10 | Destaque claro `#0579B8` (matiz do `#0369A1`, o mais claro que ainda dá 3:1 sobre o `#AED3FC`); o escuro segue `#AED3FC` | Revisa a linha de 12/10 do `#0A5FD6`: na barra de busca (2.7) os chips de filtro convivem com os de categoria, e o `#0A5FD6` ficava colado no índigo (ΔE 6 em OKLab; o `#0579B8`, 12). Escolhido entre 4 degraus de luz a partir do `#0369A1`; tirar o índigo das categorias foi descartado |
+| 13/10 | Uma foto livre por livro (`fotoMiniatura`, renomeia `fotoCapa`), escolhida pelo usuário: capa, folha de rosto ou outra | Capas lisas não identificam o livro, e a folha de rosto (já pedida na captura, 09/10) sim. Duas fotos (capa + rosto) descartadas: mais dados no export e uma regra para escolher. O nome evita conflito com outras fotos que vão chegar |
+| 13/10 | Tela Estante em lista com miniatura 2:3 em cartões por prateleira (resolve "capas × lombadas") | Títulos jurídicos longos e volumes ("Tomo XLVII") pedem texto horizontal; grade de capas descartada (sem fotos até a Fase 3 e sem autor/ano); lombadas descartadas (texto girado ruim com títulos longos e Dynamic Type) |
+| 13/10 | Miniatura carregada por linha, reduzida com ImageIO e em cache em memória (com o tamanho guardado); no banco só a original | Miniatura gravada à parte descartada (dois campos em sincronia e uma dúvida no export); carregar a estante inteira descartado (200 fotos completas na memória) |
+| 13/10 | Categoria no cartão do livro (2.5): chip fantasma "+ Categoria" só sem categoria, tocar nos chips abre a escolha, e o menu de contexto | Pedido do Ricardo. Um "+" em todo cartão foi descartado: alvo sobreposto ao link, 44 pt engordando cada linha, repetido em todas |
