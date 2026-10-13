@@ -70,10 +70,10 @@ struct CatalogoDeEstiloView: View {
 
     @ViewBuilder
     private var telas: some View {
-        secao("Cartão branco com sombra · cartão na superfície") {
+        secao("Cartão de estante") {
             HStack(spacing: Espaco.medio) {
-                cartaoDeEstante(fundo: Cor.cartao, sombra: true)
-                cartaoDeEstante(fundo: Cor.superficie, sombra: false)
+                CartaoDeEstante(nome: "Escritório", detalhe: "6 livros")
+                CartaoDeEstante(nome: "Sala", detalhe: "1 livro")
             }
         }
         secao("Chips") {
@@ -84,17 +84,7 @@ struct CatalogoDeEstiloView: View {
             }
         }
         secao("Estado vazio") {
-            HStack(alignment: .bottom, spacing: Espaco.pequeno) {
-                ForEach([70, 90, 60, 80], id: \.self) { altura in
-                    Cor.superficie.frame(width: 22, height: CGFloat(altura)).cantos(4)
-                }
-                Image(systemName: "plus")
-                    .font(.title2.weight(.semibold))
-                    .foregroundColor(Cor.sobreDestaque)
-                    .frame(width: 52, height: 52)
-                    .background(Cor.destaque, in: Circle())
-                    .padding(.leading, Espaco.padrao)
-            }
+            IlustracaoEstanteVazia()
         }
         secao("Formulário em fundo branco") {
             VStack(alignment: .leading, spacing: 0) {
@@ -198,22 +188,6 @@ struct CatalogoDeEstiloView: View {
             }
     }
 
-    private func cartaoDeEstante(fundo: Color, sombra: Bool) -> some View {
-        VStack(alignment: .leading, spacing: Espaco.minimo) {
-            Image(systemName: "books.vertical.fill")
-                .symbolRenderingMode(.hierarchical)
-                .foregroundColor(Cor.destaque)
-                .font(.title3)
-            Text("Escritório").font(Fonte.tituloEstante)
-            Text("6 livros").font(.subheadline).foregroundColor(Cor.textoSecundario)
-        }
-        .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
-        .padding(Espaco.medio)
-        .background(fundo)
-        .cantos(Raio.grande)
-        .modifier(SombraOpcional(ligada: sombra))
-    }
-
     private func chip(_ texto: String, icone: String) -> some View {
         // Sobre a superfície clara: texto no `.primary`, destaque só no ícone (regra da paleta).
         HStack(spacing: Espaco.minimo) {
@@ -231,15 +205,6 @@ struct CatalogoDeEstiloView: View {
             .foregroundColor(Color(.placeholderText))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Espaco.padrao)
-    }
-}
-
-private struct SombraOpcional: ViewModifier {
-    let ligada: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if ligada { content.sombraSuave() } else { content }
     }
 }
 #endif

@@ -18,7 +18,6 @@ struct EstiloVidro: ButtonStyle {
 private struct Vidro<Rotulo: View>: View {
     let rotulo: Rotulo
     let pressionado: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
 
     var body: some View {
         rotulo
@@ -40,7 +39,6 @@ private struct Vidro<Rotulo: View>: View {
             }
             .contentShape(Capsule())
             // Encolher é movimento: com "Reduzir movimento" fica só o véu.
-            .scaleEffect(pressionado && !reduzirMovimento ? 0.96 : 1)
-            .animation(Animacao.escolher(Animacao.rapida, reduzirMovimento: reduzirMovimento), value: pressionado)
+            .pressao(pressionado)
     }
 }

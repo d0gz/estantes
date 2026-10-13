@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Tela inicial: as estantes em grade. Versão 0.x (só lógica): componentes nativos, sem estilo decidido.
+/// Tela inicial: as estantes em grade de cartões (`CartaoDeEstante`) e, sem estantes, a ilustração do vazio.
 /// Fica dentro do `NavigationStack` montado em `App/Navegacao`: cada cartão só empurra a `Estante`,
 /// e a montagem decide qual tela abrir.
 struct InicioView: View {
@@ -22,6 +22,9 @@ struct InicioView: View {
     @State private var confirmandoExclusao = false
     @State private var escolhendoDestino = false
 
+    @Environment(\.dynamicTypeSize) private var tamanhoDoTexto
+    @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
+
     /// Ação feita ao abrir a tela. Só as capturas do simulador usam (o `simctl` não toca na tela).
     enum AcaoInicial {
         case novaEstante
@@ -41,11 +44,16 @@ struct InicioView: View {
         conteudo
             .navigationTitle("Minhas estantes")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        pedirNome(.nova)
-                    } label: {
-                        Label("Nova estante", systemImage: "plus")
+                // Só com a lista na tela: no vazio, a ação única é o botão do estado vazio (HIG); carregando, o "+"
+                // apareceria e sumiria; no erro, não há o que criar. O `if` fica fora do item para não sobrar
+                // um item vazio na barra (no iOS 26, uma bolha de vidro sem nada).
+                if temEstantes {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            pedirNome(.nova)
+                        } label: {
+                            Label("Nova estante", systemImage: "plus")
+                        }
                     }
                 }
             }
@@ -96,29 +104,54 @@ struct InicioView: View {
             }
     }
 
-    @ViewBuilder
+    /// Troca de estado (carregando → lista ou vazio) e cartões que entram ou saem: com a mola `suave`.
     private var conteudo: some View {
+        estadoAtual.animacaoSuave(valor: viewModel.estado)
+    }
+
+    /// Sem cascata: a lista recarrega a cada volta da estante, e a cascata repetida cansaria.
+    private var entrada: AnyTransition {
+        .entrada(reduzirMovimento: reduzirMovimento)
+    }
+
+    private var temEstantes: Bool {
+        if case .pronto = viewModel.estado { return true }
+        return false
+    }
+
+    @ViewBuilder
+    private var estadoAtual: some View {
         switch viewModel.estado {
         case .carregando:
             ProgressView()
         case .vazio:
-            VStack(spacing: 16) {
-                Image(systemName: "books.vertical")
-                    .font(.system(size: 56))
-                    .foregroundColor(.secondary)
-                Text("Nenhuma estante ainda")
-                    .font(.headline)
+            VStack(spacing: Espaco.grande) {
+                IlustracaoEstanteVazia()
+                VStack(spacing: Espaco.pequeno) {
+                    Text("Nenhuma estante ainda")
+                        .font(Fonte.tituloEstante)
+                    Text("Crie uma estante para cada móvel onde ficam os seus livros.")
+                        .font(.subheadline)
+                        .foregroundColor(Cor.textoSecundario)
+                        .multilineTextAlignment(.center)
+                }
                 Button("Criar a primeira estante") { pedirNome(.nova) }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(EstiloPrincipal())
             }
+            .padding(Espaco.padrao)
+            .transition(entrada)
         case .pronto(let resumos):
             ScrollView {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                LazyVGrid(columns: colunas, spacing: Espaco.padrao) {
                     ForEach(resumos) { resumo in
                         NavigationLink(value: resumo.estante) {
-                            cartao(resumo)
+                            CartaoDeEstante(
+                                nome: resumo.estante.nome,
+                                detalhe: Self.textoDaQuantidade(resumo.quantidadeDeLivros)
+                            )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(EstiloCartao())
+                        .transition(entrada)
                         .contextMenu {
                             Button {
                                 pedirNome(.renomear(resumo.estante))
@@ -133,8 +166,9 @@ struct InicioView: View {
                         }
                     }
                 }
-                .padding()
+                .padding(Espaco.padrao)
             }
+            .transition(entrada)
         case .erro(let texto):
             MensagemDeErroView(texto: texto) {
                 Task { await viewModel.carregar() }
@@ -142,19 +176,11 @@ struct InicioView: View {
         }
     }
 
-    private func cartao(_ resumo: EstanteResumo) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(resumo.estante.nome)
-                .font(.headline)
-                .lineLimit(2)
-            Text(Self.textoDaQuantidade(resumo.quantidadeDeLivros))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 80, alignment: .topLeading)
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+    /// Duas colunas; uma só nos tamanhos de texto de acessibilidade, em que o nome da estante não cabe numa coluna
+    /// estreita.
+    private var colunas: [GridItem] {
+        let quantidade = tamanhoDoTexto.isAccessibilitySize ? 1 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: Espaco.padrao), count: quantidade)
     }
 
     /// "1 livro", "3 livros"; com artigo, "o livro", "os 3 livros" (para as frases da confirmação).

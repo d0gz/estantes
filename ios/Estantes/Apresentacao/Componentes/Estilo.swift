@@ -41,6 +41,13 @@ enum Animacao {
     }
 }
 
+extension AnyTransition {
+    /// Entrada e saída de conteúdo: esmaece e sobe um pouco; com "Reduzir movimento", só esmaece (deslocar é movimento).
+    static func entrada(reduzirMovimento: Bool) -> AnyTransition {
+        reduzirMovimento ? .opacity : .opacity.combined(with: .offset(y: 8))
+    }
+}
+
 extension View {
     /// Recorta com canto contínuo (o "squircle" do iOS), que o `cornerRadius` comum não usa.
     func cantos(_ raio: CGFloat) -> some View {
@@ -50,6 +57,12 @@ extension View {
     /// Anima as mudanças de `valor` com a mola `suave`, ou com `esmaecer` se o "Reduzir movimento" estiver ligado.
     func animacaoSuave<Valor: Equatable>(valor: Valor) -> some View {
         modifier(AnimacaoSuave(valor: valor))
+    }
+
+    /// Encolhe com a mola `rapida` enquanto pressionado; com "Reduzir movimento", não encolhe. Por isso cada estilo de
+    /// botão tem também um sinal parado de pressão (véu no vidro e no cartão, brilho no principal).
+    func pressao(_ pressionado: Bool) -> some View {
+        modifier(Pressao(pressionado: pressionado))
     }
 
     /// Sombra leve de cartão no modo claro; no escuro, nenhuma (a separação vem da cor do `cartao`).
@@ -64,6 +77,17 @@ private struct AnimacaoSuave<Valor: Equatable>: ViewModifier {
 
     func body(content: Content) -> some View {
         content.animation(Animacao.escolher(Animacao.suave, reduzirMovimento: reduzirMovimento), value: valor)
+    }
+}
+
+private struct Pressao: ViewModifier {
+    let pressionado: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(pressionado && !reduzirMovimento ? 0.97 : 1)
+            .animation(Animacao.escolher(Animacao.rapida, reduzirMovimento: reduzirMovimento), value: pressionado)
     }
 }
 

@@ -13,7 +13,6 @@ struct EstiloPrincipal: ButtonStyle {
 private struct Principal<Rotulo: View>: View {
     let rotulo: Rotulo
     let pressionado: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
     @Environment(\.isEnabled) private var habilitado
 
     var body: some View {
@@ -27,7 +26,6 @@ private struct Principal<Rotulo: View>: View {
             // Pressionado: escurece um pouco em vez de piscar.
             .brightness(pressionado ? -0.08 : 0)
             .opacity(habilitado ? 1 : 0.4)
-            .scaleEffect(pressionado && !reduzirMovimento ? 0.97 : 1)
-            .animation(Animacao.escolher(Animacao.rapida, reduzirMovimento: reduzirMovimento), value: pressionado)
+            .pressao(pressionado)
     }
 }
