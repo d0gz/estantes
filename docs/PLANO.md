@@ -347,7 +347,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 ### Interface
 
 - Botão da câmera embaixo, centralizado.
-- Estantes em grade; estado vazio com livros esmaecidos na cor `superficie` (`#AED3FC`) e "+" na cor `destaque` (azul `#0A5FD6`).
+- Estantes em grade; estado vazio com livros esmaecidos na cor `superficie` (`#AED3FC`), frase e um botão só (ver "Inicio" abaixo).
 - Topo: último livro escaneado + campo de busca (`.searchable`): título, autor e assunto →
   "Livro · item do sumário, p. N · Estante X · prateleira". Com a busca ativa, aparecem os chips de filtro.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
@@ -357,9 +357,10 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 - **Fundamentos do estilo (Estilo 0, decididos em 12/10):**
   - Referências: Apple Books (disposição dos livros: capas protagonistas, serifa, transição capa → detalhe), Bevel (forma e
     movimento: cartões macios, molas), Goodreads (densidade de informação do Detalhe) e Shelf Life (simplicidade).
-  - Cores por papel (60-30-10): branco `fundo`; `#AED3FC` `superficie`/seleção; azul vibrante `#0A5FD6` único
-    `destaque` (5,8:1 no branco). Sobre a `superficie` clara o texto é `.primary` (13,5:1) e o destaque só aparece como
-    ícone ou forma (3,7:1 ≥ 3:1, WCAG 1.4.11): nenhum azul vibrante passa 4,5:1 sobre o `#AED3FC`. No escuro, `#AED3FC`
+  - Cores por papel (60-30-10): branco `fundo`; `#AED3FC` `superficie`/seleção; azul `#0579B8` único
+    `destaque` (4,7:1 no branco; matiz do `#0369A1`, longe do índigo das categorias). Sobre a `superficie` clara o texto é
+    `.primary` (13,5:1) e o destaque só aparece como ícone ou forma (3,05:1 ≥ 3:1, WCAG 1.4.11, no piso: não clarear
+    mais): nenhum azul vivo passa 4,5:1 sobre o `#AED3FC`. No escuro, `#AED3FC`
     vira destaque e a superfície, azul-marinho `#12305A` (branco sobre ele 13,2:1). `textoSecundario` próprio
     (`#4A5A62`/`#C9D6DC`): o `.secondary` do sistema reprova (3,4:1 no branco). O petróleo `#1F5F73` saiu (opaco, "triste").
   - Tipografia: SF na interface; New York (`design: .serif`) só em títulos de livros e estantes; tudo Dynamic Type.
@@ -377,9 +378,17 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     contorno na variante de alto contraste do sistema. Cores do sistema sem azul/ciano/teal, e rosa próprio `#FF2D92`
     (escuro `#FF7AC0`), porque o `systemPink` ficava a 14° do vermelho. Protótipo em `-captura EstiloCategorias`;
     na 2.5, tons fixos por cor com teste de contraste (inclusive o texto sobre o véu escuro) e ajuste do verde se preciso.
-  - Texto e controles sobre a `superficie` vão em `.primary` (o tint global daria 3,7:1 no claro).
+  - Texto e controles sobre a `superficie` vão em `.primary` (o tint global daria 3,05:1 no claro).
   - SF Symbols: `.symbolRenderingMode(.hierarchical)`; variante `.fill` só no estado selecionado; tamanho acompanha o texto; sem enum de ícones.
   - Fica para a tela Estante: capas × lombadas.
+
+- **Inicio (estilo aprovado em 12/10, capturas 1.4–1.5; degraus do azul em `Inicio_1.3-t1…t4` e `Estilo_1.4-t1…t4`):** `CartaoDeEstante` em `Componentes/` (fundo `cartao` com
+  `.sombraSuave()`, ícone `books.vertical.fill` no destaque, nome em serifa e contagem em `textoSecundario` presos à base,
+  altura mínima 96); grade de 2 colunas, 1 nos tamanhos de texto de acessibilidade; pressão com mola (`EstiloCartao`,
+  modificador `.pressao` comum ao vidro e ao principal); entrada e troca de estado com a mola `suave` (esmaecer e subir
+  um pouco; só esmaecer com "Reduzir movimento"; sem cascata). Vazio no padrão da HIG: ilustração que só informa
+  (lombadas, sem "+"), título, frase e **uma** ação (`EstiloPrincipal`); o "+" da barra some sem estantes e surge com o
+  primeiro cartão. Variantes descartadas: duas ações (botão + "+" da barra) e só o "+" da barra (estilo Notas).
 
 ### Forma de trabalho nas telas (2.4 em diante)
 
@@ -434,21 +443,19 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
         `textoSecundario` próprio. `Contraste` (WCAG) e `PaletaTests` ficam no alvo de testes (o app não calcula contraste).
      c. ✅ Catálogo (12/10): `App/CatalogoDeEstilo.swift`, só em DEBUG, em duas páginas (`-captura Estilo` e
         `-captura EstiloTelas`; o `simctl` não rola a tela). Capturas `docs/capturas/Estilo/`: 1.0 (com candidatos
-        `#0A5FD6`, `#2563EB`, `#0369A1` e o petróleo, escolhido `#0A5FD6`), escuro e texto grande (argumento
+        `#0A5FD6`, `#2563EB`, `#0369A1` e o petróleo, escolhido `#0A5FD6`; revisto para `#0579B8` no Inicio), escuro e texto grande (argumento
         `-UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL`; o `simctl` do Xcode 14.2 não muda o
         tamanho do texto); 1.1 com o `EstiloPrincipal` e o vidro em `.primary`.
         Página de categorias (`-captura EstiloCategorias`): 1.2 cor padrão × alto contraste; 1.3 propostas A, B e alto
         contraste; 1.4/1.5 a A com rosa próprio (escolhida). Texto grande das três páginas na 1.2.
         Pendências para as telas (cada uma no seu passo de estilo):
-        - Trocar `.borderedProminent` por `EstiloPrincipal` (o do Inicio, "Criar a primeira estante", está ilegível no
-          escuro) e `.secondary` por `Cor.textoSecundario` (Inicio, Estante, Detalhe, `MensagemDeErroView`).
-        - Com texto grande, chips lado a lado quebram letra a letra e "Escritório" quebra no cartão (chips com rolagem
-          horizontal ou quebra de linha; Inicio e busca).
-        - Cartão branco com sombra × cartão na superfície: decidir no estilo do Inicio.
-        - Promover o cartão de estante e o chip do catálogo a componentes em `Componentes/`, e o catálogo passa a usá-los.
-        Revisão adiada: lista de pares do `PaletaTests` à mão (revisitar com cor nova); extrair um modificador de pressão
-        quando surgir o terceiro estilo de botão; tokens sem uso apagados ao fim do estilo.
-  2. **Próximo: Estilo**, uma tela por vez: Inicio → Estante → Detalhe → Formulário → Apagar estante (ver "Forma de trabalho nas telas");
+        - Trocar `.secondary` por `Cor.textoSecundario` (Estante, Detalhe, `MensagemDeErroView`); Inicio feito.
+        - Com texto grande, chips lado a lado quebram letra a letra (rolagem horizontal ou quebra de linha; busca).
+        - Promover o chip do catálogo a componente em `Componentes/` (o cartão de estante já foi, no Inicio).
+        Revisão adiada: lista de pares do `PaletaTests` à mão (revisitar com cor nova); tokens sem uso apagados ao fim
+        do estilo. O modificador de pressão foi extraído no Inicio (terceiro estilo de botão).
+  2. **Estilo**, uma tela por vez: Inicio ✅ (12/10, ver "Inicio" na seção Interface; destaque claro revisto para
+     `#0579B8`) → **próximo: Estante** → Detalhe → Formulário → Apagar estante (ver "Forma de trabalho nas telas");
      cada tela decide só a composição, sobre os fundamentos já aprovados.
      Pendente para o estilo do Formulário: campo preenchido perde o nome (placeholder some; "1965" sem dizer que é o ano).
      Nota: com "Caixa azul" e "caixa azul" na estante, a sugestão mostra "caixa azul" (ordem natural), e o grupo da
@@ -688,3 +695,4 @@ do parser e do Gemini.
 | 12/10 | Paleta de categorias = cores do sistema da Apple, sem azul/ciano/teal, em estilo pastel (fundo ~20%, texto padrão); implementada na 2.5 (complementa a linha de 03/10 da paleta fixa) | Tons claro/escuro e "Aumentar contraste" de graça; como texto sobre branco quase todas reprovam (amarelo 1,5:1), como fundo pastel passam (≥ 12,8:1). Pastel do Plotly descartado (hex fixos, sem modo escuro); azuis confundiriam com o destaque |
 | 12/10 | Destaque claro azul vibrante `#0A5FD6` e superfície escura azul-marinho `#12305A` no lugar do petróleo; sobre a `superficie` clara, texto `.primary` e destaque só como ícone ou forma (≥ 3:1, WCAG 1.4.11) | Revisa a linha de 12/10 da paleta por papel: no catálogo o petróleo ficou opaco e "triste". O azul do sistema `#007AFF` reprova como texto no branco (4,0:1) e nenhum azul vibrante passa 4,5:1 sobre o `#AED3FC`, daí a regra da superfície. Escolhido olhando quatro candidatos no catálogo (`#2563EB`, `#0369A1` e o petróleo descartados) |
 | 12/10 | Chip de categoria: etiqueta e contorno na cor viva, fundo pastel e texto no tom escuro do mesmo matiz (claro); alto contraste do sistema no escuro; rosa próprio `#FF2D92` no lugar do `systemPink` | Revisa a linha de 12/10 da paleta de categorias (pastel com texto padrão). Desenho do Ricardo; texto na cor viva reprova no branco (amarelo 1,5:1) e o alto contraste puro perdia a identidade pastel no claro. O fundo pastel e o contorno guardam a identidade, o texto escurecido passa 4,5:1. Fundo branco com texto preto (B) descartado por perder o texto na cor. `systemPink` (349°) se confundia com o vermelho (3°) |
+| 12/10 | Destaque claro `#0579B8` (matiz do `#0369A1`, o mais claro que ainda dá 3:1 sobre o `#AED3FC`); o escuro segue `#AED3FC` | Revisa a linha de 12/10 do `#0A5FD6`: na barra de busca (2.7) os chips de filtro convivem com os de categoria, e o `#0A5FD6` ficava colado no índigo (ΔE 6 em OKLab; o `#0579B8`, 12). Escolhido entre 4 degraus de luz a partir do `#0369A1`; tirar o índigo das categorias foi descartado |
