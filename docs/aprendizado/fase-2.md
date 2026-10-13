@@ -2289,3 +2289,79 @@ A tela Estante virou uma lista de cartões, um por prateleira, com cabeçalho "C
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+ (sem respostas)
+
+## Tarefa 2.4 — Estilo da tela Detalhe, número do volume e validação do ISBN (2026-10-13)
+
+### O que foi feito
+O Detalhe (`LivroDetalheView.swift`, `LivroDetalheViewModel.swift`) virou um `ScrollView` com cabeçalho centralizado (miniatura, título, autores no formato ABNT, volume) e um cartão por seção. No caminho, duas correções de lógica pedidas por você: o número do volume passou a aparecer (cartão Obra) e o ISBN passou a ser validado de verdade pela nova regra de Domínio `ISBN.normalizar` (`Dominio/Regras/ISBN.swift`), ligada ao `RascunhoLivro` e ao formulário. A revisão em dois eixos gerou o token `Cor.perigo`, o modificador `.cartao()` e testes por regra (347 testes verdes).
+
+### Conceitos envolvidos
+
+**1. Dígito verificador (ISBN).** É redundância deliberada: o último dígito é função dos outros, então um erro de digitação quase sempre torna o conjunto incoerente e é detectado sem consultar nenhum banco.
+- ISBN-13: pesos 1,3,1,3… nos 12 primeiros; verificador = (10 − soma % 10) % 10. Exemplo resolvido (Wikipédia, 978-0-306-40615-7): 9+21+8+0+3+0+6+12+0+18+1+15 = 93 → (10 − 3) % 10 = 7. ✓
+- ISBN-10: pesos 10…1, soma múltipla de 11; o verificador pode valer 10, escrito "X" (só no fim, porque é um dígito "a mais" que só o último lugar comporta).
+- Conversão 10 → 13: prefixo 978 + os 9 dígitos + verificador **recalculado** pela regra do 13. Não se copia o verificador antigo: são fórmulas diferentes.
+- Por que pega erros: trocar um dígito muda a soma em `peso × diferença`. Se o peso e o módulo são coprimos, o resultado não é múltiplo do módulo e o erro aparece. Pesos 1 e 3 são coprimos com 10; todos os pesos 1…10 são coprimos com 11 (11 é primo). Logo, **toda troca de um dígito** é detectada nos dois.
+- Transposição de vizinhos: no ISBN-10, trocar a e b em pesos w+1 e w muda a soma em (b−a), que nunca é múltiplo de 11 para dígitos 0…10 (se a ≠ b). Pega **todas**. No ISBN-13 os pesos são 1 e 3, a mudança é 2(a−b), múltiplo de 10 quando a−b = ±5: **não pega** trocas entre, por exemplo, 2 e 7. É uma limitação conhecida do mod 10; confirme fazendo à mão.
+
+**2. Prefixo 978/979.** Um EAN-13 qualquer (produto de supermercado, 789… é o prefixo do Brasil) tem a mesma estrutura de 13 dígitos e o mesmo verificador. Só o prefixo diz "isto é livro". Sem exigi-lo, na Fase 3 o leitor de código de barras aceitaria um pacote de arroz como livro. O teste usa 7891234567895 (soma 135 → verificador 5, portanto *válido como EAN*) e a regra o recusa por causa do prefixo, não do verificador. Isso é o que torna o teste significativo.
+
+**3. Unicode e "dígito".** `Character.wholeNumberValue` devolve valor para "٣" (árabe-índico) e "½". Para o Swift são números; para um ISBN, não. Por isso `algarismos` exige `isASCII`. Mesmo cuidado com separadores: U+2010, U+2011 e U+2013 chegam quando se copia de site ou PDF, e o `Tokenizador` já os tratava. A regra de "o que é hífen" fica coerente entre as duas partes.
+
+**4. Forma de retorno `String?`.** `normalizar` devolve `nil` para inválido e o ISBN canônico (13 dígitos, sem hífen) para válido. Uma só função valida e normaliza, então ninguém guarda um valor "validado mas não normalizado". É o princípio "parse, don't validate": converter entrada solta em valor já no formato garantido.
+
+**5. Identidade em listas SwiftUI.** `CampoDoLivro.id` era "rótulo|valor"; dois autores iguais (ou campos com mesmo texto) geravam ids repetidos, e o `ForEach` mistura/ignora linhas com ids duplicados (comportamento indefinido, com aviso no console). Como a lista de campos é estática e montada a cada renderização, usa-se `ForEach(Array(campos.enumerated()), id: \.offset)`. Regra geral: `id` precisa ser único e estável; se o dado não tem identidade natural, a posição serve **quando a lista não é reordenada/editada** pelo usuário.
+
+**6. Contraste (WCAG).** Razão = (L1 + 0,05) / (L2 + 0,05), com L a luminância relativa. systemRed #FF3B30 sobre branco: L ≈ 0,246 → 1,05 / 0,296 ≈ 3,55:1. Texto normal exige 4,5:1; o vermelho do sistema reprova, como já reprovou o `.secondary`. `Cor.perigo`: #D70015 no claro (≈ 5,4:1) e #FF6961 no escuro (≈ 6:1 sobre #1C1C1E). Note que isso só vale para **texto**; ícones e elementos gráficos pedem 3:1.
+
+**7. Autores na ABNT NBR 6023.** 1 autor: nome inteiro; 2 ou 3: só sobrenomes ("Cintra, Grinover e Dinamarco"); 4 ou mais: primeiro + "et al." Sobrenome = o que antecede a vírgula em "Sobrenome, Nome"; sem vírgula, o nome inteiro (fallback seguro: nunca inventa um corte).
+
+**8. Composição.** `ScrollView` + cartões em vez de `List`: mais controle visual, perde swipe e reciclagem. `@ScaledMetric` escala a miniatura com o Dynamic Type; um teto (180 pt nos tamanhos de acessibilidade) impede que a capa tome a tela. `matchedGeometryEffect` só anima entre views da **mesma** hierarquia; entre telas de um `NavigationStack` no iOS 16 não funciona (a zoom transition é iOS 18), por isso o push padrão.
+
+### Por que assim
+- **Autores: caminho de três versões.** (1) Todos no cabeçalho, nome inteiro: com texto grande, "Branco, Paulo / Gustavo Gonet" tinha a mesma quebra de linha **dentro** de um nome e **entre** nomes; centralizado e sem divisória, o leitor não distingue. (2) "Cintra, … e mais 2" (e a ideia "+ 2"): o "+" colidiria com o chip "+ Categoria" da 2.5, onde significa *adicionar*. (3) ABNT: convenção que o usuário jurídico já lê todo dia, curta (cabe no cabeçalho), sem inventar notação. Lição de processo: a decisão veio de **olhar capturas com casos extremos** (3 autores, nome longo, texto grande), não de teoria.
+- **Volume.** O número era salvo certo, mas `textoDoVolume` mostra o rótulo impresso ("Tomo II") quando existe; o número só ordenava. Com rótulo, uma linha "Número do volume" no cartão Obra; sem rótulo, o cabeçalho já mostra "Vol. N". Bug escondido pela revisão: rótulo só de espaços fazia `volumeRotulo ?? ...` devolver "  " (string vazia visualmente, mas não `nil`) e o cabeçalho ficava sem volume. Solução: normalizar com `preenchido(...)` e a regra "o número aparece fora do cabeçalho?" num lugar só (`numeroDoVolumeForaDoCabecalho`).
+- **ISBN no Domínio, não na tela.** É regra de negócio pura, testável sem UI, e será reutilizada pelo leitor de código de barras (Fase 3).
+- **ISBN inválido bloqueia o salvamento também na edição.** Validar só quando o campo muda deixaria passar um ISBN ruim que entrou por outra porta (importação, dado antigo). É coerente com o "pede para completar" de 10/10.
+- **Teclado `.numbersAndPunctuation`.** O `numberPad` não tem "X" nem hífen: o usuário não conseguiria digitar um ISBN-10 terminado em X. Achado da segunda revisão.
+- **`Cor.perigo` e `.cartao()`.** Um token em vez de `.red` espalhado (contraste, tema escuro, mudança num lugar); um modificador no lugar do trio `.background.cantos.sombraSuave` copiado em 4 arquivos.
+- **Sem título na barra.** Mostrá-lo ao rolar exige medir o deslocamento à mão (`GeometryReader` + `PreferenceKey`) no iOS 16.
+
+### Alternativas descartadas
+- `List` restilizada: difícil de aplicar sombra/cantos por cartão.
+- Valor ao lado do rótulo: valores longos e texto grande espremem a linha; rótulo `.caption` em cima resolve.
+- Validar o ISBN só no verificador, sem prefixo: aceitaria EAN de produto.
+- Validar só quando o campo muda: deixa passar ISBN inválido de outra origem.
+- `matchedGeometryEffect` entre telas / zoom transition: indisponíveis no iOS 16.
+- Lista de autores completa no cabeçalho, ou cartão "Autores" com "e mais N": ver a história acima.
+
+### Padrões e boas práticas
+- **Regra pura no Domínio, tela burra.** A ViewModel só pergunta; a regra tem testes próprios.
+- **Teste com valor de fonte independente.** Os exemplos vêm da Wikipédia e de conta à mão (978080442957 → soma 117 → 3; 9791000000008 → soma 42 → 8), nunca do próprio `verificador13`. E o benefício apareceu: o fixture antigo 9788520300000 tinha verificador errado (soma 82 → 8), um dado inválido escondido nos testes.
+- **Um teste por regra** (ABNT: 1, 2, 3, 4+ autores, sem vírgula) para que a falha aponte a regra quebrada.
+- **Vermelho → verde para tokens** (teste de contraste antes de `Cor.perigo`).
+- **Extrair modificador** quando o mesmo encadeamento aparece 3+ vezes. Quando NÃO: se só 1 ou 2 usos, ou se os usos divergem em detalhes, a abstração custa mais que a repetição.
+- **Revisão em dois eixos**: padrões (P) e plano (E) pegam coisas diferentes (o P pegou o teclado; o E, a colisão de id).
+
+### Armadilhas
+- `??` em string: `nil` e `"  "` são coisas diferentes; texto digitado precisa ser aparado antes de decidir "vazio".
+- `wholeNumberValue` e `isNumber` aceitam dígitos não ASCII e frações.
+- ISBN-10: o "X" só vale no último lugar; e minúsculo "x" também aparece digitado.
+- Verificador mod 10 não detecta toda transposição (diferença de 5).
+- `ForEach` com ids repetidos: sintoma é linha duplicada/sumida e aviso no console.
+- Testes que só passam com dado inválido: ao endurecer uma regra, rode tudo e desconfie dos fixtures.
+- Processo: houve queda de energia com a edição já gravada. Antes de repetir um comando interrompido, confira `git status` e `grep` para ver o que já foi aplicado; e **commite cedo**, em passos pequenos: o commit é o ponto de restauração mais barato que existe.
+
+### Para ir além
+- ISO 2108 (ISBN) e o manual do usuário da Agência Internacional do ISBN (isbn-international.org); a página "International Standard Book Number" da Wikipédia traz os exemplos usados aqui.
+- ABNT NBR 6023 (referências), seção de autoria.
+- WCAG 2.2, critério 1.4.3 (Contrast Minimum), com a fórmula de luminância relativa.
+
+### Perguntas
+1. Com suas palavras: por que um dígito verificador detecta qualquer erro de um só dígito? Mostre, com pesos e módulo, por que o peso 3 do ISBN-13 não atrapalha (e o que atrapalharia, por exemplo um peso 5 em módulo 10).
+2. Aplicação: calcule o verificador do ISBN-13 de 978-85-359-0277-? (os 12 primeiros dígitos são 978853590277). Depois diga o que mudaria na regra se quiséssemos aceitar também ISSN (8 dígitos, mod 11, pesos 8…2), e onde isso entraria no código.
+3. Raciocínio: troque dois dígitos vizinhos 2 e 7 num ISBN-13 válido (um com pesos 1 e 3). A validação percebe? E no ISBN-10 com os mesmos dígitos? Explique a diferença pela aritmética. Bônus: por que `id = "rótulo|valor"` falhava no Detalhe e qual condição faz a posição (`\.offset`) ser um id aceitável?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
