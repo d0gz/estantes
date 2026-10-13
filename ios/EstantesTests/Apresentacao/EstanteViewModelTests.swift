@@ -57,4 +57,13 @@ final class EstanteViewModelTests: XCTestCase {
         XCTAssertEqual(EstanteViewModel.linhaSecundaria(Livro(estanteId: sala.id, titulo: "A", ano: 1998)), "1998")
         XCTAssertNil(EstanteViewModel.linhaSecundaria(Livro(estanteId: sala.id, titulo: "A")))
     }
+
+    func testCabecalhoDaPrateleiraComContagem() {
+        let livro = Livro(estanteId: sala.id, titulo: "A")
+        let caixa = GrupoDePrateleira(prateleira: "Caixa azul", livros: [livro, livro])
+        let semPrateleira = GrupoDePrateleira(prateleira: nil, livros: [livro])
+
+        XCTAssertEqual(EstanteViewModel.cabecalho(caixa), "Caixa azul · 2")
+        XCTAssertEqual(EstanteViewModel.cabecalho(semPrateleira), "Sem prateleira · 1")
+    }
 }

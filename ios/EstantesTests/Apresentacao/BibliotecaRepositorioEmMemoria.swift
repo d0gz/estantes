@@ -10,6 +10,8 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
     var livrosGuardados: [UUID: Livro] = [:]
     var categoriasGuardadas: [UUID: Categoria] = [:]
     var fotos: [UUID: Data] = [:]
+    /// Quantas vezes `fotoMiniatura` foi chamada (para conferir o cache do `CarregadorDeMiniaturas`).
+    private(set) var leiturasDeFoto = 0
 
     /// Ligados, fazem as leituras ou as gravações lançarem `FalhaSimulada`.
     var falharAoLer = false
@@ -106,6 +108,7 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
     }
 
     func fotoMiniatura(doLivro livroId: UUID) async throws -> Data? {
+        leiturasDeFoto += 1
         try lendo()
         return fotos[livroId]
     }

@@ -37,4 +37,9 @@ final class EstanteViewModel: ObservableObject {
         ].compactMap { $0 }
         return partes.isEmpty ? nil : partes.joined(separator: " · ")
     }
+
+    /// Cabeçalho da prateleira com a contagem ("Caixa azul · 2"): ajuda a conferir a estante física.
+    static func cabecalho(_ grupo: GrupoDePrateleira) -> String {
+        "\(grupo.prateleira ?? "Sem prateleira") · \(grupo.livros.count)"
+    }
 }
