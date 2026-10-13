@@ -418,6 +418,21 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   rolagem à mão no iOS 16). Exemplos: na Sala, um livro com 3 autores e outro com 2 de nome longo (capturas
   `LivroDetalheTresAutores` e `LivroDetalheDoisAutores`).
 
+- **Formulário (estilo aprovado em 13/10, provisório, capturas 1.2–1.3, via `/decidir`):** `Form` nativo com o cinza
+  agrupado e os cartões brancos do sistema (no escuro, `#1C1C1E`/`#2C2C2E` dentro da folha). **Exceção ao Estilo 0**,
+  a pedido do Ricardo: nem `fundo` nem `cartao`, porque branco sobre branco sem sombra (o `Form` não tem sombra por
+  seção) apagava os cartões, e o `Form` dá prontos apagar/arrastar autores, foco e fuga do teclado. Dos tokens vêm só
+  `textoSecundario` (nomes dos campos e títulos das seções), `Espaco` e a serifa do título. Campo vazio: nome e exemplo
+  no placeholder ("Edição (ex.: 3.ª ed.)"); preenchido: o nome passa para cima, pequeno (`.caption`), entrando com a
+  mola `suave` (resolve o "1965 sem dizer que é o ano"); escondido do VoiceOver, que lê o rótulo do `TextField`.
+  Título digitado em serifa (`Fonte.tituloLivroNaLista`). Título e subtítulo quebram linha (`axis: .vertical`), mas o
+  Return (ou texto colado com linhas) vira espaço e fecha o teclado; ao salvar, o `RascunhoLivro` junta espaços e
+  quebras repetidos num espaço só (todos os campos de texto). Autor com placeholder "Sobrenome, Nome" (o formato de
+  que o cabeçalho do Detalhe tira o sobrenome). Sugestões de prateleira (linhas ↳) e erros em `Cor.perigo` como na
+  lógica. Descartados: ScrollView com `.cartao()` (refazer o comportamento do `Form` à mão), nome sempre em cima
+  (poluía e dobrava a altura do Novo), nome à esquerda, fundo branco com linhas em `superficie`. Aviso esperado no
+  Xcode 26: `onChange(of:)` de um parâmetro é deprecated no iOS 17, mas é a única forma que o Xcode 14.2 aceita.
+
 ### Forma de trabalho nas telas (2.4 em diante)
 
 - **Primeiro a lógica, depois o estilo.** A 2.4 faz todas as telas funcionarem com componentes nativos do SwiftUI, sem
@@ -451,8 +466,9 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
   (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário ✅ · 2.4e prateleira ✅ ·
   depois o estilo, tela por tela)
-  **Onde paramos (13/10, branch `fase2/telas`, 347 testes):** estilo do Inicio, da Estante e do Detalhe aprovados;
-  próximo: Formulário. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
+  **Onde paramos (13/10, branch `fase2/telas`, 348 testes):** estilo do Inicio, da Estante, do Detalhe e do Formulário
+  (provisório: o Ricardo avisa se quiser desfazer) aprovados; próximo: a foto da miniatura no Formulário (passo 2 do
+  estilo do Formulário, abaixo), depois Apagar estante. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
   cartão Obra quando há rótulo impresso (antes não aparecia em lugar nenhum) e o ISBN passou a ser validado
   (regra `ISBN` no Domínio; teclado `.numbersAndPunctuation` no formulário, para o hífen e o "X").
   Antes (12/10): lógica da 2.4a–e pronta e aprovada no simulador.
@@ -488,11 +504,17 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
         do estilo. O modificador de pressão foi extraído no Inicio (terceiro estilo de botão).
   2. **Estilo**, uma tela por vez: Inicio ✅ (12/10, ver "Inicio" na seção Interface; destaque claro revisto para
      `#0579B8`) → Estante ✅ (13/10, ver "Estante" na seção Interface) → Detalhe ✅ (13/10, ver "Detalhe" na seção
-     Interface) → **próximo: Formulário** → Apagar estante (ver "Forma de trabalho nas telas");
+     Interface) → Formulário ✅ (13/10, provisório, ver "Formulário" na seção Interface) → **próximo: foto da
+     miniatura**, depois Apagar estante (ver "Forma de trabalho nas telas");
      cada tela decide só a composição, sobre os fundamentos já aprovados.
-     Pendente para o estilo do Formulário: campo preenchido perde o nome (placeholder some; "1965" sem dizer que é o ano).
-     Pendente para o Formulário ou a Fase 3: escolher a foto da miniatura (`PhotosPicker`); ao trocar a foto, o
-     `CarregadorDeMiniaturas` precisa esquecer o livro (o `esquecer` saiu por falta de uso) e a `MiniaturaDoLivro`, saber.
+     ✅ Campo preenchido perdia o nome (resolvido no Formulário: nome pequeno em cima com o campo preenchido).
+     **Foto da miniatura (próximo, commit separado; decidido em 13/10):** cabeçalho do Formulário com a
+     `MiniaturaDoLivro` e um `Menu` ("Escolher foto" com `PhotosPicker`; "Remover foto" se houver); a foto é reduzida
+     no aparelho (lado maior 1200 px, JPEG 0,8, com ImageIO, num tipo em `Componentes/`), fica no ViewModel e só é
+     gravada no "Salvar" (`salvarFotoMiniatura`, só se mudou; "Cancelar" descarta); depois, o
+     `CarregadorDeMiniaturas` volta a ter `esquecer(livroId)` para a Estante e o Detalhe relerem. Fronteiras de teste
+     (aprovar antes): redução (4000×3000 → lado maior 1200 na mesma proporção; menor não é ampliada), `salvar()` (nova
+     → porta recebe os dados; removida → `nil`; inalterada → porta não é chamada) e `esquecer` (relê da porta).
      Nota: com "Caixa azul" e "caixa azul" na estante, a sugestão mostra "caixa azul" (ordem natural), e o grupo da
      estante, a grafia mais usada; podem diferir (a porta não traz contagem).
   3. Fechamento: CI verde, PR pronto para revisão, checklist e CLAUDE.md atualizados.
@@ -740,3 +762,5 @@ do parser e do Gemini.
 | 13/10 | Detalhe: cabeçalho centralizado (miniatura, título em serifa, volume e autores só pelos sobrenomes, como na ABNT: até 3, depois "et al.") e cartões por seção, com o cartão Autores listando os nomes completos | Com texto grande, a quebra dentro de um nome no cabeçalho se confundia com outro autor (vista nas capturas com 3 autores); "e mais N" soava traduzido e "+ N" colidiria com o "+ Categoria" da 2.5. List restilizada e cabeçalho lado a lado descartados |
 | 13/10 | ISBN validado no Domínio (`ISBN.normalizar`): 10 ou 13 dígitos (hífens, inclusive Unicode, e espaços ignorados), "X" só no fim do ISBN-10, prefixo 978/979 e dígito verificador; guarda só os 13 dígitos (o ISBN-10 é convertido) | Antes aceitava letras. Livros anteriores a 2007 trazem ISBN-10; um formato só compara com código de barras e catálogos. Validar só quando o usuário muda o ISBN foi descartado: deixaria passar ISBN inválido de outra porta (como o "pede para completar" de 10/10). Sem o prefixo, o EAN de um produto passaria como livro na Fase 3 |
 | 13/10 | Categoria no cartão do livro (2.5): chip fantasma "+ Categoria" só sem categoria, tocar nos chips abre a escolha, e o menu de contexto | Pedido do Ricardo. Um "+" em todo cartão foi descartado: alvo sobreposto ao link, 44 pt engordando cada linha, repetido em todas |
+| 13/10 | Formulário no `Form` nativo com o cinza agrupado e os cartões brancos do sistema (pedido do Ricardo; só texto secundário, espaçamento e fonte vêm dos tokens), não ScrollView com `.cartao()` como no Detalhe (provisório: a confirmar nas capturas; o Ricardo avisa se quiser outra forma) | O Detalhe é leitura; o formulário precisa de apagar/arrastar autores, foco e fuga do teclado, que o `Form` dá prontos. Refazê-los à mão foi descartado (mais código e risco por um raio de canto) |
+| 13/10 | Foto do livro guardada reduzida (lado maior 1200 px, JPEG 0,8); a de alta qualidade só é usada (na Fase 3, o OCR roda na resolução máxima da câmera in-app) e depois descartada (provisório: a confirmar nas capturas) | A original (3–10 MB) pesaria banco e export (200 livros ≈ 1 GB); 600 px borraria uma futura vista ampliada. Complementa a linha de 13/10 da miniatura (no banco só uma foto) |
