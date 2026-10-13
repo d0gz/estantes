@@ -16,6 +16,15 @@ struct SecaoDoLivro: Equatable, Identifiable {
     var id: String { titulo }
 }
 
+/// O topo do detalhe, abaixo da miniatura: o que identifica o livro na estante.
+struct CabecalhoDoLivro: Equatable {
+    let titulo: String
+    let subtitulo: String?
+    let volume: String?
+    /// Um por linha, na ordem do livro.
+    let autores: [String]
+}
+
 /// Detalhe de um livro. Recebe só o id e relê o livro do banco: uma struct guardada no link
 /// da navegação estaria velha depois de uma edição.
 @MainActor
@@ -60,19 +69,24 @@ final class LivroDetalheViewModel: ObservableObject {
 
     // MARK: Campos mostrados
 
+    /// Título, subtítulo, volume e autores; vazios ou só de espaços somem.
+    static func cabecalho(de livro: Livro) -> CabecalhoDoLivro {
+        CabecalhoDoLivro(
+            titulo: livro.titulo,
+            subtitulo: preenchido(livro.subtitulo),
+            volume: preenchido(textoDoVolume(livro)),
+            autores: livro.autores.compactMap(preenchido)
+        )
+    }
+
     /// As seções do detalhe, só com os campos preenchidos; seção sem nenhum campo some.
-    /// O título não entra: é o cabeçalho da tela.
+    /// Título, subtítulo, volume e autores não entram: estão no `cabecalho(de:)`.
     static func secoes(de livro: Livro) -> [SecaoDoLivro] {
         let secoes = [
             SecaoDoLivro(titulo: "Obra", campos: campos([
-                ("Subtítulo", livro.subtitulo),
                 ("Parte", livro.parte),
-                ("Volume", textoDoVolume(livro)),
                 ("Série", livro.serie),
                 ("Artigos", textoDosArtigos(inicio: livro.artigosInicio, fim: livro.artigosFim)),
-            ])),
-            SecaoDoLivro(titulo: "Autoria", campos: campos([
-                (livro.autores.count > 1 ? "Autores" : "Autor", livro.autores.isEmpty ? nil : livro.autores.joined(separator: "\n")),
             ])),
             SecaoDoLivro(titulo: "Publicação", campos: campos([
                 ("Editora", livro.editora),
@@ -93,9 +107,14 @@ final class LivroDetalheViewModel: ObservableObject {
     /// Descarta os valores ausentes ou só de espaços.
     private static func campos(_ pares: [(String, String?)]) -> [CampoDoLivro] {
         pares.compactMap { rotulo, valor in
-            guard let valor = valor?.trimmingCharacters(in: .whitespacesAndNewlines), !valor.isEmpty else { return nil }
-            return CampoDoLivro(rotulo: rotulo, valor: valor)
+            preenchido(valor).map { CampoDoLivro(rotulo: rotulo, valor: $0) }
         }
+    }
+
+    /// O texto sem espaços nas pontas, ou `nil` se não sobrar nada.
+    private static func preenchido(_ texto: String?) -> String? {
+        guard let texto = texto?.trimmingCharacters(in: .whitespacesAndNewlines), !texto.isEmpty else { return nil }
+        return texto
     }
 
     /// O rótulo impresso ("Tomo XLVIII") vence; sem ele, o número ("Vol. 48").
