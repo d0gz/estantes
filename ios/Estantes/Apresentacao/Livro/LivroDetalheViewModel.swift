@@ -1,11 +1,12 @@
 import Foundation
 
-/// Um campo do livro como o detalhe o mostra ("Editora", "Malheiros").
+/// Um campo do livro como o detalhe o mostra ("Editora", "Malheiros"). Sem rótulo quando o título da seção já diz
+/// o que é (cada autor no cartão "Autores").
 struct CampoDoLivro: Equatable, Identifiable {
-    let rotulo: String
+    let rotulo: String?
     let valor: String
 
-    var id: String { rotulo }
+    var id: String { "\(rotulo ?? "")|\(valor)" }
 }
 
 /// Uma seção do detalhe ("Publicação") com os campos preenchidos.
@@ -21,8 +22,9 @@ struct CabecalhoDoLivro: Equatable {
     let titulo: String
     let subtitulo: String?
     let volume: String?
-    /// Um por linha, na ordem do livro.
-    let autores: [String]
+    /// O primeiro autor e, havendo mais, quantos ("Cintra, Antonio Carlos de Araújo e mais 2"); a lista inteira
+    /// fica no cartão "Autores", onde a quebra de linha dentro de um nome não se confunde com outro autor.
+    let autores: String?
 }
 
 /// Detalhe de um livro. Recebe só o id e relê o livro do banco: uma struct guardada no link
@@ -69,20 +71,27 @@ final class LivroDetalheViewModel: ObservableObject {
 
     // MARK: Campos mostrados
 
-    /// Título, subtítulo, volume e autores; vazios ou só de espaços somem.
+    /// Título, subtítulo, volume e o primeiro autor; vazios ou só de espaços somem.
     static func cabecalho(de livro: Livro) -> CabecalhoDoLivro {
-        CabecalhoDoLivro(
+        let autores = livro.autores.compactMap(preenchido)
+        return CabecalhoDoLivro(
             titulo: livro.titulo,
             subtitulo: preenchido(livro.subtitulo),
             volume: preenchido(textoDoVolume(livro)),
-            autores: livro.autores.compactMap(preenchido)
+            autores: autores.first.map { autores.count > 1 ? "\($0) e mais \(autores.count - 1)" : $0 }
         )
     }
 
     /// As seções do detalhe, só com os campos preenchidos; seção sem nenhum campo some.
-    /// Título, subtítulo, volume e autores não entram: estão no `cabecalho(de:)`.
+    /// Título, subtítulo e volume não entram: estão no `cabecalho(de:)`. Os autores, sim, um por linha (o
+    /// cabeçalho mostra só o primeiro).
     static func secoes(de livro: Livro) -> [SecaoDoLivro] {
+        let autores = livro.autores.compactMap(preenchido)
         let secoes = [
+            SecaoDoLivro(
+                titulo: autores.count > 1 ? "Autores" : "Autor",
+                campos: autores.map { CampoDoLivro(rotulo: nil, valor: $0) }
+            ),
             SecaoDoLivro(titulo: "Obra", campos: campos([
                 ("Parte", livro.parte),
                 ("Série", livro.serie),

@@ -21,6 +21,9 @@ enum DadosDeExemplo {
     )
     static let tratadoTomo48 = UUID(uuidString: "B0000000-0000-0000-0000-000000000048")!
     static let cursoConstitucional = UUID(uuidString: "B0000000-0000-0000-0000-000000000001")!
+    /// Três autores e dois autores de nome longo: para pesar o cabeçalho do Detalhe contra um cartão "Autoria".
+    static let teoriaGeralDoProcesso = UUID(uuidString: "B0000000-0000-0000-0000-000000000003")!
+    static let cursoMendesBranco = UUID(uuidString: "B0000000-0000-0000-0000-000000000002")!
 
     /// Biblioteca pequena, com livros reais de direito, para as telas terem conteúdo plausível:
     /// duas prateleiras numeradas, dois tomos da mesma obra, um livro sem prateleira e uma estante vazia.
@@ -46,6 +49,12 @@ enum DadosDeExemplo {
                   autores: ["Reale, Miguel"], editora: "Saraiva", ano: 2002),
             Livro(estanteId: sala.id, titulo: "Teoria pura do direito",
                   autores: ["Kelsen, Hans"], editora: "Martins Fontes", ano: 1998),
+            Livro(id: teoriaGeralDoProcesso, estanteId: sala.id, titulo: "Teoria geral do processo",
+                  autores: ["Cintra, Antonio Carlos de Araújo", "Grinover, Ada Pellegrini", "Dinamarco, Cândido Rangel"],
+                  editora: "Malheiros", local: "São Paulo", edicao: "26.ª ed.", ano: 2010),
+            Livro(id: cursoMendesBranco, estanteId: sala.id, titulo: "Curso de direito constitucional",
+                  autores: ["Mendes, Gilmar Ferreira", "Branco, Paulo Gustavo Gonet"],
+                  editora: "Saraiva", local: "São Paulo", edicao: "7.ª ed.", ano: 2012),
         ]
         for livro in livros {
             try await repositorio.salvar(livro)
@@ -132,6 +141,8 @@ enum Captura: String {
     case estante = "Estante"
     case estanteVazia = "EstanteVazia"
     case livroDetalhe = "LivroDetalhe"
+    case livroDetalheTresAutores = "LivroDetalheTresAutores"
+    case livroDetalheDoisAutores = "LivroDetalheDoisAutores"
     case apagarLivro = "ApagarLivro"
     case formularioNovo = "FormularioNovo"
     case formularioEditar = "FormularioEditar"
@@ -164,6 +175,14 @@ enum Captura: String {
         case .livroDetalhe:
             ComExemplos {
                 NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48))
+            }
+        case .livroDetalheTresAutores:
+            ComExemplos {
+                NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.sala, livro: DadosDeExemplo.teoriaGeralDoProcesso))
+            }
+        case .livroDetalheDoisAutores:
+            ComExemplos {
+                NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.sala, livro: DadosDeExemplo.cursoMendesBranco))
             }
         case .apagarLivro:
             ComExemplos {

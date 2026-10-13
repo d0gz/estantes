@@ -40,6 +40,7 @@ struct NavegacaoView: View {
                     let folha = folhaPendente?.folha(em: rota)
                     LivroDetalheView(
                         viewModel: dependencias.fazerLivroDetalheViewModel(livroId: rota.livroId),
+                        miniaturas: dependencias.miniaturas,
                         formulario: dependencias.fazerLivroFormularioViewModel,
                         abrirConfirmacao: folha == .confirmacaoDeApagar,
                         abrirFormulario: folha == .formulario

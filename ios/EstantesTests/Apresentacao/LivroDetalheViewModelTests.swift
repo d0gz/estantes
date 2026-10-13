@@ -67,18 +67,22 @@ final class LivroDetalheViewModelTests: XCTestCase {
 
     // MARK: Cabeçalho
 
-    func testCabecalhoComTituloVolumeEAutores() {
+    func testCabecalhoComTituloVolumeEAutor() {
         // O subtítulo só de espaços some; o volume mostra o rótulo impresso.
         XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livroCompleto()), CabecalhoDoLivro(
-            titulo: "Tratado de direito privado", subtitulo: nil, volume: "Tomo XLVIII", autores: ["Miranda, Pontes de"]
+            titulo: "Tratado de direito privado", subtitulo: nil, volume: "Tomo XLVIII", autores: "Miranda, Pontes de"
         ))
     }
 
-    func testCabecalhoMantemAOrdemDosAutoresESemVazios() {
-        let livro = Livro(estanteId: sala.id, titulo: "A", subtitulo: "Parte geral", autores: ["Um", " ", "Dois"])
+    func testCabecalhoMostraOPrimeiroAutorEQuantosMais() {
+        let livro = Livro(estanteId: sala.id, titulo: "A", subtitulo: "Parte geral", autores: [" ", "Um", "Dois", "Três"])
         XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro), CabecalhoDoLivro(
-            titulo: "A", subtitulo: "Parte geral", volume: nil, autores: ["Um", "Dois"]
+            titulo: "A", subtitulo: "Parte geral", volume: nil, autores: "Um e mais 2"
         ))
+    }
+
+    func testCabecalhoSemAutor() {
+        XCTAssertNil(LivroDetalheViewModel.cabecalho(de: Livro(estanteId: sala.id, titulo: "A")).autores)
     }
 
     // MARK: Campos mostrados
@@ -86,19 +90,20 @@ final class LivroDetalheViewModelTests: XCTestCase {
     func testSecoesSoComCamposPreenchidos() {
         let secoes = LivroDetalheViewModel.secoes(de: livroCompleto())
 
-        // Subtítulo, volume e autores ficam no cabeçalho, não nos cartões.
-        XCTAssertEqual(secoes.map(\.titulo), ["Obra", "Publicação", "Na estante"])
-        XCTAssertEqual(secoes[0].campos, [
+        // Subtítulo e volume ficam só no cabeçalho; os autores, no primeiro cartão, sem rótulo por linha.
+        XCTAssertEqual(secoes.map(\.titulo), ["Autor", "Obra", "Publicação", "Na estante"])
+        XCTAssertEqual(secoes[0].campos, [CampoDoLivro(rotulo: nil, valor: "Miranda, Pontes de")])
+        XCTAssertEqual(secoes[1].campos, [
             CampoDoLivro(rotulo: "Parte", valor: "Parte especial"),
             CampoDoLivro(rotulo: "Artigos", valor: "Arts. 1710–1779"),
         ])
         // Edição, páginas e ISBN vazios não aparecem; o ano sem ponto de milhar.
-        XCTAssertEqual(secoes[1].campos, [
+        XCTAssertEqual(secoes[2].campos, [
             CampoDoLivro(rotulo: "Editora", valor: "Borsoi"),
             CampoDoLivro(rotulo: "Local", valor: "Rio de Janeiro"),
             CampoDoLivro(rotulo: "Ano", valor: "1965"),
         ])
-        XCTAssertEqual(secoes[2].campos, [
+        XCTAssertEqual(secoes[3].campos, [
             CampoDoLivro(rotulo: "Prateleira", valor: "caixa azul"),
             CampoDoLivro(rotulo: "Origem", valor: "LexML"),
         ])
@@ -109,6 +114,14 @@ final class LivroDetalheViewModelTests: XCTestCase {
         XCTAssertEqual(secoes, [
             SecaoDoLivro(titulo: "Na estante", campos: [CampoDoLivro(rotulo: "Origem", valor: "Cadastro manual")]),
         ])
+    }
+
+    func testVariosAutoresUmPorLinhaNaOrdem() {
+        let livro = Livro(estanteId: sala.id, titulo: "A", autores: ["Um", "  ", "Dois"])
+        XCTAssertEqual(LivroDetalheViewModel.secoes(de: livro).first, SecaoDoLivro(titulo: "Autores", campos: [
+            CampoDoLivro(rotulo: nil, valor: "Um"),
+            CampoDoLivro(rotulo: nil, valor: "Dois"),
+        ]))
     }
 
     func testVolumeSemRotuloUsaONumero() {
