@@ -14,16 +14,18 @@ enum Cor {
 
 /// As mesmas cores em `UIColor`, com o tom claro e o escuro. Em código, e não num catálogo de cores, para o hex
 /// aparecer na revisão e os testes resolverem cada modo e medirem o contraste (`PaletaTests`).
-/// No escuro, o azul vibrante sobre o preto daria só 3,6:1; por isso o `#AED3FC` vira o destaque, e a superfície,
+/// No escuro, o azul do claro sobre o preto daria só 4,4:1; por isso o `#AED3FC` vira o destaque, e a superfície,
 /// um azul-marinho profundo. Sobre a `superficie` clara o texto é o `.primary`: o destaque ali só como ícone ou forma
-/// (3,7:1; nenhum azul vibrante chega a 4,5:1 sobre o `#AED3FC`).
+/// (3,05:1, no piso de 3:1: o `#0579B8` é o azul mais claro do seu matiz que ainda passa; nenhum azul vivo chega a
+/// 4,5:1 sobre o `#AED3FC`). Matiz puxado para o ciano para ficar longe do índigo das categorias (motivo no
+/// "Histórico de decisões" do PLANO).
 enum Paleta {
     static let fundo = UIColor(claro: 0xFFFFFF, escuro: 0x000000)
     /// No claro, o cartão se separa do fundo pela sombra; no escuro, pela cor (sombra não aparece no preto).
     static let cartao = UIColor(claro: 0xFFFFFF, escuro: 0x1C1C1E)
-    /// Texto e controles sobre ela vão em `.primary`: o tint global (`destaque`) daria só 3,7:1 no claro.
+    /// Texto e controles sobre ela vão em `.primary`: o tint global (`destaque`) daria só 3,05:1 no claro.
     static let superficie = UIColor(claro: 0xAED3FC, escuro: 0x12305A)
-    static let destaque = UIColor(claro: 0x0A5FD6, escuro: 0xAED3FC)
+    static let destaque = UIColor(claro: 0x0579B8, escuro: 0xAED3FC)
     /// Texto ou ícone em cima do `destaque`.
     static let sobreDestaque = UIColor(claro: 0xFFFFFF, escuro: 0x1C1C1E)
     /// Substitui o `.secondary` do sistema, que dá 3,4:1 no branco e 2,9:1 sobre a `superficie`.
