@@ -101,6 +101,9 @@ enum Captura: String {
     case apagarLivro = "ApagarLivro"
     case formularioNovo = "FormularioNovo"
     case formularioEditar = "FormularioEditar"
+    case estilo = "Estilo"
+    case estiloTelas = "EstiloTelas"
+    case estiloCategorias = "EstiloCategorias"
 
     /// Argumentos `-chave valor` viram entradas do `UserDefaults` (domínio de argumentos), sem parser próprio.
     static var pedida: Captura? {
@@ -154,6 +157,12 @@ enum Captura: String {
                     folhaInicial: FolhaPendente(.formulario, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo48))
                 )
             }
+        case .estilo:
+            CatalogoDeEstiloView(pagina: .fundamentos)
+        case .estiloTelas:
+            CatalogoDeEstiloView(pagina: .telas)
+        case .estiloCategorias:
+            CatalogoDeEstiloView(pagina: .categorias)
         }
     }
 
