@@ -101,7 +101,7 @@ struct LivroDetalheView: View {
         }
     }
 
-    /// Miniatura e, embaixo, o que identifica o livro (dos autores, só o primeiro), tudo centralizado (referência: Apple Books).
+    /// Miniatura e, embaixo, o que identifica o livro (dos autores, só os sobrenomes), tudo centralizado (referência: Apple Books).
     private func cabecalho(_ livro: Livro) -> some View {
         let cabecalho = LivroDetalheViewModel.cabecalho(de: livro)
         return VStack(spacing: Espaco.medio) {

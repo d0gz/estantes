@@ -74,11 +74,29 @@ final class LivroDetalheViewModelTests: XCTestCase {
         ))
     }
 
-    func testCabecalhoMostraOPrimeiroAutorEQuantosMais() {
-        let livro = Livro(estanteId: sala.id, titulo: "A", subtitulo: "Parte geral", autores: [" ", "Um", "Dois", "Três"])
-        XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro), CabecalhoDoLivro(
-            titulo: "A", subtitulo: "Parte geral", volume: nil, autores: "Um e mais 2"
-        ))
+    func testCabecalhoComVariosAutoresSoComSobrenomesComoNaABNT() {
+        func linha(_ autores: [String]) -> String? {
+            LivroDetalheViewModel.cabecalho(de: Livro(estanteId: sala.id, titulo: "A", autores: autores)).autores
+        }
+        XCTAssertEqual(linha(["Mendes, Gilmar Ferreira", "Branco, Paulo Gustavo Gonet"]), "Mendes e Branco")
+        XCTAssertEqual(
+            linha(["Cintra, Antonio Carlos de Araújo", " ", "Grinover, Ada Pellegrini", "Dinamarco, Cândido Rangel"]),
+            "Cintra, Grinover e Dinamarco"
+        )
+        // A partir de 4, o primeiro e "et al." (ABNT NBR 6023).
+        XCTAssertEqual(
+            linha(["Sarlet, Ingo Wolfgang", "Marinoni, Luiz Guilherme", "Mitidiero, Daniel", "Arenhart, Sérgio Cruz"]),
+            "Sarlet et al."
+        )
+        // Sem vírgula não há como saber o sobrenome: o nome vai inteiro.
+        XCTAssertEqual(linha(["Pontes de Miranda", "Kelsen, Hans"]), "Pontes de Miranda e Kelsen")
+    }
+
+    func testCabecalhoSubtitulo() {
+        XCTAssertEqual(
+            LivroDetalheViewModel.cabecalho(de: Livro(estanteId: sala.id, titulo: "A", subtitulo: " Parte geral ")).subtitulo,
+            "Parte geral"
+        )
     }
 
     func testCabecalhoSemAutor() {

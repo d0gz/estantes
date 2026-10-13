@@ -22,8 +22,9 @@ struct CabecalhoDoLivro: Equatable {
     let titulo: String
     let subtitulo: String?
     let volume: String?
-    /// O primeiro autor e, havendo mais, quantos ("Cintra, Antonio Carlos de Araújo e mais 2"); a lista inteira
-    /// fica no cartão "Autores", onde a quebra de linha dentro de um nome não se confunde com outro autor.
+    /// Um autor: o nome inteiro. Vários: só os sobrenomes, como na ABNT ("Cintra, Grinover e Dinamarco"; de 4 em
+    /// diante, "Sarlet et al."). Os nomes inteiros ficam no cartão "Autores", onde a quebra de linha dentro de um
+    /// nome não se confunde com outro autor.
     let autores: String?
 }
 
@@ -71,20 +72,37 @@ final class LivroDetalheViewModel: ObservableObject {
 
     // MARK: Campos mostrados
 
-    /// Título, subtítulo, volume e o primeiro autor; vazios ou só de espaços somem.
+    /// Título, subtítulo, volume e a linha dos autores; vazios ou só de espaços somem.
     static func cabecalho(de livro: Livro) -> CabecalhoDoLivro {
         let autores = livro.autores.compactMap(preenchido)
         return CabecalhoDoLivro(
             titulo: livro.titulo,
             subtitulo: preenchido(livro.subtitulo),
             volume: preenchido(textoDoVolume(livro)),
-            autores: autores.first.map { autores.count > 1 ? "\($0) e mais \(autores.count - 1)" : $0 }
+            autores: linhaDosAutores(autores)
         )
+    }
+
+    private static func linhaDosAutores(_ autores: [String]) -> String? {
+        switch autores.count {
+        case 0: return nil
+        case 1: return autores[0]
+        case 2, 3:
+            let sobrenomes = autores.map(sobrenome)
+            return sobrenomes.dropLast().joined(separator: ", ") + " e " + sobrenomes[sobrenomes.count - 1]
+        default: return sobrenome(autores[0]) + " et al."
+        }
+    }
+
+    /// O que vem antes da vírgula em "Sobrenome, Nome"; sem vírgula, o nome inteiro (não há como saber).
+    private static func sobrenome(_ autor: String) -> String {
+        guard let virgula = autor.firstIndex(of: ",") else { return autor }
+        return preenchido(String(autor[..<virgula])) ?? autor
     }
 
     /// As seções do detalhe, só com os campos preenchidos; seção sem nenhum campo some.
     /// Título, subtítulo e volume não entram: estão no `cabecalho(de:)`. Os autores, sim, um por linha (o
-    /// cabeçalho mostra só o primeiro).
+    /// cabeçalho mostra só os sobrenomes).
     static func secoes(de livro: Livro) -> [SecaoDoLivro] {
         let autores = livro.autores.compactMap(preenchido)
         let secoes = [
