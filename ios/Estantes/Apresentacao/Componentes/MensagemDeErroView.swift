@@ -6,10 +6,10 @@ struct MensagemDeErroView: View {
     var tentarDeNovo: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Espaco.medio) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.largeTitle)
-                .foregroundColor(.secondary)
+                .foregroundColor(Cor.textoSecundario)
             Text(texto)
                 .multilineTextAlignment(.center)
             if let tentarDeNovo = tentarDeNovo {

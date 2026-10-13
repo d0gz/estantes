@@ -7,6 +7,13 @@ import Foundation
 /// É um valor criado uma vez no `EstantesApp`, não um singleton.
 struct Dependencias {
     let repositorio: BibliotecaRepositorio
+    /// Um só para o app: o cache das miniaturas vale entre telas (voltar à estante não relê as fotos).
+    let miniaturas: CarregadorDeMiniaturas
+
+    init(repositorio: BibliotecaRepositorio) {
+        self.repositorio = repositorio
+        miniaturas = CarregadorDeMiniaturas(repositorio: repositorio)
+    }
 
     /// O app de verdade: Core Data gravando em disco. Lança erro se o banco não abrir.
     static func producao() throws -> Dependencias {

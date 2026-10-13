@@ -39,6 +39,21 @@ final class CarregadorDeMiniaturasTests: XCTestCase {
         XCTAssertEqual(repositorio.leiturasDeFoto, 1)
     }
 
+    func testPedidoMaiorQueOGuardadoReduzDeNovo() async throws {
+        let repositorio = BibliotecaRepositorioEmMemoria(livros: [livro])
+        repositorio.fotos[livro.id] = Self.jpeg(largura: 300, altura: 450)
+        let carregador = CarregadorDeMiniaturas(repositorio: repositorio)
+
+        _ = await carregador.miniatura(doLivro: livro.id, ladoMaior: 132)
+        let maior = await carregador.miniatura(doLivro: livro.id, ladoMaior: 264)
+
+        // Texto aumentado com o app aberto: a de 132 ficaria borrada. 300 × 450 com o lado maior em 264: 176 × 264.
+        let imagem = try XCTUnwrap(maior?.cgImage)
+        XCTAssertEqual(imagem.width, 176)
+        XCTAssertEqual(imagem.height, 264)
+        XCTAssertEqual(repositorio.leiturasDeFoto, 2)
+    }
+
     /// JPEG de uma cor só, com o tamanho exato em pixels (escala 1).
     private static func jpeg(largura: Int, altura: Int) -> Data {
         let formato = UIGraphicsImageRendererFormat()

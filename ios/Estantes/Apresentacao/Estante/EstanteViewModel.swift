@@ -40,6 +40,11 @@ final class EstanteViewModel: ObservableObject {
 
     /// Cabeçalho da prateleira com a contagem ("Caixa azul · 2"): ajuda a conferir a estante física.
     static func cabecalho(_ grupo: GrupoDePrateleira) -> String {
-        "\(grupo.prateleira ?? "Sem prateleira") · \(grupo.livros.count)"
+        "\(nomeDaPrateleira(grupo)) · \(grupo.livros.count)"
+    }
+
+    /// A etiqueta, ou "Sem prateleira" para os livros sem etiqueta.
+    static func nomeDaPrateleira(_ grupo: GrupoDePrateleira) -> String {
+        grupo.prateleira ?? "Sem prateleira"
     }
 }

@@ -24,6 +24,8 @@ enum Raio {
 enum Fonte {
     static let tituloLivro = Font.system(.title2, design: .serif).weight(.semibold)
     static let tituloEstante = Font.system(.title3, design: .serif).weight(.semibold)
+    /// Título do livro numa lista (a linha da estante): o tamanho do corpo, para caber com autor e ano.
+    static let tituloLivroNaLista = Font.system(.headline, design: .serif)
 }
 
 /// Molas com nome, para o movimento ser o mesmo em todas as telas.

@@ -30,6 +30,7 @@ struct NavegacaoView: View {
                 .navigationDestination(for: Estante.self) { estante in
                     EstanteView(
                         viewModel: dependencias.fazerEstanteViewModel(estante: estante),
+                        miniaturas: dependencias.miniaturas,
                         formulario: dependencias.fazerLivroFormularioViewModel,
                         abrirFormulario: folhaPendente?.folha(em: estante) == .formulario
                     )

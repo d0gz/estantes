@@ -20,6 +20,7 @@ enum DadosDeExemplo {
         criadaEm: Date(timeIntervalSinceReferenceDate: 3)
     )
     static let tratadoTomo48 = UUID(uuidString: "B0000000-0000-0000-0000-000000000048")!
+    static let cursoConstitucional = UUID(uuidString: "B0000000-0000-0000-0000-000000000001")!
 
     /// Biblioteca pequena, com livros reais de direito, para as telas terem conteúdo plausível:
     /// duas prateleiras numeradas, dois tomos da mesma obra, um livro sem prateleira e uma estante vazia.
@@ -29,7 +30,7 @@ enum DadosDeExemplo {
         }
 
         let livros = [
-            Livro(estanteId: escritorio.id, titulo: "Curso de direito constitucional positivo",
+            Livro(id: cursoConstitucional, estanteId: escritorio.id, titulo: "Curso de direito constitucional positivo",
                   autores: ["Silva, José Afonso da"], editora: "Malheiros", ano: 2014, prateleira: "1ª de cima"),
             Livro(estanteId: escritorio.id, titulo: "Direitos fundamentais e processo penal",
                   autores: ["Fernandes, Antonio Scarance"], ano: 2010, prateleira: "1ª de cima"),
@@ -49,6 +50,39 @@ enum DadosDeExemplo {
         for livro in livros {
             try await repositorio.salvar(livro)
         }
+        // Duas fotos da miniatura, uma de cada tipo; os outros livros ficam com a substituta.
+        try await repositorio.salvarFotoMiniatura(
+            fotoDeExemplo(fundo: UIColor(red: 0.55, green: 0.12, blue: 0.14, alpha: 1), texto: .white,
+                          linhas: ["JOSÉ AFONSO DA SILVA", "", "CURSO DE", "DIREITO", "CONSTITUCIONAL", "POSITIVO"]),
+            doLivro: cursoConstitucional
+        )
+        try await repositorio.salvarFotoMiniatura(
+            fotoDeExemplo(fundo: UIColor(red: 0.96, green: 0.93, blue: 0.85, alpha: 1), texto: .black,
+                          linhas: ["PONTES DE MIRANDA", "", "TRATADO DE", "DIREITO PRIVADO", "", "TOMO XLVIII", "", "BORSOI"]),
+            doLivro: tratadoTomo48
+        )
+    }
+
+    /// Foto desenhada (capa ou folha de rosto fictícia), em JPEG como viria da câmera. Sem fotos reais de livros:
+    /// direitos autorais (mesma regra das fotos do conjunto de avaliação).
+    private static func fotoDeExemplo(fundo: UIColor, texto: UIColor, linhas: [String]) -> Data {
+        let tamanho = CGSize(width: 600, height: 900)
+        let formato = UIGraphicsImageRendererFormat()
+        formato.scale = 1
+        let imagem = UIGraphicsImageRenderer(size: tamanho, format: formato).image { contexto in
+            fundo.setFill()
+            contexto.fill(CGRect(origin: .zero, size: tamanho))
+            let paragrafo = NSMutableParagraphStyle()
+            paragrafo.alignment = .center
+            let atributos: [NSAttributedString.Key: Any] = [
+                .font: UIFont(name: "Georgia-Bold", size: 52) ?? UIFont.boldSystemFont(ofSize: 52),
+                .foregroundColor: texto,
+                .paragraphStyle: paragrafo,
+            ]
+            (linhas.joined(separator: "\n") as NSString)
+                .draw(in: CGRect(x: 30, y: 150, width: 540, height: 700), withAttributes: atributos)
+        }
+        return imagem.jpegData(compressionQuality: 0.8)!
     }
 }
 
