@@ -2212,3 +2212,80 @@ Distância ao índigo em OKLab: `#0A5FD6` = 6, `#0579B8` = 12. Escolhido t4. O m
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+### Correção das respostas
+(sem respostas)
+
+## Tarefa 2.4 — Estilo da tela Estante (2026-10-13)
+
+### O que foi feito
+A tela Estante virou uma lista de cartões, um por prateleira, com cabeçalho "Caixa azul · 2" e, em cada livro, uma miniatura 2:3 vinda de uma foto livre (`fotoMiniatura`, antes `fotoCapa`). Surgiu o `CarregadorDeMiniaturas` (ImageIO + `NSCache`), a tela foi estilizada com o mesmo vocabulário do Inicio, e o PLANO e o GLOSSARY registraram as decisões (4 commits, 318 → 323 testes).
+
+### Conceitos envolvidos
+
+**1. Memória de uma imagem decodificada.** Um JPEG de 12 MP ocupa uns 3 MB em disco, mas para desenhar é preciso um bitmap: 4000 × 3000 × 4 bytes (RGBA) = 48 MB. Duzentos livros com foto seriam ~9,6 GB se fossem decodificados inteiros. Por isso `UIImage(data:)` é a ferramenta errada para miniaturas: ele (ao desenhar) abre a foto inteira e só depois você a reduz.
+
+**2. Miniatura com ImageIO.** `CGImageSourceCreateThumbnailAtIndex` decodifica já no tamanho pedido, sem nunca materializar o bitmap grande. As opções usadas:
+- `kCGImageSourceThumbnailMaxPixelSize`: o lado maior desejado (300×450 com 132 → 88×132; mantém a proporção).
+- `kCGImageSourceCreateThumbnailFromImageAlways`: ignora a miniatura embutida no JPEG, que costuma ser pequena e de qualidade imprevisível.
+- `kCGImageSourceCreateThumbnailWithTransform`: aplica a orientação EXIF (foto tirada em pé não sai deitada).
+- `kCGImageSourceShouldCacheImmediately`: decodifica agora, na thread de fundo, e não na hora de desenhar na thread principal (evita engasgo na rolagem).
+
+**3. Carregamento preguiçoso por linha.** `LazyVStack` só cria as linhas visíveis; `.task(id:)` dispara o trabalho quando a linha aparece e o cancela quando ela sai. O `id` reinicia a tarefa se algo relevante mudar (aqui, livro e largura). Complexidade: o custo é proporcional ao que está na tela, não ao tamanho da estante.
+
+**4. Cache com `NSCache`.** Dicionário thread-safe que o sistema esvazia sob pressão de memória (um `Dictionary` seu cresceria até o app ser morto). Só aceita objetos, por isso a chave é `NSUUID` (o UUID do livro convertido) e o valor, uma classe (`Guardada`), não uma struct. Essa classe guarda a imagem **e o lado reduzido** com que foi feita. Isso corrigiu o P1: a largura da miniatura cresce com o Dynamic Type (`@ScaledMetric`), então o cache não pode supor "um tamanho só". Regra: se o pedido é maior que o guardado, reduz de novo (teste: 264 > 132 → 176×264 e 2 chamadas à porta); se é menor ou igual, reaproveita.
+
+**5. Cancelamento cooperativo.** Em Swift, cancelar uma `Task` só marca uma flag; o código precisa olhar `Task.isCancelled` (ou chamar algo que lance `CancellationError`). Um `try?` engole o erro, e a redução continuava para linhas que já saíram da tela (P3). A checagem explícita resolve.
+
+**6. ScrollView + LazyVStack × List.** `List` é uma `UITableView`/coleção com reciclagem, swipe e separadores prontos, mas difícil de restilizar (sombra por cartão, mola). Cartões próprios dão coerência com o Inicio, ao custo de perder swipe e reciclagem real (o `LazyVStack` cria views sob demanda, mas não as recicla).
+
+**7. Acessibilidade.** Dynamic Type: com texto grande, a miniatura proporcional ocupava 1/3 da linha e o título truncava; solução com teto (66 pt) e título sem `lineLimit` nos tamanhos de acessibilidade. VoiceOver lia "Caixa azul ponto 2" porque o separador "·" é lido como pontuação; `accessibilityLabel("Caixa azul, 2 livros")` resolve. Contraste: ícone em `.primary` sobre `superficie` (o destaque daria 3,05:1, abaixo do que se quer para o ícone da substituta).
+
+**8. Alvo de toque (HIG).** Mínimo de 44 × 44 pt. Um "+" em todo cartão, dentro de um `NavigationLink`, cria alvos sobrepostos (toque no botão ou na linha?) e engorda cada linha.
+
+### Por que assim
+- **Lista com miniatura 2:3**: há autor, ano e títulos longos para mostrar, e livro jurídico é reconhecido pela capa/rosto.
+- **Foto livre por livro** (contribuição sua): a capa de livro jurídico é muitas vezes lisa e não identifica; deixar o usuário escolher capa, folha de rosto etc. resolve. O nome `fotoMiniatura` evita colidir com fotos futuras.
+- **Sem migração do Core Data**: não há dados reais ainda; migrar agora seria custo sem benefício.
+- **Miniatura calculada na hora, não guardada**: dois campos em sincronia (original e reduzida) criam risco de divergência e dúvida no export.
+- **Chip fantasma "+ Categoria" só em livro sem categoria**: dá descoberta sem poluir; com categorias, os próprios chips abrem a escolha.
+- **Linhas com véu, sem encolher**: encolher uma linha dentro do cartão a descolaria das vizinhas.
+- **Cabeçalho em SF semibold**: a serifa fica reservada a títulos de livros/estantes, mantendo hierarquia.
+
+### Alternativas descartadas
+- Grade de capas (Apple Books): sem fotos até a Fase 3, some autor/ano.
+- Lombadas com texto girado: ruim com títulos longos e Dynamic Type.
+- Lista sem capa: perde a "cara de livro".
+- Duas fotos (capa + rosto): mais dados no export e uma regra de qual exibir.
+- `UIImage(data:)` e carregar a estante inteira: memória (item 1).
+- "+" em todo cartão: alvos sobrepostos e altura.
+- Seleção em lote: ideia futura, não agora.
+- `esquecer(livroId:)`: código sem uso (generalidade especulativa, YAGNI); volta com a troca de foto.
+
+### Padrões e boas práticas
+- **Porta + dublê com contador**: o teste "segunda leitura → 1 chamada" só é possível porque a leitura da foto passa por um protocolo; o contador observa o efeito (cache) sem olhar a implementação.
+- **Valores esperados literais** (88×132, "Caixa azul · 2"), nunca recalculados como o código calcula.
+- **Cache com chave que descreve a qualidade** (aqui, o lado reduzido), não só a identidade.
+- **Capturas de tela como instrumento de revisão** (1.0 → 1.1) revelaram o truncamento e a quebra "achá-/los" que nenhum teste pegaria.
+- Quando NÃO usar `NSCache`: se o dado precisa persistir ou o custo de recriar é alto e imprevisível; `NSCache` pode descartar a qualquer momento.
+
+### Armadilhas
+- Cache que supõe um parâmetro constante (tamanho) que na verdade varia com configuração do usuário.
+- `try?` com tarefas canceláveis: o cancelamento some silenciosamente.
+- `.task(id:)` sem incluir no `id` tudo de que o resultado depende: a imagem fica velha.
+- Separadores tipográficos ("·") em rótulos: o VoiceOver os lê. Teste com VoiceOver ou inspecione o accessibilityLabel.
+- Processo: um `mv` sobrescreveu a captura clara ao capturar escuro/texto grande. Dê nomes únicos já na captura.
+- Diagnóstico de memória: Instruments (Allocations) ou o gráfico de memória do Xcode ao rolar uma estante com muitas fotos.
+
+### Para ir além
+- Apple, *Image and Graphics Best Practices* e a documentação de `CGImageSource` (Image I/O); sessão WWDC18 "Image and Graphics Best Practices".
+- Documentação de `NSCache` (Foundation) e de concorrência estruturada em Swift (cancelamento cooperativo).
+- Apple, *Human Interface Guidelines*: Layout (alvos de toque) e Accessibility.
+
+### Perguntas
+1. Com suas palavras: por que `UIImage(data:)` seguido de redução gasta muito mais memória que `CGImageSourceCreateThumbnailAtIndex`? Faça a conta para uma foto de 12 MP.
+2. Aplicação: se o usuário puder trocar a foto de um livro, o que o cache precisaria fazer, e por que `esquecer(livroId:)` voltaria a fazer sentido? E se a miniatura fosse guardada no Core Data, que problema novo apareceria nessa troca?
+3. Raciocínio: a miniatura está guardada com lado 132 e o usuário ativa texto de acessibilidade, que pede 198. Descreva o que acontece com e sem a classe `Guardada`. Depois: se o usuário voltar ao tamanho normal (132), o carregador reduz de novo? Justifique.
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
