@@ -1,11 +1,13 @@
 import SwiftUI
 
-/// Formulário de adicionar ou editar um livro, aberto numa folha. Versão 0.x (só lógica).
+/// Formulário de adicionar ou editar um livro, aberto numa folha. O `Form` nativo (e não cartões à mão como no
+/// Detalhe): ele já dá apagar e arrastar autores, foco e fuga do teclado, e o cinza com cartões brancos das folhas
+/// de edição do iOS, que no escuro se ajusta à folha.
 struct LivroFormularioView: View {
     @StateObject private var viewModel: LivroFormularioViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var volumeAberto = false
-    @FocusState private var editandoPrateleira: Bool
+    @FocusState private var campoEmFoco: WritableKeyPath<RascunhoLivro, String>?
 
     init(viewModel: @autoclosure @escaping () -> LivroFormularioViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -62,13 +64,14 @@ struct LivroFormularioView: View {
     private var formulario: some View {
         Form {
             Section {
-                campo("Título *", \.titulo, problema: .titulo)
-                campo("Subtítulo", \.subtitulo)
+                campo("Título *", \.titulo, problema: .titulo, fonte: Fonte.tituloLivroNaLista, quebraLinha: true)
+                campo("Subtítulo", \.subtitulo, quebraLinha: true)
             }
 
             Section {
                 ForEach(viewModel.rascunho.autores.indices, id: \.self) { posicao in
-                    TextField("Nome do autor", text: autor(posicao))
+                    // A vírgula separa o sobrenome, que o cabeçalho do Detalhe usa (regra ABNT).
+                    TextField("Nome do autor", text: autor(posicao), prompt: Text("Sobrenome, Nome"))
                         .textContentType(.name)
                 }
                 .onDelete(perform: viewModel.apagarAutores)
@@ -79,25 +82,27 @@ struct LivroFormularioView: View {
                     Label("Adicionar autor", systemImage: "plus.circle.fill")
                 }
             } header: {
-                Text("Autores *")
+                cabecalho("Autores *")
             } footer: {
                 erro(.autores)
             }
 
-            Section("Publicação") {
+            Section {
                 campo("Editora *", \.editora, problema: .editora)
                 campo("Local", \.local)
-                campo("Edição (ex.: 3.ª ed.)", \.edicao)
+                campo("Edição", \.edicao, exemplo: "ex.: 3.ª ed.")
                 campo("Ano *", \.ano, problema: .ano, teclado: .numberPad)
                 campo("Páginas", \.paginas, problema: .paginas, teclado: .numberPad)
                 // Números e hífen à vista; o "X" do ISBN-10 fica na tecla "ABC" (o `numberPad` não tem nenhum dos dois).
                 campo("ISBN", \.isbn13, problema: .isbn, teclado: .numbersAndPunctuation)
+            } header: {
+                cabecalho("Publicação")
             }
 
             Section {
                 DisclosureGroup("Volume e coleção", isExpanded: $volumeAberto) {
                     campo("Número do volume", \.volume, problema: .volume, teclado: .numberPad)
-                    campo("Como está impresso (ex.: Tomo XLVIII)", \.volumeRotulo)
+                    campo("Como está impresso", \.volumeRotulo, exemplo: "ex.: Tomo XLVIII")
                     campo("Parte", \.parte)
                     campo("Série ou coleção", \.serie)
                     campo("Artigo inicial", \.artigosInicio, problema: .artigosInicio, teclado: .numbersAndPunctuation)
@@ -105,44 +110,80 @@ struct LivroFormularioView: View {
                 }
             }
 
-            Section("Na estante") {
+            Section {
                 Picker("Estante", selection: $viewModel.rascunho.estanteId) {
                     ForEach(viewModel.estantes) { estante in
                         Text(estante.nome).tag(estante.id)
                     }
                 }
-                TextField("Prateleira (ex.: 2ª de cima)", text: $viewModel.rascunho.prateleira)
-                    .focused($editandoPrateleira)
+                campo("Prateleira", \.prateleira, exemplo: "ex.: 2ª de cima")
                 // Só com o campo em foco: fora dele, as sugestões só ocupariam espaço.
-                if editandoPrateleira {
+                if campoEmFoco == \.prateleira {
                     ForEach(viewModel.sugestoesDePrateleira, id: \.self) { etiqueta in
                         Button {
                             viewModel.escolherPrateleira(etiqueta)
-                            editandoPrateleira = false
+                            campoEmFoco = nil
                         } label: {
                             Label(etiqueta, systemImage: "arrow.turn.down.right")
                         }
                     }
                 }
+            } header: {
+                cabecalho("Na estante")
             }
         }
     }
 
-    /// Um campo de texto do rascunho, com a mensagem de erro embaixo quando houver.
+    /// Um campo de texto do rascunho. Vazio, o nome (e o exemplo) fica dentro, como placeholder; preenchido, o
+    /// placeholder some e o nome passa para cima, pequeno, para "1965" não ficar sem dizer que é o ano. Embaixo,
+    /// a mensagem de erro quando houver.
     @ViewBuilder
     private func campo(
-        _ rotulo: String,
+        _ nome: String,
         _ caminho: WritableKeyPath<RascunhoLivro, String>,
-        problema campo: RascunhoLivro.Campo? = nil,
-        teclado: UIKeyboardType = .default
+        exemplo: String? = nil,
+        problema: RascunhoLivro.Campo? = nil,
+        teclado: UIKeyboardType = .default,
+        fonte: Font = .body,
+        quebraLinha: Bool = false
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField(rotulo, text: $viewModel.rascunho[dynamicMember: caminho])
+        let texto = $viewModel.rascunho[dynamicMember: caminho]
+        let placeholder = Text(exemplo.map { "\(nome) (\($0))" } ?? nome)
+        VStack(alignment: .leading, spacing: Espaco.minimo) {
+            rotulo(nome, visivel: !texto.wrappedValue.isEmpty)
+            // Título e subtítulo jurídicos são longos: crescem para baixo em vez de cortar com "…".
+            TextField(nome, text: texto, prompt: placeholder, axis: quebraLinha ? .vertical : .horizontal)
+                .font(fonte)
                 .keyboardType(teclado)
-            if let campo = campo {
-                erro(campo)
+                .focused($campoEmFoco, equals: caminho)
+                // A quebra é só visual: o Return (ou um texto colado com linhas) vira espaço e fecha o teclado. Ao
+                // salvar, o `RascunhoLivro` ainda junta os espaços repetidos (a regra fica no Domínio, com teste).
+                .onChange(of: texto.wrappedValue) { novo in
+                    guard quebraLinha, novo.contains(where: \.isNewline) else { return }
+                    texto.wrappedValue = novo.split(whereSeparator: \.isNewline).joined(separator: " ")
+                    campoEmFoco = nil
+                }
+            if let problema = problema {
+                erro(problema)
             }
         }
+        .animacaoSuave(valor: texto.wrappedValue.isEmpty)
+    }
+
+    /// O nome pequeno em cima do campo preenchido. Escondido do VoiceOver, que já lê o nome no rótulo do `TextField`.
+    @ViewBuilder
+    private func rotulo(_ nome: String, visivel: Bool) -> some View {
+        if visivel {
+            Text(nome)
+                .font(.caption)
+                .foregroundColor(Cor.textoSecundario)
+                .accessibilityHidden(true)
+                .transition(.opacity)
+        }
+    }
+
+    private func cabecalho(_ titulo: String) -> some View {
+        Text(titulo).foregroundColor(Cor.textoSecundario)
     }
 
     @ViewBuilder

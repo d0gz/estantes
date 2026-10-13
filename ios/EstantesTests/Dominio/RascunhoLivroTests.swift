@@ -73,6 +73,16 @@ final class RascunhoLivroTests: XCTestCase {
         XCTAssertEqual(livro.ano, 1998)
     }
 
+    /// Texto colado com linhas (ex.: título copiado de um PDF) não pode gravar "\n" nem espaços duplos.
+    func testQuebraDeLinhaEEspacosRepetidosViramUmEspaco() throws {
+        var rascunho = rascunhoMinimo()
+        rascunho.titulo = "Direito \n civil"
+
+        let livro = try XCTUnwrap(rascunho.montar(sobre: nil))
+
+        XCTAssertEqual(livro.titulo, "Direito civil")
+    }
+
     // MARK: Autores
 
     func testAutoresVaziosSaemEAOrdemFica() throws {

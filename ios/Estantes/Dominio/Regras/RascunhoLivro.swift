@@ -133,9 +133,10 @@ struct RascunhoLivro: Equatable {
         autores.compactMap(Self.texto)
     }
 
-    /// Sem espaços nas pontas; vazio vira `nil` (o `Livro` não guarda texto em branco).
+    /// Sem espaços nas pontas, e cada sequência de espaços ou quebras de linha no meio vira um espaço só (texto
+    /// colado de um PDF); vazio vira `nil` (o `Livro` não guarda texto em branco).
     private static func texto(_ texto: String) -> String? {
-        let limpo = texto.trimmingCharacters(in: .whitespacesAndNewlines)
+        let limpo = texto.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         return limpo.isEmpty ? nil : limpo
     }
 
