@@ -9,8 +9,10 @@ struct LivroDetalheView: View {
     @State private var confirmandoExclusao: Bool
     @State private var editando: Bool
     private let miniaturas: CarregadorDeMiniaturas
-    /// Largura da miniatura do cabeçalho: cresce com o texto grande.
-    @ScaledMetric(relativeTo: .body) private var larguraEscalada: CGFloat = 140
+    /// Largura da miniatura do cabeçalho antes do teto: cresce com o texto grande.
+    @ScaledMetric(relativeTo: .body) private var larguraBase: CGFloat = 140
+    /// Nos tamanhos de acessibilidade ela ocuparia a tela e empurraria o título para baixo.
+    private let tetoDaMiniatura: CGFloat = 180
     /// Cria o ViewModel do formulário; vem da montagem para a tela não precisar conhecer `Dependencias`.
     private let formulario: @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel
 
@@ -57,9 +59,8 @@ struct LivroDetalheView: View {
         estadoAtual.animacaoSuave(valor: viewModel.estado)
     }
 
-    /// Com teto de 180 pt: nos tamanhos de acessibilidade ela ocuparia a tela e empurraria o título para baixo.
     private var larguraDaMiniatura: CGFloat {
-        min(larguraEscalada, 180)
+        min(larguraBase, tetoDaMiniatura)
     }
 
     @ViewBuilder
@@ -103,24 +104,24 @@ struct LivroDetalheView: View {
 
     /// Miniatura e, embaixo, o que identifica o livro (dos autores, só os sobrenomes), tudo centralizado (referência: Apple Books).
     private func cabecalho(_ livro: Livro) -> some View {
-        let cabecalho = LivroDetalheViewModel.cabecalho(de: livro)
+        let topo = LivroDetalheViewModel.cabecalho(de: livro)
         return VStack(spacing: Espaco.medio) {
             MiniaturaDoLivro(livroId: livro.id, carregador: miniaturas, largura: larguraDaMiniatura)
                 .sombraSuave()
             VStack(spacing: Espaco.minimo) {
-                Text(cabecalho.titulo)
+                Text(topo.titulo)
                     .font(Fonte.tituloLivro)
                     .accessibilityAddTraits(.isHeader)
-                if let subtitulo = cabecalho.subtitulo {
+                if let subtitulo = topo.subtitulo {
                     Text(subtitulo)
                         .font(.subheadline)
                         .foregroundColor(Cor.textoSecundario)
                 }
-                if let volume = cabecalho.volume {
+                if let volume = topo.volume {
                     Text(volume)
                         .font(.subheadline.weight(.semibold))
                 }
-                if let autores = cabecalho.autores {
+                if let autores = topo.autores {
                     Text(autores)
                         .font(.body)
                         .padding(.top, Espaco.minimo)
@@ -141,16 +142,15 @@ struct LivroDetalheView: View {
                 .padding(.horizontal, Espaco.minimo)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
-                ForEach(Array(secao.campos.enumerated()), id: \.element.id) { indice, campo in
+                // Pela posição: o mesmo autor digitado duas vezes daria dois campos iguais.
+                ForEach(Array(secao.campos.enumerated()), id: \.offset) { indice, campo in
                     if indice > 0 {
                         Divider().padding(.leading, Espaco.padrao)
                     }
                     linha(campo)
                 }
             }
-            .background(Cor.cartao)
-            .cantos(Raio.grande)
-            .sombraSuave()
+            .cartao()
         }
     }
 
@@ -177,15 +177,13 @@ struct LivroDetalheView: View {
             confirmandoExclusao = true
         } label: {
             Text("Apagar livro")
-                .foregroundColor(.red)
+                .foregroundColor(Cor.perigo)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Espaco.medio)
                 .contentShape(Rectangle())
         }
         .buttonStyle(EstiloLinha())
-        .background(Cor.cartao)
-        .cantos(Raio.grande)
-        .sombraSuave()
+        .cartao()
     }
 
     private var livroCarregado: Bool {

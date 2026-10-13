@@ -2,11 +2,9 @@ import Foundation
 
 /// Um campo do livro como o detalhe o mostra ("Editora", "Malheiros"). Sem rótulo quando o título da seção já diz
 /// o que é (cada autor no cartão "Autores").
-struct CampoDoLivro: Equatable, Identifiable {
+struct CampoDoLivro: Equatable {
     let rotulo: String?
     let valor: String
-
-    var id: String { "\(rotulo ?? "")|\(valor)" }
 }
 
 /// Uma seção do detalhe ("Publicação") com os campos preenchidos.
@@ -74,12 +72,11 @@ final class LivroDetalheViewModel: ObservableObject {
 
     /// Título, subtítulo, volume e a linha dos autores; vazios ou só de espaços somem.
     static func cabecalho(de livro: Livro) -> CabecalhoDoLivro {
-        let autores = livro.autores.compactMap(preenchido)
-        return CabecalhoDoLivro(
+        CabecalhoDoLivro(
             titulo: livro.titulo,
             subtitulo: preenchido(livro.subtitulo),
             volume: preenchido(textoDoVolume(livro)),
-            autores: linhaDosAutores(autores)
+            autores: linhaDosAutores(autoresPreenchidos(livro))
         )
     }
 
@@ -104,7 +101,7 @@ final class LivroDetalheViewModel: ObservableObject {
     /// Título, subtítulo e volume não entram: estão no `cabecalho(de:)`. Os autores, sim, um por linha (o
     /// cabeçalho mostra só os sobrenomes).
     static func secoes(de livro: Livro) -> [SecaoDoLivro] {
-        let autores = livro.autores.compactMap(preenchido)
+        let autores = autoresPreenchidos(livro)
         let secoes = [
             SecaoDoLivro(
                 titulo: autores.count > 1 ? "Autores" : "Autor",
@@ -136,6 +133,11 @@ final class LivroDetalheViewModel: ObservableObject {
         pares.compactMap { rotulo, valor in
             preenchido(valor).map { CampoDoLivro(rotulo: rotulo, valor: $0) }
         }
+    }
+
+    /// Os autores sem os vazios ou só de espaços, na ordem do livro.
+    private static func autoresPreenchidos(_ livro: Livro) -> [String] {
+        livro.autores.compactMap(preenchido)
     }
 
     /// O texto sem espaços nas pontas, ou `nil` se não sobrar nada.

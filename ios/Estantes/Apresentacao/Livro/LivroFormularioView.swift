@@ -149,7 +149,7 @@ struct LivroFormularioView: View {
         if let problema = viewModel.problemas[campo] {
             Text(LivroFormularioViewModel.mensagem(problema, em: campo))
                 .font(.footnote)
-                .foregroundColor(.red)
+                .foregroundColor(Cor.perigo)
         }
     }
 

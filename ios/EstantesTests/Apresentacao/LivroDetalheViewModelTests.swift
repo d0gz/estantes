@@ -74,22 +74,31 @@ final class LivroDetalheViewModelTests: XCTestCase {
         ))
     }
 
-    func testCabecalhoComVariosAutoresSoComSobrenomesComoNaABNT() {
-        func linha(_ autores: [String]) -> String? {
-            LivroDetalheViewModel.cabecalho(de: Livro(estanteId: sala.id, titulo: "A", autores: autores)).autores
-        }
-        XCTAssertEqual(linha(["Mendes, Gilmar Ferreira", "Branco, Paulo Gustavo Gonet"]), "Mendes e Branco")
+    // Vários autores: só os sobrenomes, como na ABNT (NBR 6023): até 3 todos; de 4 em diante, o primeiro e "et al.".
+
+    func testCabecalhoComDoisAutoresSoOsSobrenomes() {
+        XCTAssertEqual(linhaDosAutores(["Mendes, Gilmar Ferreira", "Branco, Paulo Gustavo Gonet"]), "Mendes e Branco")
+    }
+
+    func testCabecalhoComTresAutoresIgnoraOVazio() {
         XCTAssertEqual(
-            linha(["Cintra, Antonio Carlos de Araújo", " ", "Grinover, Ada Pellegrini", "Dinamarco, Cândido Rangel"]),
+            linhaDosAutores(["Cintra, Antonio Carlos de Araújo", " ", "Grinover, Ada Pellegrini", "Dinamarco, Cândido Rangel"]),
             "Cintra, Grinover e Dinamarco"
         )
-        // A partir de 4, o primeiro e "et al." (ABNT NBR 6023).
+    }
+
+    func testCabecalhoComQuatroAutoresUsaEtAl() {
         XCTAssertEqual(
-            linha(["Sarlet, Ingo Wolfgang", "Marinoni, Luiz Guilherme", "Mitidiero, Daniel", "Arenhart, Sérgio Cruz"]),
+            linhaDosAutores(["Sarlet, Ingo Wolfgang", "Marinoni, Luiz Guilherme", "Mitidiero, Daniel", "Arenhart, Sérgio Cruz"]),
             "Sarlet et al."
         )
-        // Sem vírgula não há como saber o sobrenome: o nome vai inteiro.
-        XCTAssertEqual(linha(["Pontes de Miranda", "Kelsen, Hans"]), "Pontes de Miranda e Kelsen")
+    }
+
+    /// Sem vírgula não há como saber o sobrenome: o nome vai inteiro.
+    func testCabecalhoComNomeSemVirgulaUsaONomeInteiro() {
+        XCTAssertEqual(linhaDosAutores(["Pontes de Miranda", "Kelsen, Hans"]), "Pontes de Miranda e Kelsen")
+        XCTAssertEqual(linhaDosAutores(["Kelsen, Hans", "Pontes de Miranda", "Reale, Miguel"]), "Kelsen, Pontes de Miranda e Reale")
+        XCTAssertEqual(linhaDosAutores(["Pontes de Miranda", "A, B", "C, D", "E, F"]), "Pontes de Miranda et al.")
     }
 
     func testCabecalhoSubtitulo() {
@@ -100,7 +109,12 @@ final class LivroDetalheViewModelTests: XCTestCase {
     }
 
     func testCabecalhoSemAutor() {
-        XCTAssertNil(LivroDetalheViewModel.cabecalho(de: Livro(estanteId: sala.id, titulo: "A")).autores)
+        XCTAssertNil(linhaDosAutores([]))
+        XCTAssertNil(linhaDosAutores([" "]))
+    }
+
+    private func linhaDosAutores(_ autores: [String]) -> String? {
+        LivroDetalheViewModel.cabecalho(de: Livro(estanteId: sala.id, titulo: "A", autores: autores)).autores
     }
 
     // MARK: Campos mostrados

@@ -97,9 +97,7 @@ struct CatalogoDeEstiloView: View {
                     .foregroundColor(Cor.destaque)
                     .padding(Espaco.padrao)
             }
-            .background(Cor.cartao)
-            .cantos(Raio.grande)
-            .sombraSuave()
+            .cartao()
         }
     }
 

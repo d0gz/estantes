@@ -67,6 +67,13 @@ extension View {
         modifier(Pressao(pressionado: pressionado))
     }
 
+    /// O cartão do app: fundo `cartao`, canto grande contínuo e sombra leve. Igual no Inicio, na Estante e no Detalhe.
+    func cartao() -> some View {
+        background(Cor.cartao)
+            .cantos(Raio.grande)
+            .sombraSuave()
+    }
+
     /// Sombra leve de cartão no modo claro; no escuro, nenhuma (a separação vem da cor do `cartao`).
     func sombraSuave() -> some View {
         modifier(SombraSuave())

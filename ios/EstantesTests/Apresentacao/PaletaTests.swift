@@ -50,6 +50,17 @@ final class PaletaTests: XCTestCase {
         }
     }
 
+    /// O vermelho das ações destrutivas ("Apagar livro", erros do formulário) é texto sobre o fundo e o cartão.
+    /// O `systemRed` (`#FF3B30`) dá ~3,6:1 no branco e reprovaria.
+    func testPerigoComoTextoSobreFundoECartaoNosDoisModos() {
+        for modo in [UIUserInterfaceStyle.light, .dark] {
+            for fundo in fundosDeTexto {
+                let razao = Contraste.razao(resolver(Paleta.perigo, modo), resolver(fundo.cor, modo))
+                XCTAssertGreaterThanOrEqual(razao, piso, "perigo × \(fundo.nome) (\(nome(modo)))")
+            }
+        }
+    }
+
     func testSobreDestaqueEmCimaDoDestaqueNosDoisModos() {
         for modo in [UIUserInterfaceStyle.light, .dark] {
             let razao = Contraste.razao(resolver(Paleta.sobreDestaque, modo), resolver(Paleta.destaque, modo))

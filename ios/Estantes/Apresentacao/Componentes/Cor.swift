@@ -10,6 +10,7 @@ enum Cor {
     static let destaque = Color(uiColor: Paleta.destaque)
     static let sobreDestaque = Color(uiColor: Paleta.sobreDestaque)
     static let textoSecundario = Color(uiColor: Paleta.textoSecundario)
+    static let perigo = Color(uiColor: Paleta.perigo)
 }
 
 /// As mesmas cores em `UIColor`, com o tom claro e o escuro. Em código, e não num catálogo de cores, para o hex
@@ -30,6 +31,9 @@ enum Paleta {
     static let sobreDestaque = UIColor(claro: 0xFFFFFF, escuro: 0x1C1C1E)
     /// Substitui o `.secondary` do sistema, que dá 3,4:1 no branco e 2,9:1 sobre a `superficie`.
     static let textoSecundario = UIColor(claro: 0x4A5A62, escuro: 0xC9D6DC)
+    /// Ações destrutivas e erros. Os tons de alto contraste do vermelho da Apple: o `systemRed` (`#FF3B30`) dá só
+    /// 3,6:1 no branco.
+    static let perigo = UIColor(claro: 0xD70015, escuro: 0xFF6961)
 }
 
 extension UIColor {

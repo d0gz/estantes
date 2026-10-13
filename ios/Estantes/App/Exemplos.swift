@@ -21,7 +21,7 @@ enum DadosDeExemplo {
     )
     static let tratadoTomo48 = UUID(uuidString: "B0000000-0000-0000-0000-000000000048")!
     static let cursoConstitucional = UUID(uuidString: "B0000000-0000-0000-0000-000000000001")!
-    /// Três autores e dois autores de nome longo: para pesar o cabeçalho do Detalhe contra um cartão "Autoria".
+    /// Três autores e dois de nome longo, para o Detalhe: sobrenomes no cabeçalho, nomes inteiros no cartão "Autores".
     static let teoriaGeralDoProcesso = UUID(uuidString: "B0000000-0000-0000-0000-000000000003")!
     static let cursoMendesBranco = UUID(uuidString: "B0000000-0000-0000-0000-000000000002")!
 

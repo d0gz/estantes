@@ -131,9 +131,7 @@ struct EstanteView: View {
                     .buttonStyle(EstiloLinha())
                 }
             }
-            .background(Cor.cartao)
-            .cantos(Raio.grande)
-            .sombraSuave()
+            .cartao()
         }
     }
 

@@ -28,9 +28,7 @@ struct CartaoDeEstante: View {
         // disso e o cartão cresce sozinho, sem espaço morto.
         .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
         .padding(Espaco.medio)
-        .background(Cor.cartao)
-        .cantos(Raio.grande)
-        .sombraSuave()
+        .cartao()
         .accessibilityElement(children: .combine)
     }
 }
