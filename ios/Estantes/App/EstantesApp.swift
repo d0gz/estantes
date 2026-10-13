@@ -19,7 +19,13 @@ struct EstantesApp: App {
 private struct RaizView: View {
     let montagem: Result<Dependencias, Error>
 
+    /// O tint pinta de `destaque` os controles nativos (botões, links, seletores) do app inteiro.
     var body: some View {
+        conteudo.tint(Cor.destaque)
+    }
+
+    @ViewBuilder
+    private var conteudo: some View {
         #if DEBUG
         if let captura = Captura.pedida {
             captura.tela
