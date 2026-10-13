@@ -1969,4 +1969,140 @@ Leitura: como **texto**, só o índigo passa (4,5); como **fundo pastel com text
 3. Raciocínio: por que, no modo escuro, o petróleo vira superfície em vez de continuar destaque, e por que "chip pastel com texto escuro" funciona para as 12 cores do sistema enquanto "texto colorido sobre branco" quase nunca funciona?
 
 ### Minhas respostas
+(sem respostas)
+
+---
+
+## Tarefa 2.4 / Estilo 0b-c — Tokens de estilo, testes de contraste e catálogo (2026-10-12)
+
+### O que foi feito
+Os fundamentos visuais viraram código em `ios/Estantes/Apresentacao/Componentes/`: `Cor.swift` (paleta clara/escura), `Estilo.swift` (espaço, raio, fonte, animação, sombra), `EstiloVidro.swift` e `EstiloPrincipal.swift` (estilos de botão). Os contrastes são testados em `EstantesTests/Apresentacao/` (`Contraste.swift`, `ContrasteTests.swift`, `PaletaTests.swift`). Um catálogo só de DEBUG (`App/CatalogoDeEstilo.swift`) mostra tudo no simulador e foi o instrumento que revisou a paleta e desenhou o chip de categoria. Commits 611bc32, d1d8b6f e 79261b3; 318 testes (2 pulados).
+
+### Conceitos envolvidos
+
+**1. Cor dinâmica em código.** `UIColor { traits in ... }` cria uma cor cujo valor é decidido *na hora de desenhar*, a partir do `UITraitCollection` do contexto (claro/escuro, contraste). `Paleta` usa `UIColor(claro:escuro:)` e `Cor` embrulha com `Color(uiColor:)`. Em vez de asset catalog, o hex fica visível no diff e o teste consegue resolver cada modo: `cor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))` devolve uma cor fixa que se pode medir.
+
+**2. Papéis finais da paleta.**
+
+| Papel | Claro | Escuro |
+| --- | --- | --- |
+| fundo | FFFFFF | 000000 |
+| cartao | FFFFFF (+ sombra) | 1C1C1E |
+| superficie | AED3FC | 12305A |
+| destaque | 0A5FD6 | AED3FC |
+| sobreDestaque (rótulo sobre o destaque) | FFFFFF | 1C1C1E |
+| textoSecundario | 4A5A62 | C9D6DC |
+| texto principal | `.primary` do sistema | idem |
+
+O princípio da entrada anterior se confirma: no escuro, os papéis não são "a mesma cor escurecida", são a cor que cumpre o papel com contraste suficiente (destaque vira o azul claro; superfície vira o marinho).
+
+**3. Contraste WCAG por dentro.** Passos: (a) converter cada canal sRGB de 0–1 para linear (`c <= 0,03928 ? c/12,92 : ((c+0,055)/1,055)^2,4`), porque a luz física soma de forma linear, mas o valor gravado é curvado por gama; (b) L = 0,2126 R + 0,7152 G + 0,0722 B (o olho é muito mais sensível ao verde); (c) razão = (L_claro + 0,05)/(L_escuro + 0,05). Verificação do próprio cálculo com valores de fonte externa: preto × branco = 21 e #777777 × branco = 4,48 (WebAIM). Esse é o jeito certo de validar uma função de teste: contra um número que você não calculou com ela.
+
+**4. Por que o teste mora no alvo de testes.** O app nunca calcula contraste; só os testes precisam. Pôr a função no app seria código de produção sem uso (mesmo precedente do MRR em 09/10). E `guard getRed(...) else { preconditionFailure }`: `UIColor.getRed(_:green:blue:alpha:)` devolve `false` se a cor não está num espaço RGB (ex.: cor de padrão) e deixa as variáveis como estavam (zeradas). Sem o guard, o teste mediria "preto" calado e poderia passar ou falhar pelo motivo errado. Falhar alto é melhor que medir errado.
+
+**5. Os três limiares usados em `PaletaTests`.**
+
+| Uso | Mínimo | Critério WCAG |
+| --- | --- | --- |
+| texto normal | 4,5:1 | 1.4.3 |
+| elemento não-texto (ícone, forma de controle) | 3,0:1 | 1.4.11 |
+| sobreDestaque × destaque (rótulo de botão) | 4,5:1 | 1.4.3 |
+
+Daí a regra: sobre a superfície clara (#AED3FC), texto é `.primary` (13,5:1) e o destaque só aparece como ícone ou forma (≥3:1).
+
+**6. O `.secondary` do sistema reprova.** É `rgba(60,60,67,0.6)`: uma cor *com transparência*, então o resultado depende do que está atrás. Sobre branco dá ≈3,44:1; sobre #AED3FC, 2,88. Isso só apareceu porque o teste existia. Virou token próprio, opaco:
+
+| textoSecundario | × fundo | × cartão | × superfície |
+| --- | --- | --- | --- |
+| claro #4A5A62 | 7,17 (branco) | 7,17 | 4,62 (#AED3FC) |
+| escuro #C9D6DC | 14,14 (preto) | 11,45 (#1C1C1E) | 8,86 (marinho) |
+
+**7. Mutação de prova.** Para saber se um teste de verdade pega o defeito, estrague o código de propósito: trocar textoSecundario claro por #8A8A8E fez o teste falhar com 3,44 e 2,21, exatamente os números calculados à parte em Python. E ao trocar o destaque para #0A5FD6 o teste ficou vermelho com 3,73 (sobre a superfície) até a regra de 3:1 para ícones ser escrita. Vermelho → verde nas duas fronteiras (`Contraste.razao` e a paleta).
+
+**8. Medição dos azuis candidatos.**
+
+| Azul | × branco | × #AED3FC |
+| --- | --- | --- |
+| petróleo 1F5F73 | 7,14 | 4,60 |
+| sistema 007AFF | 4,02 (reprova) | 2,59 |
+| 0A5FD6 | 5,80 | 3,73 |
+| 2563EB | 5,17 | 3,33 |
+| 0369A1 | 5,93 | 3,82 |
+
+Lição: dois tons claros juntos nunca dão contraste de texto. Nenhum azul vibrante passa 4,5 sobre o azul claro. Em vez de buscar a cor mágica, mudou-se a regra de uso. Escolheu-se #0A5FD6 *olhando* quatro candidatos no catálogo (com um seletor temporário `-azul` só em DEBUG, removido depois). O número elimina; o olho escolhe entre os que sobraram.
+
+**9. Tokens de forma, espaço e movimento.**
+- `Espaco` 4/8/12/16/24/32 e `Raio` 8/12/20; `.cantos()` aplica `RoundedRectangle(cornerRadius:style: .continuous)`.
+- `Fonte`: só serifadas, e `Font.system(.title2, design: .serif).weight(.semibold)` compilou no Xcode 14.2. Isso responde a dúvida da entrada anterior: o estilo de texto semântico mantém o Dynamic Type, ao contrário de `Font.system(size:design:)`.
+- `Animacao`: suave (spring 0,35/0,85), rapida (0,25/0,9), esmaecer (easeInOut 0,2). `Animacao.escolher(_:reduzirMovimento:)` concentra a regra do "Reduzir movimento" num lugar só (dissolver em vez de deslocar), em uma função pura que dá para testar. `.animacaoSuave(valor:)` é o modificador de uso.
+- `.sombraSuave()`: 8% preto, raio 12, y 4 no claro; nada no escuro (elevação por cor). Um `ViewModifier` que lê `colorScheme` do ambiente decide.
+
+**10. `ButtonStyle` não é `View`.** `EstiloVidro` e `EstiloPrincipal` implementam `makeBody(configuration:)`, mas `@Environment` só funciona dentro de uma `View`. Padrão usado: `makeBody` devolve uma `View` privada pequena que lê `@Environment(\.isEnabled)` e `configuration.isPressed`. `EstiloVidro` imita o Liquid Glass: `ultraThinMaterial`, borda de 0,5 pt em gradiente branco, e ao pressionar escala 96% + véu do destaque a 15%. `EstiloPrincipal`: fundo destaque, rótulo sobreDestaque, brilho −0,08 e escala 97% ao pressionar, opacidade 0,4 desabilitado.
+
+**11. `.tint` na raiz.** `.tint(Cor.destaque)` em `RaizView` se propaga pelo ambiente a toda a hierarquia (conferido na captura do formulário). É a mesma ideia de herança de ambiente do `@Environment`: definir uma vez no topo, ler nas folhas.
+
+**12. O catálogo como instrumento.** São três páginas (`-captura Estilo`, `EstiloTelas`, `EstiloCategorias`) porque o `simctl` não rola a tela. Para variar o contexto sem tocar no código: modo escuro com `xcrun simctl ui booted appearance dark`; texto grande com o argumento de lançamento `-UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL` (o simctl do Xcode 14.2 não tem opção de tamanho de texto). Revelou dois defeitos que nenhuma tabela mostrava:
+- `.borderedProminent` pinta o rótulo sempre de branco, ilegível sobre #AED3FC no escuro. Virou `EstiloPrincipal`, que usa o token certo.
+- Ícone azul sobre o vidro sumia: o material acompanha o modo (claro/escuro), não a cor da capa por trás; então o ícone passou a `.primary`.
+- Com texto grande, chips lado a lado quebram letra a letra (pendência registrada para a composição na 2.5).
+
+**13. Chip de categoria: o problema e a solução.** Desenho do Ricardo: etiqueta `tag` (como releases do GitHub), texto e contorno na cor, fundo branco. Medição das cores do sistema:
+
+| Cor | padrão × branco | alto contraste × branco | escuro × 1C1C1E |
+| --- | --- | --- | --- |
+| red | 3,55 | 5,38 | 4,99 |
+| orange | 2,20 | 5,28 | 8,28 |
+| yellow | 1,51 | 5,20 | 12,05 |
+| green | 2,22 | 4,40 | 8,42 |
+| mint | 2,12 | 4,73 | 11,30 |
+| indigo | 5,65 | 9,65 | 3,36 |
+| purple | 4,13 | 6,04 | 4,83 |
+| pink | 3,65 | 5,35 | 4,83 |
+| brown | 3,50 | 5,45 | 5,53 |
+
+A variante de alto contraste do sistema (obtida com `resolvedColor(with: UITraitCollection(traitsFrom: [traços, UITraitCollection(accessibilityContrast: .high)]))`) passa, mas perde a identidade (amarelo vira ocre). Há um limite físico: um amarelo legível sobre branco *não parece amarelo*. Solução "A": dividir o trabalho. O fundo pastel (cor a 15%) e o contorno vivo guardam a identidade, pois são decoração, não texto. O texto usa o mesmo matiz escurecido em HLS só até ~4,6:1 sobre o pastel (red CE0B00, orange 9E5C00, yellow 876C00, green 207C38, mint 007873, indigo 5654D6, purple 9D2BD7, brown 7D6648). No escuro, alto contraste sobre véu. Rosa próprio #FF2D92 (matiz 331°; texto claro CB0062 a 4,62; escuro FF7AC0 a 5,54 sobre o véu), porque o systemPink (349°) ficava a 14° do vermelho (3°) e se confundia com "Constitucional". Em HLS (matiz, luminosidade, saturação), escurecer mexe só na luminosidade e preserva o matiz, e é por isso que a cor continua reconhecível.
+
+### Por que assim
+- **Tokens em código, não em asset catalog:** hex no diff, testável por resolução de trait, sem arquivo binário/JSON extra.
+- **Testar contraste com valores independentes:** o esperado vem de WebAIM e de Python, não da mesma fórmula do código; senão o teste seria tautológico.
+- **Cor própria para textoSecundario:** o `.secondary` transparente não tem contraste definido, depende do fundo.
+- **Catálogo antes das telas:** é mais barato errar num catálogo de 3 páginas do que em 6 telas.
+- **Chip dividido (decoração vs texto):** respeita o 4,5:1 sem renunciar à identidade por cor, e o texto continua sendo o canal de informação.
+- **Linhas novas no Histórico de 12/10 do PLANO:** destaque #0A5FD6 + superfície escura #12305A (revisa a paleta com petróleo) e chip A (revisa a das categorias pastel). Reabrir uma decisão registrada, com o motivo escrito, é o processo certo.
+
+### Alternativas descartadas
+- **Petróleo como destaque:** o Ricardo achou "opaco, triste"; passava em contraste, mas contraste não é tudo.
+- **Azul do sistema 007AFF:** 4,02 sobre branco.
+- **Chip B (fundo branco, etiqueta preenchida, texto preto):** perde o texto na cor.
+- **Alto contraste puro:** passa, mas perde o pastel.
+- **Asset catalog para as cores:** ver acima.
+- **Seletor `-azul` permanente:** era ferramenta de decisão, removida depois.
+- **Adiados com nota** (revisão em dois eixos): lista de pares do teste à mão (a vigilância é manual), modificador de pressão compartilhado no 3º estilo de botão, e promover cartão/chip a componentes no estilo do Inicio.
+
+### Padrões e boas práticas
+- **Fonte única da verdade para regras transversais** (`Animacao.escolher` para Reduzir movimento): quando NÃO usar: regra usada uma vez só.
+- **Falhar alto** (`preconditionFailure`) em código de teste que pode medir a coisa errada em silêncio.
+- **Mutação de prova:** estragar o código de propósito para ver o teste falhar; prova de que o teste protege algo.
+- **Revisão em dois eixos** (padrões × plano) rodou duas vezes; os achados aplicados foram, entre outros, P1 (tint/borderedProminent), P3 (`Animacao.escolher`), P4 (`guard getRed`) e pendências explícitas no PLANO.
+- **Medir e olhar:** número elimina candidatos; o olho escolhe entre os restantes.
+
+### Armadilhas
+- **Cores com alfa** (`.secondary`, véus): o contraste depende do que está atrás; componha antes de medir.
+- **Estilos prontos do sistema** (`.borderedProminent`) fixam cor do rótulo e ignoram seus tokens; veja no modo escuro.
+- **`getRed` devolvendo `false`:** valores ficam zerados sem erro.
+- **Material translúcido:** acompanha o modo, não o conteúdo atrás; ícone colorido pode sumir.
+- **Dynamic Type grande:** layouts lado a lado quebram; teste com AccessibilityL.
+- **Tela que "ainda não usa os tokens":** o cinza que o Ricardo reclamou era `secondarySystemBackground` dos cartões da 2.4 e do `Form`, não a paleta nova. Antes de culpar o token, confirme quem pinta o pixel.
+
+### Para ir além
+- W3C, *Understanding WCAG 2.x*: critérios 1.4.3 (Contrast Minimum) e 1.4.11 (Non-text Contrast), com a fórmula de luminância relativa.
+- Apple, documentação de `UIColor.init(dynamicProvider:)`, `UITraitCollection` e do protocolo `ButtonStyle`.
+- Apple, *Human Interface Guidelines*: Color e Accessibility.
+
+### Perguntas
+1. Com suas palavras: por que um `ButtonStyle` precisa devolver uma `View` privada para ler `@Environment`, e o que a "mutação de prova" demonstrou sobre o teste de contraste?
+2. Aplicação: se o app passasse a ter uma superfície vermelha FF3B30 com texto `.primary` claro (preto-ish), o que você mediria e com qual limiar? E se o texto fosse o `destaque` #0A5FD6?
+3. Raciocínio: por que o chip pastel de "amarelo" não pode ter o texto no mesmo amarelo e continuar parecendo amarelo? Qual é a divisão de trabalho da solução A entre fundo, contorno e texto?
+
+### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
