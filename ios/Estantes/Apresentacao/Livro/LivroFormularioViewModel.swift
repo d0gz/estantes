@@ -26,17 +26,25 @@ final class LivroFormularioViewModel: ObservableObject {
     @Published var mensagemDeErro: String?
     /// Os erros só aparecem depois da primeira tentativa de salvar: um formulário novo todo em vermelho assusta à toa.
     @Published private(set) var tentouSalvar = false
+    /// A foto da miniatura como está no formulário (já reduzida pela tela); `nil` = sem foto.
+    @Published private(set) var foto: Data?
 
     let modo: Modo
     /// O livro como está no banco (só na edição): o que o formulário não mostra sai dele.
     private var original: Livro?
     /// O rascunho ao abrir, para saber se o usuário mudou algo.
     private var rascunhoInicial: RascunhoLivro
+    /// A foto ao abrir: só se grava a foto se ela mudou.
+    private var fotoInicial: Data?
     private let repositorio: BibliotecaRepositorio
+    /// Avisa que a foto de um livro mudou (a montagem liga ao `esquecer` do `CarregadorDeMiniaturas`, que é da
+    /// interface; assim o ViewModel fica só com Foundation).
+    private let fotoTrocada: @MainActor (UUID) -> Void
 
-    init(modo: Modo, repositorio: BibliotecaRepositorio) {
+    init(modo: Modo, repositorio: BibliotecaRepositorio, fotoTrocada: @escaping @MainActor (UUID) -> Void) {
         self.modo = modo
         self.repositorio = repositorio
+        self.fotoTrocada = fotoTrocada
         // Na edição, um rascunho provisório até o `carregar()` trazer o livro.
         let estanteId: UUID
         switch modo {
@@ -56,7 +64,7 @@ final class LivroFormularioViewModel: ObservableObject {
     }
 
     /// Com alterações, puxar a folha para baixo não fecha (não se perde o que foi digitado por engano).
-    var alterado: Bool { rascunho != rascunhoInicial }
+    var alterado: Bool { rascunho != rascunhoInicial || foto != fotoInicial }
 
     /// Problemas a mostrar embaixo de cada campo.
     var problemas: [RascunhoLivro.Campo: RascunhoLivro.Problema] {
@@ -74,6 +82,14 @@ final class LivroFormularioViewModel: ObservableObject {
                 original = livro
                 rascunho = RascunhoLivro(livro: livro)
                 rascunhoInicial = rascunho
+                // Sem a foto o formulário ainda funciona, mas avisa: senão "Adicionar foto" faria parecer que o
+                // livro não tem foto. Salvar sem mexer nela não a apaga (`foto == fotoInicial`).
+                do {
+                    foto = try await repositorio.fotoMiniatura(doLivro: livroId)
+                } catch {
+                    mensagemDeErro = "Não foi possível abrir a foto atual."
+                }
+                fotoInicial = foto
             }
             await carregarPrateleiras()
             estado = .pronto
@@ -90,11 +106,33 @@ final class LivroFormularioViewModel: ObservableObject {
         defer { salvando = false }
         do {
             try await repositorio.salvar(livro)
-            return true
         } catch {
             mensagemDeErro = "Não foi possível salvar o livro."
             return false
         }
+        // Já gravado: se a foto falhar e o usuário tentar de novo, atualiza este livro em vez de criar outro.
+        original = livro
+        guard foto != fotoInicial else { return true }
+        do {
+            try await repositorio.salvarFotoMiniatura(foto, doLivro: livro.id)
+        } catch {
+            // A folha fica aberta com a foto escolhida: "Salvar" de novo tenta só gravar a foto outra vez.
+            mensagemDeErro = "O livro foi salvo, mas a foto não."
+            return false
+        }
+        fotoInicial = foto
+        fotoTrocada(livro.id)
+        return true
+    }
+
+    // MARK: Foto
+
+    func escolherFoto(_ dados: Data) {
+        foto = dados
+    }
+
+    func removerFoto() {
+        foto = nil
     }
 
     // MARK: Prateleira

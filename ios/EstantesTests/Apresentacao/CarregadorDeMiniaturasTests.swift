@@ -54,6 +54,19 @@ final class CarregadorDeMiniaturasTests: XCTestCase {
         XCTAssertEqual(repositorio.leiturasDeFoto, 2)
     }
 
+    func testDepoisDeEsquecerLeDaPortaDeNovo() async {
+        let repositorio = BibliotecaRepositorioEmMemoria(livros: [livro])
+        repositorio.fotos[livro.id] = Self.jpeg(largura: 300, altura: 450)
+        let carregador = CarregadorDeMiniaturas(repositorio: repositorio)
+
+        _ = await carregador.miniatura(doLivro: livro.id, ladoMaior: 132)
+        // Foto trocada no formulário: a guardada no cache ficou velha.
+        await carregador.esquecer(livro.id)
+        _ = await carregador.miniatura(doLivro: livro.id, ladoMaior: 132)
+
+        XCTAssertEqual(repositorio.leiturasDeFoto, 2)
+    }
+
     /// JPEG de uma cor só, com o tamanho exato em pixels (escala 1).
     private static func jpeg(largura: Int, altura: Int) -> Data {
         let formato = UIGraphicsImageRendererFormat()

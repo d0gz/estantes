@@ -47,6 +47,9 @@ struct Dependencias {
 
     @MainActor
     func fazerLivroFormularioViewModel(modo: LivroFormularioViewModel.Modo) -> LivroFormularioViewModel {
-        LivroFormularioViewModel(modo: modo, repositorio: repositorio)
+        // Foto trocada: as miniaturas da Estante e do Detalhe esquecem a antiga.
+        LivroFormularioViewModel(modo: modo, repositorio: repositorio, fotoTrocada: { [miniaturas] livroId in
+            miniaturas.esquecer(livroId)
+        })
     }
 }

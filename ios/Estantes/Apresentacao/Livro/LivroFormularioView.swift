@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// Formulário de adicionar ou editar um livro, aberto numa folha. O `Form` nativo (e não cartões à mão como no
@@ -8,6 +9,13 @@ struct LivroFormularioView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var volumeAberto = false
     @FocusState private var campoEmFoco: WritableKeyPath<RascunhoLivro, String>?
+    @State private var escolhendoFoto = false
+    @State private var itemDaFoto: PhotosPickerItem?
+    /// A foto do rascunho já decodificada no tamanho da tela: decodificar no `body` repetiria o trabalho a cada tecla.
+    @State private var imagemDaFoto: UIImage?
+    /// Menor que no Detalhe (140): aqui a foto é só para conferir, e os campos sobem.
+    @ScaledMetric(relativeTo: .body) private var larguraBaseDaFoto: CGFloat = 72
+    @Environment(\.displayScale) private var escala
 
     init(viewModel: @autoclosure @escaping () -> LivroFormularioViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -63,6 +71,11 @@ struct LivroFormularioView: View {
 
     private var formulario: some View {
         Form {
+            Section {
+                cabecalhoDaFoto
+            }
+            .listRowBackground(Color.clear)
+
             Section {
                 campo("Título *", \.titulo, problema: .titulo, fonte: Fonte.tituloLivroNaLista, quebraLinha: true)
                 campo("Subtítulo", \.subtitulo, quebraLinha: true)
@@ -133,6 +146,80 @@ struct LivroFormularioView: View {
             }
         }
     }
+
+    // MARK: Foto
+
+    /// Com o texto grande cresce, mas com teto: a foto não deve empurrar o formulário para fora da tela.
+    private var larguraDaFoto: CGFloat { min(larguraBaseDaFoto, 120) }
+
+    /// A foto (ou a substituta) e a ação: sem foto, um botão que abre a fototeca direto; com foto, um menu para
+    /// trocar ou remover. O `PhotosPicker` dentro do `Menu` não abre no iOS 16: os dois só ligam `escolhendoFoto`,
+    /// e o `.photosPicker` fica fora deles.
+    private var cabecalhoDaFoto: some View {
+        VStack(spacing: Espaco.medio) {
+            MolduraDaFoto(foto: imagemDaFoto, largura: larguraDaFoto)
+                .sombraSuave()
+            Group {
+                if viewModel.foto == nil {
+                    Button("Adicionar foto") { escolhendoFoto = true }
+                } else {
+                    Menu("Trocar foto") {
+                        Button {
+                            escolhendoFoto = true
+                        } label: {
+                            Label("Escolher outra foto", systemImage: "photo")
+                        }
+                        Button(role: .destructive) {
+                            viewModel.removerFoto()
+                        } label: {
+                            Label("Remover foto", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+            .font(.subheadline.weight(.semibold))
+            // Dentro de uma linha do `Form`, um botão faria a linha inteira tocável; só o texto deve ser.
+            .buttonStyle(.borderless)
+        }
+        .frame(maxWidth: .infinity)
+        // `.current`: a foto no formato original (HEIC também; o ImageIO lê). O padrão converte a foto cheia para JPEG
+        // antes de entregar, conversão que o simulador nem consegue fazer e que a redução jogaria fora.
+        .photosPicker(isPresented: $escolhendoFoto, selection: $itemDaFoto, matching: .images, preferredItemEncoding: .current)
+        // `.task(id:)`, e não `onChange` + `Task`: escolhida outra foto enquanto a anterior ainda reduz, a tarefa
+        // anterior é cancelada; senão a mais lenta terminaria por último e ficaria no lugar da escolhida depois.
+        .task(id: itemDaFoto) {
+            guard let item = itemDaFoto else { return }
+            await usarFoto(item)
+        }
+        .task(id: viewModel.foto) {
+            let ladoMaior = Int((larguraDaFoto * 1.5 * escala).rounded(.up))
+            let dados = viewModel.foto
+            let imagem = await Task.detached {
+                dados.flatMap { RedutorDeFoto.imagem($0, ladoMaior: ladoMaior) }.map { UIImage(cgImage: $0) }
+            }.value
+            guard !Task.isCancelled else { return }
+            imagemDaFoto = imagem
+        }
+        .animacaoSuave(valor: viewModel.foto)
+    }
+
+    /// Lê a foto escolhida e a reduz para guardar fora da fila principal (decodificar uma foto de 12 MP trava a tela).
+    private func usarFoto(_ item: PhotosPickerItem) async {
+        let dados = try? await item.loadTransferable(type: Data.self)
+        let reduzida = await Task.detached { dados.flatMap(RedutorDeFoto.paraGuardar) }.value
+        // Cancelada: o usuário já escolheu outra; esta não vale mais (nem o erro dela).
+        guard !Task.isCancelled else { return }
+        if let reduzida = reduzida {
+            viewModel.escolherFoto(reduzida)
+        } else {
+            viewModel.mensagemDeErro = "Não foi possível abrir a foto."
+        }
+        // Volta a `nil` só no fim (antes, mudaria o id e cancelaria esta tarefa): assim a mesma foto pode ser
+        // escolhida de novo depois de removida.
+        itemDaFoto = nil
+    }
+
+    // MARK: Campos
 
     /// Um campo de texto do rascunho. Vazio, o nome (e o exemplo) fica dentro, como placeholder; preenchido, o
     /// placeholder some e o nome passa para cima, pequeno, para "1965" não ficar sem dizer que é o ano. Embaixo,

@@ -5,11 +5,28 @@ import SwiftUI
 /// também é o que aparece enquanto ela carrega.
 struct MiniaturaDoLivro: View {
     let livroId: UUID
-    let carregador: CarregadorDeMiniaturas
+    @ObservedObject var carregador: CarregadorDeMiniaturas
     /// Vem da tela (um `@ScaledMetric` lá), que também usa a largura para alinhar o separador das linhas.
     let largura: CGFloat
     @Environment(\.displayScale) private var escala
     @State private var foto: UIImage?
+
+    var body: some View {
+        MolduraDaFoto(foto: foto, largura: largura)
+        // A largura no `id`: com o texto aumentado, pede de novo no tamanho novo; a versão: foto trocada no formulário.
+        .task(id: Pedido(livroId: livroId, largura: largura, trocas: carregador.trocas)) {
+            // O lado maior em pixels (pontos × escala da tela): nem borrada nem maior que o necessário.
+            let ladoMaior = Int((largura * 1.5 * escala).rounded(.up))
+            foto = await carregador.miniatura(doLivro: livroId, ladoMaior: ladoMaior)
+        }
+    }
+}
+
+/// A moldura 2:3 da foto do livro, ou a substituta (a `superficie` com um livro) quando não há foto. Comum à
+/// miniatura das listas e ao cabeçalho do formulário.
+struct MolduraDaFoto: View {
+    let foto: UIImage?
+    let largura: CGFloat
 
     var body: some View {
         ZStack {
@@ -29,19 +46,14 @@ struct MiniaturaDoLivro: View {
         .frame(width: largura, height: largura * 1.5)
         .cantos(Raio.pequeno)
         .accessibilityHidden(true)
-        // A largura no `id`: com o texto aumentado, pede de novo no tamanho novo.
-        .task(id: Pedido(livroId: livroId, largura: largura)) {
-            // O lado maior em pixels (pontos × escala da tela): nem borrada nem maior que o necessário.
-            let ladoMaior = Int((largura * 1.5 * escala).rounded(.up))
-            foto = await carregador.miniatura(doLivro: livroId, ladoMaior: ladoMaior)
-        }
     }
 }
 
-/// O que muda o pedido da foto: outro livro ou outra largura.
+/// O que muda o pedido da foto: outro livro, outra largura ou uma foto trocada.
 private struct Pedido: Equatable {
     let livroId: UUID
     let largura: CGFloat
+    let trocas: Int
 }
 
 /// Estilo de botão da linha dentro de um cartão: só o véu leve do destaque ao tocar, sem encolher (encolher uma

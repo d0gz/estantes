@@ -1,17 +1,16 @@
-import ImageIO
+import Combine
 import UIKit
 
 /// Lê a foto da miniatura de um livro na porta e a entrega reduzida para a lista.
 ///
-/// No banco fica só a foto original (uma por livro, o que vai no export). A redução usa o ImageIO, que decodifica
-/// direto no tamanho pedido: `UIImage(data:)` abriria a foto inteira (uma de 12 MP ocupa ~48 MB decodificada) só
-/// para depois encolher. As reduzidas ficam num `NSCache`, que é seguro entre threads e se esvazia sozinho quando
+/// No banco fica uma foto por livro (a que vai no export), já reduzida para guardar; a lista pede uma menor ainda,
+/// pelo `RedutorDeFoto`. As reduzidas ficam num `NSCache`, que é seguro entre threads e se esvazia sozinho quando
 /// falta memória. A chave é o livro; o tamanho vai junto, porque a miniatura cresce com o texto grande (pedido
 /// maior que o guardado reduz de novo). Criado uma vez na montagem.
 ///
-/// Ainda não há como trocar a foto (fica para o Formulário/Fase 3): quando houver, o cache precisa esquecer o livro
-/// e a `MiniaturaDoLivro` precisa saber que mudou.
-final class CarregadorDeMiniaturas {
+/// Quando o formulário troca a foto, `esquecer` tira o livro do cache e soma um em `trocas`, que as `MiniaturaDoLivro`
+/// observam para pedir de novo (as outras voltam do cache na hora).
+final class CarregadorDeMiniaturas: ObservableObject {
     /// Classe porque o `NSCache` só guarda objetos.
     private final class Guardada {
         let imagem: UIImage
@@ -26,6 +25,9 @@ final class CarregadorDeMiniaturas {
     private let repositorio: BibliotecaRepositorio
     /// `NSUUID`: o `NSCache` só aceita objetos como chave.
     private let cache = NSCache<NSUUID, Guardada>()
+    /// Quantas fotos o formulário trocou (só serve de gatilho). Uma conta só para todos os livros: mais simples que
+    /// avisar cada miniatura, e as que não mudaram saem do cache sem ler a porta.
+    @Published private(set) var trocas = 0
 
     init(repositorio: BibliotecaRepositorio) {
         self.repositorio = repositorio
@@ -40,23 +42,17 @@ final class CarregadorDeMiniaturas {
         guard let dados = try? await repositorio.fotoMiniatura(doLivro: livroId),
               // A linha saiu da tela (rolagem rápida): não vale decodificar.
               !Task.isCancelled,
-              let reduzida = Self.reduzir(dados, ladoMaior: ladoMaior)
+              let imagem = RedutorDeFoto.imagem(dados, ladoMaior: ladoMaior)
         else { return nil }
+        let reduzida = UIImage(cgImage: imagem)
         cache.setObject(Guardada(imagem: reduzida, ladoMaior: ladoMaior), forKey: livroId as NSUUID)
         return reduzida
     }
 
-    private static func reduzir(_ dados: Data, ladoMaior: Int) -> UIImage? {
-        // Sem cache da imagem cheia: ela seria decodificada e guardada só para ser jogada fora.
-        let semCache = [kCGImageSourceShouldCache: false] as CFDictionary
-        guard let fonte = CGImageSourceCreateWithData(dados as CFData, semCache) else { return nil }
-        let opcoes = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true, // ignora a miniatura embutida no JPEG (pode ser pequena)
-            kCGImageSourceCreateThumbnailWithTransform: true,   // aplica a orientação EXIF (foto de celular "deitada")
-            kCGImageSourceShouldCacheImmediately: true,         // decodifica aqui, fora da fila principal
-            kCGImageSourceThumbnailMaxPixelSize: ladoMaior,
-        ] as CFDictionary
-        guard let imagem = CGImageSourceCreateThumbnailAtIndex(fonte, 0, opcoes) else { return nil }
-        return UIImage(cgImage: imagem)
+    /// A foto do livro mudou: a próxima leitura vai à porta, e as miniaturas na tela pedem de novo.
+    @MainActor
+    func esquecer(_ livroId: UUID) {
+        cache.removeObject(forKey: livroId as NSUUID)
+        trocas += 1
     }
 }

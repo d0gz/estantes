@@ -25,7 +25,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
 
     func testNovoCarregaAsEstantesEComecaNaEstanteDeOrigem() async {
         let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio, sala])
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: sala.id), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: sala.id), repositorio: repositorio, fotoTrocada: { _ in })
 
         await viewModel.carregar()
 
@@ -38,7 +38,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
 
     func testErrosSoAparecemDepoisDeTentarSalvar() async {
         let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio])
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio, fotoTrocada: { _ in })
         await viewModel.carregar()
 
         XCTAssertEqual(viewModel.problemas, [:])
@@ -51,7 +51,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
 
     func testSalvarNovoGravaOLivro() async throws {
         let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio])
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio, fotoTrocada: { _ in })
         await viewModel.carregar()
         preencherObrigatorios(viewModel)
 
@@ -68,9 +68,89 @@ final class LivroFormularioViewModelTests: XCTestCase {
         XCTAssertEqual(gravado.estanteId, escritorio.id)
     }
 
+    // MARK: Foto
+
+    /// Bytes quaisquer: o ViewModel só guarda e repassa a foto (a redução é da tela, com o `RedutorDeFoto`).
+    private let fotoNova = Data([0xFF, 0xD8, 0x01, 0x02])
+
+    func testFotoNovaEhGravadaNoLivroEAvisaQueTrocou() async throws {
+        let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio])
+        var avisados: [UUID] = []
+        let viewModel = LivroFormularioViewModel(
+            modo: .novo(estanteId: escritorio.id), repositorio: repositorio, fotoTrocada: { avisados.append($0) }
+        )
+        await viewModel.carregar()
+        preencherObrigatorios(viewModel)
+
+        viewModel.escolherFoto(fotoNova)
+        let salvou = await viewModel.salvar()
+
+        XCTAssertTrue(salvou)
+        let livro = try XCTUnwrap(repositorio.livrosGuardados.values.first)
+        XCTAssertEqual(repositorio.fotos[livro.id], fotoNova)
+        XCTAssertEqual(avisados, [livro.id])
+    }
+
+    func testRemoverFotoGravaSemFoto() async {
+        let livro = livroImportado()
+        let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio], livros: [livro])
+        repositorio.fotos[livro.id] = fotoNova
+        let viewModel = LivroFormularioViewModel(modo: .edicao(livroId: livro.id), repositorio: repositorio, fotoTrocada: { _ in })
+        await viewModel.carregar()
+        XCTAssertEqual(viewModel.foto, fotoNova)
+
+        viewModel.removerFoto()
+        XCTAssertTrue(viewModel.alterado)
+        let salvou = await viewModel.salvar()
+
+        XCTAssertTrue(salvou)
+        XCTAssertNil(repositorio.fotos[livro.id])
+    }
+
+    func testEditarSemMexerNaFotoNaoRegravaAFoto() async {
+        let livro = livroImportado()
+        let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio], livros: [livro])
+        repositorio.fotos[livro.id] = fotoNova
+        var avisados: [UUID] = []
+        let viewModel = LivroFormularioViewModel(
+            modo: .edicao(livroId: livro.id), repositorio: repositorio, fotoTrocada: { avisados.append($0) }
+        )
+        await viewModel.carregar()
+
+        viewModel.rascunho.prateleira = "caixa azul"
+        let salvou = await viewModel.salvar()
+
+        XCTAssertTrue(salvou)
+        XCTAssertEqual(repositorio.gravacoesDeFoto, 0)
+        XCTAssertEqual(avisados, [])
+    }
+
+    func testFalhaNaFotoDizQueOLivroFoiSalvoENaoDuplicaAoTentarDeNovo() async throws {
+        let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio])
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio, fotoTrocada: { _ in })
+        await viewModel.carregar()
+        preencherObrigatorios(viewModel)
+        viewModel.escolherFoto(fotoNova)
+
+        repositorio.falharAoGravarFoto = true
+        let primeira = await viewModel.salvar()
+
+        XCTAssertFalse(primeira)
+        XCTAssertEqual(viewModel.mensagemDeErro, "O livro foi salvo, mas a foto não.")
+        XCTAssertEqual(repositorio.livrosGuardados.count, 1)
+
+        repositorio.falharAoGravarFoto = false
+        let segunda = await viewModel.salvar()
+
+        XCTAssertTrue(segunda)
+        XCTAssertEqual(repositorio.livrosGuardados.count, 1)
+        let livro = try XCTUnwrap(repositorio.livrosGuardados.values.first)
+        XCTAssertEqual(repositorio.fotos[livro.id], fotoNova)
+    }
+
     func testFalhaAoGravarMostraMensagemENaoFecha() async {
         let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio])
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio, fotoTrocada: { _ in })
         await viewModel.carregar()
         preencherObrigatorios(viewModel)
         repositorio.falharAoGravar = true
@@ -85,7 +165,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
     func testFalhaAoCarregarViraErro() async {
         let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio])
         repositorio.falharAoLer = true
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio, fotoTrocada: { _ in })
 
         await viewModel.carregar()
 
@@ -97,7 +177,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
     func testEdicaoCarregaOLivroNoRascunho() async {
         let livro = livroImportado()
         let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio], livros: [livro])
-        let viewModel = LivroFormularioViewModel(modo: .edicao(livroId: livro.id), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .edicao(livroId: livro.id), repositorio: repositorio, fotoTrocada: { _ in })
 
         await viewModel.carregar()
 
@@ -115,7 +195,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
     func testEdicaoMoveDeEstanteEPreservaSumarioEOrigem() async throws {
         let livro = livroImportado()
         let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio, sala], livros: [livro])
-        let viewModel = LivroFormularioViewModel(modo: .edicao(livroId: livro.id), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .edicao(livroId: livro.id), repositorio: repositorio, fotoTrocada: { _ in })
         await viewModel.carregar()
         viewModel.rascunho.estanteId = sala.id
         viewModel.rascunho.prateleira = "caixa azul"
@@ -134,7 +214,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
 
     func testEdicaoDeLivroQueSumiuViraErro() async {
         let repositorio = BibliotecaRepositorioEmMemoria(estantes: [escritorio])
-        let viewModel = LivroFormularioViewModel(modo: .edicao(livroId: UUID()), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .edicao(livroId: UUID()), repositorio: repositorio, fotoTrocada: { _ in })
 
         await viewModel.carregar()
 
@@ -144,7 +224,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
     // MARK: Autores
 
     func testAdicionarEApagarAutores() {
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: BibliotecaRepositorioEmMemoria())
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: BibliotecaRepositorioEmMemoria(), fotoTrocada: { _ in })
         viewModel.rascunho.autores = ["A", "B", "C", "D"]
 
         viewModel.adicionarAutor()
@@ -165,7 +245,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
             (IndexSet([0, 2]), 4, ["B", "D", "A", "C"]),
         ]
         for (origem, destino, esperado) in casos {
-            let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: BibliotecaRepositorioEmMemoria())
+            let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: BibliotecaRepositorioEmMemoria(), fotoTrocada: { _ in })
             viewModel.rascunho.autores = ["A", "B", "C", "D"]
             viewModel.moverAutores(de: origem, para: destino)
             XCTAssertEqual(viewModel.rascunho.autores, esperado, "\(Array(origem)) → \(destino)")
@@ -183,7 +263,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
     }
 
     func testCarregaAsPrateleirasDaEstanteDoRascunho() async {
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras())
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras(), fotoTrocada: { _ in })
 
         await viewModel.carregar()
 
@@ -192,7 +272,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
     }
 
     func testSugestoesSeguemOTextoDigitado() async {
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras())
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras(), fotoTrocada: { _ in })
         await viewModel.carregar()
 
         viewModel.rascunho.prateleira = "AZ"
@@ -201,7 +281,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
     }
 
     func testTrocarDeEstanteRecarregaAsPrateleiras() async {
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras())
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras(), fotoTrocada: { _ in })
         await viewModel.carregar()
 
         viewModel.rascunho.estanteId = sala.id
@@ -212,7 +292,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
 
     func testRespostaAtrasadaDeOutraEstanteEDescartada() async {
         let repositorio = repositorioComPrateleiras()
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio, fotoTrocada: { _ in })
         await viewModel.carregar()
 
         // Enquanto a leitura do Escritório não volta, o usuário troca para a Sala e a leitura dela termina antes.
@@ -227,7 +307,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
     }
 
     func testEscolherPrateleiraPreencheORascunho() async {
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras())
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorioComPrateleiras(), fotoTrocada: { _ in })
         await viewModel.carregar()
         viewModel.rascunho.prateleira = "cai"
 
@@ -239,7 +319,7 @@ final class LivroFormularioViewModelTests: XCTestCase {
 
     func testFalhaAoLerPrateleirasNaoAtrapalhaOFormulario() async {
         let repositorio = repositorioComPrateleiras()
-        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio)
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: repositorio, fotoTrocada: { _ in })
         await viewModel.carregar()
 
         repositorio.falharAoLer = true

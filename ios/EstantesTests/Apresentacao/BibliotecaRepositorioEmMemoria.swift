@@ -12,10 +12,14 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
     var fotos: [UUID: Data] = [:]
     /// Quantas vezes `fotoMiniatura` foi chamada (para conferir o cache do `CarregadorDeMiniaturas`).
     private(set) var leiturasDeFoto = 0
+    /// Quantas vezes `salvarFotoMiniatura` foi chamada (para conferir que o formulário só grava foto mudada).
+    private(set) var gravacoesDeFoto = 0
 
     /// Ligados, fazem as leituras ou as gravações lançarem `FalhaSimulada`.
     var falharAoLer = false
     var falharAoGravar = false
+    /// Ligado, só a gravação da foto falha (o livro grava): o formulário grava os dois em passos separados.
+    var falharAoGravarFoto = false
     /// Roda no meio da leitura das prateleiras, antes da resposta: simula o usuário mexendo na tela enquanto espera.
     var durantePrateleiras: (@MainActor () async -> Void)?
 
@@ -114,7 +118,9 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
     }
 
     func salvarFotoMiniatura(_ foto: Data?, doLivro livroId: UUID) async throws {
+        gravacoesDeFoto += 1
         try gravando()
+        if falharAoGravarFoto { throw FalhaSimulada() }
         guard livrosGuardados[livroId] != nil else { throw ErroPersistencia.livroNaoEncontrado(livroId) }
         fotos[livroId] = foto
     }
