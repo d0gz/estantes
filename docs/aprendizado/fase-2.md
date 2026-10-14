@@ -2607,3 +2607,58 @@ Tocar na foto do Detalhe abre a imagem maior, sobre um fundo escuro esmaecido, c
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+### Correção das respostas
+(sem respostas)
+
+## Tarefa 2.4 — Estilo de Apagar estante e a cor dos alertas do UIKit (2026-10-13)
+
+### O que foi feito
+Fechou-se o estilo da tela de apagar estante. O `Paleta.aplicarNoUIKit()` (`Cor.swift`), chamado no `init` de `EstantesApp`, pinta com o `destaque` os botões de todos os alertas e folhas de ação. A segunda folha em `InicioView.swift` passou a dizer a quantidade ("Mover os 6 livros para…", "Mover o livro para…"), reaproveitando `textoDaQuantidade(_:comArtigo:)`. Nenhum teste novo: só mudaram aparência e texto.
+
+### Conceitos envolvidos
+
+**1. Por que o `.tint` do SwiftUI não chegou ao alerta.** O `confirmationDialog` e o `.alert` do SwiftUI, no iOS 16, não são views SwiftUI: o sistema monta um `UIAlertController` e o apresenta por UIKit, em outra hierarquia de views (uma janela/controlador de apresentação próprios). O `.tint` do SwiftUI é um valor de ambiente que desce pela árvore *SwiftUI*; essa árvore não contém o alerta. Quem lê o `tintColor` do alerta é o UIKit, que o resolve subindo pela hierarquia de `UIView`s dele, sem passar pelo ambiente do SwiftUI. Por isso a captura mostrou `#007AFF` (azul do sistema) ao lado do petróleo `#0579B8`.
+
+**2. Proxy de aparência (`UIAppearance`).** `UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self])` devolve um "proxy": você grava nele um valor (`tintColor`) e o UIKit o aplica a toda view daquela classe que, ao entrar numa janela, esteja contida num `UIAlertController`. Detalhes: (a) vale para views criadas *depois* da configuração, então basta chamar uma vez na abertura do app; (b) só funciona com propriedades marcadas `UI_APPEARANCE_SELECTOR`, e `tintColor` é uma delas; (c) o seletor `whenContainedIn` é um filtro por ancestral, não por instância, logo vale para o app inteiro, inclusive o alerta "Nova estante".
+
+**3. Cor dinâmica passa de graça.** `destaque` é um `UIColor(claro:escuro:)`, isto é, uma cor com *provider* que o UIKit resolve a cada mudança de `traitCollection`. Gravada no proxy, ela continua dinâmica: no escuro o botão vira `#AED3FC` sem código extra.
+
+**4. O destrutivo fica vermelho.** O `UIAlertAction` com estilo `.destructive` (vindo do `role: .destructive`) tem cor própria, que ignora o `tintColor`. Por isso a mudança não apaga a semântica "perigo".
+
+**5. Responsabilidade única (Mudança divergente).** A linha estava no `init()` do app, que passaria a mudar por dois motivos: montar dependências e definir aparência. Movida para `Paleta`, junto das cores, o `init` só delega. Quem muda a paleta mexe num lugar só.
+
+### Por que assim
+- **Proxy global em vez de corrigir alerta a alerta:** o SwiftUI não oferece um modificador para o `tintColor` desses alertas no iOS 16; o proxy cobre todos e os futuros.
+- **Quantidade no título da segunda folha:** na etapa em que o usuário escolhe o destino, a pergunta repete quais livros vão. Confirma o efeito sem custo, e o texto já tinha teste.
+- **Destinos só com o nome:** a quantidade em cada botão pesaria a lista, e o Inicio já a mostra.
+- **Aspas retas:** preferência do Ricardo; é decisão de gosto, sem custo técnico.
+- **Sem linha no Histórico de decisões:** não passa nos três critérios. É surpreendente, mas reverter é apagar uma linha.
+
+### Alternativas descartadas
+- **Folha de ação própria com cartões:** teria de reproduzir à mão posição, VoiceOver, foco e comportamento no iPad (popover) para uma confirmação que deve ser rápida e familiar. Custo alto, ganho visual pequeno.
+- **Deixar o azul do sistema:** funciona, mas destoa do resto do app.
+- **`UIApplication.shared.windows.forEach { $0.tintColor = … }`:** pega só janelas existentes naquele momento e é frágil; o proxy vale para as futuras também.
+- **Aspas tipográficas (“ ”):** recusadas pelo Ricardo.
+
+### Padrões e boas práticas
+- **Corrigir a documentação junto com o código:** o PLANO dizia que o `.tint` na raiz "chega às folhas"; foi ajustado para "folhas do SwiftUI". Registro errado engana a próxima pessoa que ler.
+- **Reaproveitar função já testada** (`textoDaQuantidade`) em vez de duplicar a regra de singular/plural.
+- **Quando NÃO usar proxy de aparência:** se só uma tela precisa de outra cor, ele é um efeito global escondido, e quem lê a tela não imagina que a cor vem de outro lugar. Aqui o desejo era justamente global.
+
+### Armadilhas
+- Chamar `aplicarNoUIKit()` *depois* de o alerta já ter sido criado não o afeta; por isso o lugar é o `init` do app.
+- O proxy não alcança tudo do UIKit: cada classe/propriedade precisa ser `UI_APPEARANCE_SELECTOR`. Se um dia o alerta não mudar de cor, confira primeiro essa condição e a versão do iOS (o comportamento de alertas do SwiftUI mudou entre versões; verifique na CI com Xcode 26 e simulador novo, onde não testamos visualmente).
+- Testes unitários não pegam isso: é aparência. A verificação aqui foi pelas capturas (claro, escuro, texto grande).
+
+### Para ir além
+- Apple, documentação de `UIAppearance` e `appearance(whenContainedInInstancesOf:)`.
+- Apple, Human Interface Guidelines, "Action sheets" e "Alerts".
+
+### Perguntas
+1. Com suas palavras: por que o `.tint(...)` aplicado na raiz do SwiftUI não muda a cor dos botões de um `confirmationDialog` no iOS 16, e o que o proxy de aparência faz de diferente?
+2. Aplicação: se você quisesse que só os alertas da tela de apagar mudassem de cor, e não os do app todo, o que o `whenContainedIn` deixaria de resolver e que alternativa você consideraria?
+3. Raciocínio: se `aplicarNoUIKit()` fosse chamada só quando o usuário abrisse a primeira tela (e não no `init` do app), em que situação a cor sairia errada? E por que o botão "Apagar" continua vermelho mesmo com o proxy valendo?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
