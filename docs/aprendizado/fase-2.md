@@ -2442,3 +2442,98 @@ O caminho foi de tentativa e erro **olhando o simulador**:
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4 — Foto da miniatura no Formulário (2026-10-13)
+
+### O que foi feito
+O Formulário ganhou um cabeçalho com a foto (72 pt) e o menu "Adicionar foto" / "Escolher outra foto" / "Remover foto", via `PhotosPicker`. A foto é reduzida pelo novo `RedutorDeFoto` (ImageIO: lado maior 1200 px, JPEG 0,8), fica no `LivroFormularioViewModel` e só é gravada no Salvar, e só se mudou. O `CarregadorDeMiniaturas` virou `ObservableObject` com `esquecer(livroId)`, para a lista refletir a troca. Arquivos: `RedutorDeFoto.swift`, `LivroFormularioView.swift`, `LivroFormularioViewModel.swift`, `CarregadorDeMiniaturas.swift`, `MiniaturaDoLivro.swift`, `Dependencias.swift`. Testes: 348 para 356.
+
+### Conceitos envolvidos
+
+**1. Redução de imagem com ImageIO.** Uma foto de 12 MP (4000x3000) decodificada inteira ocupa cerca de 4000x3000x4 bytes = 48 MB de bitmap, só para depois encolher. `CGImageSourceCreateThumbnailAtIndex` pede ao decodificador já o tamanho final (para JPEG, ele consegue decodificar em escala reduzida, então o pico de memória é bem menor). Opções usadas:
+- `kCGImageSourceCreateThumbnailFromImageAlways`: ignora a miniatura minúscula embutida no arquivo e gera a partir da imagem real;
+- `kCGImageSourceCreateThumbnailWithTransform`: aplica a orientação EXIF (sem isso, foto tirada em pé sairia deitada);
+- `kCGImageSourceShouldCacheImmediately`: força a decodificação na hora da chamada (fora da fila principal), e não de forma preguiçosa na primeira vez que a imagem for desenhada;
+- `kCGImageSourceShouldCache: false` na fonte: não manter o bitmap grande em cache interno.
+`kCGImageSourceThumbnailMaxPixelSize` é o lado maior; a proporção é preservada. Depois, `CGImageDestination` com `kCGImageDestinationLossyCompressionQuality = 0.8` gera o JPEG. Custo: O(pixels da saída) na redução, memória proporcional ao tamanho reduzido.
+
+**2. Os testes que "já nasceram verdes".** Os testes "600x400 não é ampliada" e "dados que não são imagem devolvem nil" passaram sem ficar vermelhos, porque o ImageIO já se comporta assim (ele só reduz, não amplia). Não é tautologia: eles travam um **contrato de que a tela depende** (não inflar arquivo, não crashar com lixo). Se um dia trocarem a implementação (por `UIGraphicsImageRenderer`, que amplia se você mandar), o teste pega. Regra: um teste verde de primeira é aceitável se você sabe dizer qual mudança futura o deixaria vermelho.
+
+**3. Cache invalidado com contador-gatilho.** `NSCache` guarda a miniatura por `livroId`. Ao trocar a foto, a entrada fica velha. `esquecer(livroId)` remove a entrada e incrementa `@Published trocas`. A `MiniaturaDoLivro` observa o carregador e usa `trocas` dentro do `id` do `.task(id:)`: `.task(id:)` cancela e reexecuta o corpo sempre que o `id` muda. Resultado: todas as miniaturas visíveis pedem de novo, mas as que não mudaram voltam do cache sem tocar na porta. O `trocas` não tem significado próprio, é só um **gatilho de invalidação** (daí o nome, depois do P5; `versao` sugeria algo que não existe).
+
+```mermaid
+sequenceDiagram
+  participant F as Formulário
+  participant VM as ViewModel
+  participant D as Dependencias
+  participant C as CarregadorDeMiniaturas
+  participant M as MiniaturaDoLivro
+  F->>VM: salvar()
+  VM->>VM: grava foto (porta)
+  VM->>D: fotoTrocada(livroId)
+  D->>C: esquecer(livroId)
+  C->>C: remove do NSCache, trocas += 1
+  C-->>M: @Published trocas mudou
+  M->>M: .task(id) reinicia e pede de novo
+```
+
+**4. O ViewModel fala com a UI sem importá-la: closure injetada.** A regra é "ViewModel só Foundation" (na prática, sem conhecer o carregador, que é de Apresentação/UIKit). Então ele expõe `fotoTrocada: (UUID) -> Void` e a montagem liga ao `esquecer`. É inversão de dependência na forma mais simples: em vez de um protocolo com um método, uma closure. Depois do P4 o valor padrão `{ _ in }` saiu: com padrão, esquecer de ligar compila e falha **em silêncio** (miniatura velha na tela). Sem padrão, o compilador obriga. Princípio: torne o estado errado impossível de compilar.
+
+**5. Concorrência: corrida entre tarefas e cancelamento cooperativo (P3).** O desenho antigo era `onChange` + `Task { }` solta. Escolher A e logo B: duas tarefas rodam; se A demora mais, termina por último e sobrescreve B (resultado depende de quem acaba primeiro: *race condition*). Agora `.task(id: itemDaFoto)`: ao mudar o `id`, o SwiftUI **cancela** a tarefa anterior. Mas cancelamento em Swift é **cooperativo**: só liga uma sinalização (`Task.isCancelled`); nada para sozinho. E o `Task.detached` **não herda** o cancelamento da tarefa pai (detached = sem contexto herdado). Por isso a conferência `Task.isCancelled` vem **depois** do `.value`, na tarefa que está sendo cancelada, antes de usar o resultado. Detalhe sutil: `itemDaFoto` só volta a `nil` no fim; se voltasse no começo, mudaria o `id` e a tarefa cancelaria a si mesma. E voltar a `nil` permite escolher de novo a mesma foto depois de removê-la (o `PhotosPicker` só dispara quando o binding muda).
+
+**6. `PhotosPicker` e `preferredItemEncoding`.** Ao escolher uma foto no simulador, apareceu "Não foi possível abrir a foto.". O log dizia `PHAssetExportRequestErrorDomain` e `PAMediaConversionServiceErrorDomain` erro 2 (mode=compatible). Causa: sem dizer o formato, o picker usa `.automatic`/compatível e **converte a foto cheia** (HEIC para JPEG) antes de entregar; no simulador essa conversão falha. A suspeita inicial (tamanho da foto) estava errada. Correção: `preferredItemEncoding: .current`, que entrega no formato original; o ImageIO lê HEIC e o nosso redutor já gera o JPEG pequeno, então a conversão do sistema era trabalho duplicado. Lição de método: **ler domínio e código do erro antes de supor a causa**.
+
+**7. Falha parcial e idempotência do Salvar (P1/E4).** Salvar faz duas gravações (livro, depois foto). A segunda pode falhar com a primeira já confirmada. Com um só `do/catch`, a mensagem mentia ("Não foi possível salvar o livro"). Agora são dois `do` separados: "O livro foi salvo, mas a foto não." e a folha continua aberta. O detalhe essencial é `original = livro` logo após gravar o livro: o próximo Salvar passa a **atualizar** o mesmo livro em vez de criar um segundo (duplicata). É a ideia de **retentativa segura**: repetir a operação depois de falha parcial não pode multiplicar efeitos. Sem transação que cubra livro e arquivo (Core Data e sistema de arquivos são mundos separados), a ordem e o estado explícito fazem esse papel.
+
+**8. `try?` que mente (P2/E5).** Ler a foto atual com `try?` transformava erro em "não tem foto", e o formulário mostrava "Adicionar foto" para um livro que tem. Agora o erro vira aviso. Salvar sem mexer na foto não a apaga porque a regra é `foto != fotoInicial` para gravar: a ausência de mudança nunca gera escrita. Duas coisas diferentes (nil por "não tem" e nil por "falhou ao ler") precisam de representações diferentes.
+
+**9. `@ScaledMetric`.** Tamanho que escala com o Dynamic Type (72 pt base, teto de 120 para não estourar o layout em textos muito grandes).
+
+### Por que assim
+- **1200 px, JPEG 0,8 (~150 KB).** Original de 3 a 10 MB: 200 livros ~ 1 GB no banco e no export. Com 600 px, uma vista ampliada borra. Princípio do Ricardo: foto de alta qualidade só é *usada* (OCR na Fase 3, na resolução máxima da câmera) e depois descartada.
+- **Gravar só no Salvar.** Cancelar descarta, funciona com livro novo (sem `id` ainda) e não deixa arquivo órfão.
+- **G1, 72 pt.** Menor que o Detalhe (140): aqui a foto serve só para conferir.
+- **G2, botão x menu.** Sem foto, um toque abre a fototeca (um passo a menos); com foto, o menu oferece as duas ações.
+- **Closure `fotoTrocada` sem padrão.** Ver conceito 4.
+- **Redução fora da fila principal.** Decodificar é custoso; na main travaria a rolagem (P6 estendeu isso à imagem do cabeçalho).
+
+### Alternativas descartadas
+- **`UIGraphicsImageRenderer` para reduzir:** exige decodificar a imagem inteira antes (pico de ~48 MB) e pode ampliar.
+- **Deixar o picker converter (`.automatic`):** falha no simulador e faz trabalho que jogamos fora.
+- **`onChange` + `Task` solta:** corrida (conceito 5).
+- **Invalidar o cache inteiro (`removeAllObjects`):** funcionaria, mas as miniaturas não afetadas recarregariam da porta sem necessidade; `esquecer` por id é cirúrgico.
+- **Notificação (`NotificationCenter`) para avisar a troca:** acoplamento implícito e global, difícil de testar; a closure é explícita e testável.
+- **Extrair `CabecalhoDaFoto` agora (P8):** adiado até o estilo provisório ser confirmado, para não abstrair algo que ainda vai mudar.
+
+### Padrões e boas práticas
+- **Inversão de dependência por closure** e "faça o erro não compilar".
+- **Falha parcial explícita:** mensagem precisa diz o que deu certo e o que não.
+- **Teste vermelho pelo motivo certo:** o teste de falha só na foto ficou vermelho pela mensagem antiga; a parte "não duplica" já funcionava e ganhou cobertura. Um interruptor (`falharAoGravarFoto`) no repositório falso injeta a falha sem mocks complexos.
+- **Revisão em dois eixos:** o revisor pegou a corrida, o `try?` e o padrão da closure; o revisor-spec pegou o PLANO desatualizado (E1). Documentação que descreve o desenho antigo engana o próximo leitor.
+- Quando NÃO usar `.task(id:)` para isso: se o trabalho **não** puder ser cancelado sem efeitos colaterais (gravar em disco, por exemplo), ele não deve rodar dentro de uma tarefa cancelável por mudança de id.
+
+### Armadilhas
+- Cancelar não interrompe: sem checar `Task.isCancelled` (ou usar um ponto de suspensão que lança), a tarefa velha continua e pode sobrescrever.
+- `Task.detached` não herda cancelamento, prioridade nem ator.
+- Voltar o `id` do `.task` a `nil` no começo cancela a própria tarefa.
+- Esquecer `WithTransform`: fotos em pé aparecem deitadas.
+- `try?` que vira "vazio": diagnostique perguntando "esse nil pode significar falha?".
+- Conferir o log do sistema (domínio + código) antes de teorizar; o simulador também difere do aparelho (conversão de mídia).
+- Closure com valor padrão no `init` esconde ligação esquecida.
+
+### Para ir além
+- Apple, "Image and Graphics Best Practices" e a documentação de `CGImageSource` (Image I/O): developer.apple.com/documentation/imageio.
+- WWDC18, "Image and Graphics Best Practices" (memória x tamanho do bitmap).
+- Apple, "Concurrency" no The Swift Programming Language, seção sobre cancelamento de tarefas.
+
+### Perguntas
+1. Com suas palavras: por que `CGImageSourceCreateThumbnailAtIndex` é melhor que carregar a imagem inteira e redimensionar? Quanto de memória custaria o bitmap de uma foto 4000x3000?
+2. Aplicação: o Ricardo decide guardar a foto em 2400 px. O que muda no tamanho aproximado para 200 livros (pense na área, não só no lado) e que teste do `RedutorDeFoto` você alteraria primeiro?
+3. Raciocínio: no Salvar, a gravação do livro funciona e a da foto falha. Se `original = livro` não existisse, o que aconteceria ao tocar em Salvar de novo num livro novo? E por que a conferência de `Task.isCancelled` precisa vir depois do `.value` do `Task.detached`?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
