@@ -56,7 +56,7 @@ final class CarregadorDeMiniaturas: ObservableObject {
         return (try? await repositorio.fotoMiniatura(doLivro: livroId)) != nil
     }
 
-    /// A foto guardada inteira, para a vista ampliada do Detalhe. Fora do cache: a de 1200 px (~5,8 MB decodificada)
+    /// A foto guardada inteira, para a vista ampliada do Detalhe. Fora do cache: a de 1200 px (até ~5,8 MB decodificada)
     /// tomaria o lugar da miniatura, e cada linha da lista passaria a desenhar a imagem grande.
     func fotoInteira(doLivro livroId: UUID) async -> UIImage? {
         guard let dados = try? await repositorio.fotoMiniatura(doLivro: livroId),

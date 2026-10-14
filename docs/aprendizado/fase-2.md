@@ -2537,3 +2537,73 @@ sequenceDiagram
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.4 — Foto ampliada no Detalhe (2026-10-13)
+
+### O que foi feito
+Tocar na foto do Detalhe abre a imagem maior, sobre um fundo escuro esmaecido, com zoom por pinça e duplo toque e fechamento ao puxar. A tela de zoom é um `FotoAmpliadaController` (UIKit, com `UIScrollView`), apresentado por um anfitrião invisível (`UIViewControllerRepresentable`) no `.background` do Detalhe. O carregador de miniaturas ganhou `fotoInteira` (lê fora do cache) e `temFoto(doLivro:)`. Commit a90f724; plano em 1e12fe3.
+
+### Conceitos envolvidos
+
+**1. Zoom com `UIScrollView`.** A `UIScrollView` é, no fundo, uma janela (`bounds`) deslizando sobre um conteúdo maior (`contentSize`). Para zoom, você devolve em `viewForZooming` a subview a escalar e define `minimumZoomScale`/`maximumZoomScale` (aqui 1 a 4). O sistema aplica um `transform` nessa view e ajusta `contentSize`, e dá de graça a pinça, a mola nos limites e a inércia. Detalhe clássico: se o conteúdo é menor que a janela, a rolagem o gruda no canto superior esquerdo. Por isso `scrollViewDidZoom` recalcula um `contentInset` que centraliza a imagem. O duplo toque usa `zoom(to: rect, animated:)`: você passa o retângulo do conteúdo que quer ver e a scroll view calcula a escala.
+
+**2. Conflito de gestos.** Duas coisas querem o arrasto: a rolagem da foto com zoom e o "puxar para fechar". A regra está em `gestureRecognizerShouldBegin`: o pan de fechar só começa se `zoomScale == minimumZoomScale` e se o movimento for mais vertical que horizontal. É o mecanismo normal do UIKit: reconhecedores competem, e o delegate arbitra.
+
+**3. Gesto interativo com decisão na soltura.** Durante o pan, a foto segue o dedo (`transform`) e a opacidade do fundo cai proporcionalmente. Ao soltar, decide-se por distância (> 120 pt) ou velocidade (> 800 pt/s). Esse "ou" existe porque um flick curto e rápido expressa intenção de fechar mesmo sem percorrer distância. Se fecha, a foto termina de sair e só então `dismiss(animated: false)`, para a animação do sistema não duplicar a nossa.
+
+**4. Apresentação modal: `fullScreenCover` x `.overFullScreen`.** Ao apresentar um modal de tela cheia (`.fullScreen`), o UIKit remove a view de baixo da hierarquia para economizar, e o fundo fica preto. Com `.overFullScreen` a tela de baixo permanece na hierarquia, então um fundo semitransparente deixa ver o Detalhe. O `fullScreenCover` do SwiftUI no iOS 16 usa o primeiro comportamento. O `presentationBackground` resolveria, mas é iOS 16.4 e o projeto tem mínimo 16.0 e regra de compilar em dois Xcodes.
+
+**5. Ponte SwiftUI para UIKit.** `UIViewControllerRepresentable` tem `makeUIViewController` e `updateUIViewController`; o SwiftUI chama o segundo sempre que o estado muda. O anfitrião observa um `Binding<UIImage?>`: valor presente e nada apresentado, chama `present`. Ao fechar, zera o binding no `completion` do `dismiss`. É o padrão "estado como fonte da verdade": a UI apresentada é consequência do binding, e o fechamento devolve o estado ao SwiftUI.
+
+**6. Cache: o que NÃO guardar.** Um bitmap decodificado ocupa largura x altura x 4 bytes (RGBA). A foto guardada tem o lado maior de 1200 px, então o pior caso é a quadrada: 1200 x 1200 x 4 ≈ 5,8 MB; uma capa em 2:3 (800 x 1200) dá ≈ 3,8 MB, e a miniatura da lista (88 x 132 a 1x, ou 264 x 396 a 3x) fica entre ~46 KB e ~420 KB. O ponto é que um bitmap custa largura x altura x 4, não o tamanho do JPEG. Se a foto grande entrasse no `NSCache` (uma entrada por livro), ocuparia o lugar da miniatura e a lista passaria a desenhar uma imagem enorme em cada linha.
+
+**7. Corrida entre duas tarefas sobre o mesmo cache (P5).** O Detalhe perguntava "tem foto?" pedindo `miniatura(ladoMaior: 1)`. As duas tarefas (a da miniatura e a dessa pergunta) começam juntas; se a pergunta chegasse primeiro, lia o banco, guardava um bitmap de 1 px e a miniatura de verdade lia outra vez para substituí-lo. Resultado: leitura dobrada e lixo no cache. A correção é dar nome à intenção: `temFoto(doLivro:)` responde pelo cache se o livro está lá e, senão, lê sem guardar (não sabe o tamanho que a lista pedirá). Princípio: uma função genérica usada com um argumento "mágico" para outro fim cria efeitos colaterais escondidos.
+
+**8. Teste que não distingue "fez" de "não fez" (P4/E1).** O teste original usava entrada 800x1200 e esperava saída 800x1200: passaria mesmo que nada fosse reduzido. Com entrada 1600x2400 e saída esperada 800x1200 (valor literal, independente do código), só passa se houve redução. Regra prática: o dado de entrada deve diferir da saída esperada na dimensão que o teste pretende provar.
+
+### Por que assim
+- **UIScrollView e não gestos do SwiftUI:** limites, mola, inércia e duplo toque já existem e são os que o usuário conhece. À mão seriam centenas de linhas e comportamento "quase igual".
+- **Apresentação pelo UIKit (opção a):** única que dá fundo esmaecido real sem API nova, e ainda traz `accessibilityViewIsModal` (VoiceOver preso ao modal).
+- **`fotoInteira` fora do cache:** ver conceito 6.
+- **Sem foto, toque ignorado** (`allowsHitTesting(false)`, escondida do VoiceOver): evita um botão que não faz nada.
+- **Durações e amortecimento com nomes:** números mágicos de animação são difíceis de ajustar e de revisar.
+- **`accessibilityPerformEscape`:** o gesto de "voltar" do VoiceOver (Z com dois dedos) fecha a tela.
+
+### Alternativas descartadas
+- **`.overlay` no Detalhe (b):** a barra de navegação ficaria por cima do escuro; escondê-la reorganiza o conteúdo.
+- **Overlay na raiz do app (c):** estado global e uma ação passada pelo ambiente até uma tela funda; acoplamento ruim.
+- **`MagnificationGesture` + `DragGesture`:** limites, mola e duplo toque à mão.
+- **Reaproveitar `miniatura(ladoMaior: 1200)`:** cacheava a foto grande (o teste `testMiniaturaContinuaPequenaDepoisDeAmpliar` ficou vermelho com ela).
+- **Recusadas na revisão:** dono do controlador (a foto cobre tudo, só ela mesma se fecha) e decodificação na fila principal (conferido: as funções `async` do carregador correm fora dela).
+
+### Padrões e boas práticas
+- **Delegate como árbitro** (`gestureRecognizerShouldBegin`).
+- **Anfitrião invisível:** padrão comum para usar UIKit onde o SwiftUI da versão mínima não alcança. Quando NÃO usar: se o mínimo suportasse a API SwiftUI equivalente, ela seria mais simples e portável.
+- **Isolar efeito colateral na API:** `temFoto` x `miniatura`.
+- **Vermelho pelo motivo certo:** `testTemFotoDepoisDaMiniaturaNaoLeAPorta` falhou com 2 leituras em vez de 1 na versão ingênua.
+- **Comparar com `minimumZoomScale`** em vez de o literal 1: o código continua certo se o mínimo mudar.
+
+### Armadilhas
+- Imagem menor que a tela sem `contentInset` fica no canto.
+- `dismiss(animated: true)` depois da nossa animação produz piscada duplicada.
+- Esquecer de zerar o binding no `completion` deixa o estado dizendo "aberto" com nada na tela, e o próximo toque não reapresenta.
+- Chamar `present` dentro de `updateUIViewController` sem checar `presentedViewController` apresenta várias vezes (o `updateUIViewController` roda a cada mudança de estado).
+- Segundo toque durante a leitura: sem o indicador `abrindoFoto`, lê duas vezes.
+- Bitmap decodificado custa largura x altura x 4 bytes, muito mais que o arquivo.
+
+### Para ir além
+- Apple, "Scroll View Programming Guide for iOS" (seção Zooming) e documentação de `UIScrollViewDelegate`.
+- Apple, documentação de `UIViewControllerRepresentable` e de `UIModalPresentationStyle.overFullScreen`.
+- WWDC18, "iOS Memory Deep Dive" (custo de bitmaps decodificados).
+
+### Perguntas
+1. Com suas palavras: por que `fullScreenCover` deixa o fundo preto e `.overFullScreen` não? O que o UIKit faz com a view de baixo em cada caso?
+2. Aplicação: se o mínimo do projeto subisse para iOS 16.4, o que você poderia simplificar nesta tela e o que ainda precisaria do UIKit (pense no zoom)?
+3. Raciocínio: explique a corrida que o `temFoto` resolveu. Em que ordem as duas tarefas teriam que rodar para o cache acabar com um bitmap de 1 px, e por que o teste "depois da miniatura, não lê a porta" não pega o caso inverso (por isso existe o segundo teste, "sem cache")?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
