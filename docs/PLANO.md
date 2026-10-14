@@ -474,9 +474,9 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
   (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário ✅ · 2.4e prateleira ✅ ·
   depois o estilo, tela por tela)
-  **Onde paramos (13/10, branch `fase2/telas`, 356 testes):** estilo do Inicio, da Estante, do Detalhe e do Formulário
-  (provisório: o Ricardo avisa se quiser desfazer) aprovados, e a foto da miniatura no Formulário pronta; próximo: a
-  foto ampliada no Detalhe (passo 2, abaixo), depois Apagar estante. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
+  **Onde paramos (13/10, branch `fase2/telas`, 361 testes):** estilo do Inicio, da Estante, do Detalhe e do Formulário
+  (provisório: o Ricardo avisa se quiser desfazer) aprovados, a foto da miniatura no Formulário e a foto ampliada no
+  Detalhe prontas; próximo: estilo de Apagar estante (passo 2, abaixo), depois o fechamento da 2.4. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
   cartão Obra quando há rótulo impresso (antes não aparecia em lugar nenhum) e o ISBN passou a ser validado
   (regra `ISBN` no Domínio; teclado `.numbersAndPunctuation` no formulário, para o hífen e o "X").
   Antes (12/10): lógica da 2.4a–e pronta e aprovada no simulador.
@@ -513,7 +513,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   2. **Estilo**, uma tela por vez: Inicio ✅ (12/10, ver "Inicio" na seção Interface; destaque claro revisto para
      `#0579B8`) → Estante ✅ (13/10, ver "Estante" na seção Interface) → Detalhe ✅ (13/10, ver "Detalhe" na seção
      Interface) → Formulário ✅ (13/10, provisório, ver "Formulário" na seção Interface) → foto da miniatura ✅
-     (13/10) → **próximo: foto ampliada no Detalhe**, depois Apagar estante (ver "Forma de trabalho nas telas");
+     (13/10) → foto ampliada no Detalhe ✅ (13/10) → **próximo: Apagar estante** (ver "Forma de trabalho nas telas");
      cada tela decide só a composição, sobre os fundamentos já aprovados.
      ✅ Campo preenchido perdia o nome (resolvido no Formulário: nome pequeno em cima com o campo preenchido).
      ✅ **Foto da miniatura (13/10):** `RedutorDeFoto` (`Componentes/`, ImageIO: lado maior 1200 px, JPEG 0,8; o
@@ -521,13 +521,15 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
      ("Cancelar" descarta); depois a closure `fotoTrocada` (sem valor padrão: a montagem é obrigada a ligar) chama o
      `esquecer(livroId)` do carregador, que soma um em `trocas` (`@Published`) para as `MiniaturaDoLivro` relerem.
      Cabeçalho na seção Interface ("Formulário").
-     **Foto ampliada no Detalhe (próximo, commit separado; decidido em 13/10):** tocar na foto do Detalhe abre a foto
-     sobre um fundo escuro esmaecido (o Detalhe aparece de leve atrás; puxando para baixo, o escuro some e fecha;
-     também "Fechar"); sem foto, o toque não faz nada. Zoom com uma `UIScrollView` embrulhada (pinça, arrastar, mola
-     nos limites e duplo toque nativos), não com gestos do SwiftUI (limites e mola à mão; o `ScrollView` do iOS 16 não
-     dá zoom). Mostra a foto guardada inteira (1200 px), lida por uma função do carregador **sem cache** (a de 1200 px
-     no cache ocuparia memória no lugar da miniatura). Fronteira de teste: sai com 1200 px e a miniatura seguinte
-     continua vindo do cache.
+     ✅ **Foto ampliada no Detalhe (13/10, pedido do Ricardo, aprovada no simulador):** com foto, a miniatura do
+     Detalhe vira botão ("Ampliar foto"; ao tocar, encolhe com a mola e fica a 85% de opacidade); sem foto, nada acontece
+     (`CarregadorDeMiniaturas.temFoto`: com a miniatura no cache, não lê a porta; sem ela, lê sem guardar). Toque
+     abre `FotoAmpliada.swift`: apresentada pelo UIKit (`.overFullScreen` + esmaecer; ver Histórico de 13/10) sobre
+     preto a 88%, com o Detalhe de leve atrás. Zoom pela `UIScrollView` embrulhada (até 4×; duplo toque 2,5× no ponto
+     e volta). Fecha pelo ✕ ou puxando, para baixo ou para cima, como no Fotos (a foto acompanha o dedo e o escuro
+     some na proporção; fecha passados 120 pt ou num puxão rápido, senão volta com mola); com zoom, arrastar só anda
+     pela foto. Imagem: a guardada inteira (1200 px), por `fotoInteira`, fora do cache (a grande no cache tomaria o
+     lugar da miniatura).
      Nota: com "Caixa azul" e "caixa azul" na estante, a sugestão mostra "caixa azul" (ordem natural), e o grupo da
      estante, a grafia mais usada; podem diferir (a porta não traz contagem).
   3. Fechamento: CI verde, PR pronto para revisão, checklist e CLAUDE.md atualizados.
@@ -777,3 +779,4 @@ do parser e do Gemini.
 | 13/10 | Categoria no cartão do livro (2.5): chip fantasma "+ Categoria" só sem categoria, tocar nos chips abre a escolha, e o menu de contexto | Pedido do Ricardo. Um "+" em todo cartão foi descartado: alvo sobreposto ao link, 44 pt engordando cada linha, repetido em todas |
 | 13/10 | Formulário no `Form` nativo com o cinza agrupado e os cartões brancos do sistema (pedido do Ricardo; só texto secundário, espaçamento e fonte vêm dos tokens), não ScrollView com `.cartao()` como no Detalhe (provisório: a confirmar nas capturas; o Ricardo avisa se quiser outra forma) | O Detalhe é leitura; o formulário precisa de apagar/arrastar autores, foco e fuga do teclado, que o `Form` dá prontos. Refazê-los à mão foi descartado (mais código e risco por um raio de canto) |
 | 13/10 | Foto do livro guardada reduzida (lado maior 1200 px, JPEG 0,8); a de alta qualidade só é usada (na Fase 3, o OCR roda na resolução máxima da câmera in-app) e depois descartada (provisório: a confirmar nas capturas) | A original (3–10 MB) pesaria banco e export (200 livros ≈ 1 GB); 600 px borraria uma futura vista ampliada. Complementa a linha de 13/10 da miniatura (no banco só uma foto) |
+| 13/10 | Foto ampliada do Detalhe apresentada pelo UIKit (`.overFullScreen` + esmaecer, num `UIViewControllerRepresentable` invisível), não por `fullScreenCover` nem por overlay | No iOS 16 o `fullScreenCover` é opaco (tira o Detalhe, e o fundo esmaecido precisa dele atrás) e o `presentationBackground` é do 16.4; overlay no Detalhe deixa a barra de navegação por cima do escuro, e na raiz do app espalha estado e uma ação pelo ambiente até uma tela funda |
