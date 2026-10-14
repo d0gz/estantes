@@ -432,6 +432,14 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   lógica. Descartados: ScrollView com `.cartao()` (refazer o comportamento do `Form` à mão), nome sempre em cima
   (poluía e dobrava a altura do Novo), nome à esquerda, fundo branco com linhas em `superficie`. Aviso esperado no
   Xcode 26: `onChange(of:)` de um parâmetro é deprecated no iOS 17, mas é a única forma que o Xcode 14.2 aceita.
+  **Foto (13/10, capturas 2.0–2.3):** primeira seção, sem cartão (`.listRowBackground(Color.clear)`), com a
+  `MolduraDaFoto` (a mesma moldura da `MiniaturaDoLivro`, extraída) de 72 pt (`@ScaledMetric`, teto 120; menor que no
+  Detalhe, aqui é só para conferir). Sem foto, o botão "Adicionar foto" abre a fototeca direto; com foto, o `Menu`
+  "Trocar foto" tem "Escolher outra foto" e "Remover foto" (destrutivo). `PhotosPicker` com
+  `preferredItemEncoding: .current`: o padrão converte a foto cheia (HEIC → JPEG) antes de entregar, e no simulador
+  essa conversão falha (`PAMediaConversionServiceErrorDomain` 2). Escolher outra foto enquanto a anterior reduz cancela
+  a anterior (`.task(id:)`). Se só a foto falhar ao gravar: "O livro foi salvo, mas a foto não." (folha aberta; Salvar
+  de novo atualiza o mesmo livro). Se a foto atual não abrir na edição, aviso "Não foi possível abrir a foto atual."
 
 ### Forma de trabalho nas telas (2.4 em diante)
 
@@ -466,9 +474,9 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
   (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário ✅ · 2.4e prateleira ✅ ·
   depois o estilo, tela por tela)
-  **Onde paramos (13/10, branch `fase2/telas`, 348 testes):** estilo do Inicio, da Estante, do Detalhe e do Formulário
-  (provisório: o Ricardo avisa se quiser desfazer) aprovados; próximo: a foto da miniatura no Formulário (passo 2 do
-  estilo do Formulário, abaixo), depois Apagar estante. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
+  **Onde paramos (13/10, branch `fase2/telas`, 356 testes):** estilo do Inicio, da Estante, do Detalhe e do Formulário
+  (provisório: o Ricardo avisa se quiser desfazer) aprovados, e a foto da miniatura no Formulário pronta; próximo: a
+  foto ampliada no Detalhe (passo 2, abaixo), depois Apagar estante. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
   cartão Obra quando há rótulo impresso (antes não aparecia em lugar nenhum) e o ISBN passou a ser validado
   (regra `ISBN` no Domínio; teclado `.numbersAndPunctuation` no formulário, para o hífen e o "X").
   Antes (12/10): lógica da 2.4a–e pronta e aprovada no simulador.
@@ -504,17 +512,22 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
         do estilo. O modificador de pressão foi extraído no Inicio (terceiro estilo de botão).
   2. **Estilo**, uma tela por vez: Inicio ✅ (12/10, ver "Inicio" na seção Interface; destaque claro revisto para
      `#0579B8`) → Estante ✅ (13/10, ver "Estante" na seção Interface) → Detalhe ✅ (13/10, ver "Detalhe" na seção
-     Interface) → Formulário ✅ (13/10, provisório, ver "Formulário" na seção Interface) → **próximo: foto da
-     miniatura**, depois Apagar estante (ver "Forma de trabalho nas telas");
+     Interface) → Formulário ✅ (13/10, provisório, ver "Formulário" na seção Interface) → foto da miniatura ✅
+     (13/10) → **próximo: foto ampliada no Detalhe**, depois Apagar estante (ver "Forma de trabalho nas telas");
      cada tela decide só a composição, sobre os fundamentos já aprovados.
      ✅ Campo preenchido perdia o nome (resolvido no Formulário: nome pequeno em cima com o campo preenchido).
-     **Foto da miniatura (próximo, commit separado; decidido em 13/10):** cabeçalho do Formulário com a
-     `MiniaturaDoLivro` e um `Menu` ("Escolher foto" com `PhotosPicker`; "Remover foto" se houver); a foto é reduzida
-     no aparelho (lado maior 1200 px, JPEG 0,8, com ImageIO, num tipo em `Componentes/`), fica no ViewModel e só é
-     gravada no "Salvar" (`salvarFotoMiniatura`, só se mudou; "Cancelar" descarta); depois, o
-     `CarregadorDeMiniaturas` volta a ter `esquecer(livroId)` para a Estante e o Detalhe relerem. Fronteiras de teste
-     (aprovar antes): redução (4000×3000 → lado maior 1200 na mesma proporção; menor não é ampliada), `salvar()` (nova
-     → porta recebe os dados; removida → `nil`; inalterada → porta não é chamada) e `esquecer` (relê da porta).
+     ✅ **Foto da miniatura (13/10):** `RedutorDeFoto` (`Componentes/`, ImageIO: lado maior 1200 px, JPEG 0,8; o
+     `CarregadorDeMiniaturas` também reduz com ele); a foto fica no ViewModel e só é gravada no "Salvar", só se mudou
+     ("Cancelar" descarta); depois a closure `fotoTrocada` (sem valor padrão: a montagem é obrigada a ligar) chama o
+     `esquecer(livroId)` do carregador, que soma um em `trocas` (`@Published`) para as `MiniaturaDoLivro` relerem.
+     Cabeçalho na seção Interface ("Formulário").
+     **Foto ampliada no Detalhe (próximo, commit separado; decidido em 13/10):** tocar na foto do Detalhe abre a foto
+     sobre um fundo escuro esmaecido (o Detalhe aparece de leve atrás; puxando para baixo, o escuro some e fecha;
+     também "Fechar"); sem foto, o toque não faz nada. Zoom com uma `UIScrollView` embrulhada (pinça, arrastar, mola
+     nos limites e duplo toque nativos), não com gestos do SwiftUI (limites e mola à mão; o `ScrollView` do iOS 16 não
+     dá zoom). Mostra a foto guardada inteira (1200 px), lida por uma função do carregador **sem cache** (a de 1200 px
+     no cache ocuparia memória no lugar da miniatura). Fronteira de teste: sai com 1200 px e a miniatura seguinte
+     continua vindo do cache.
      Nota: com "Caixa azul" e "caixa azul" na estante, a sugestão mostra "caixa azul" (ordem natural), e o grupo da
      estante, a grafia mais usada; podem diferir (a porta não traz contagem).
   3. Fechamento: CI verde, PR pronto para revisão, checklist e CLAUDE.md atualizados.

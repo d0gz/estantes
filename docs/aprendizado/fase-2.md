@@ -2365,3 +2365,80 @@ O Detalhe (`LivroDetalheView.swift`, `LivroDetalheViewModel.swift`) virou um `Sc
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+### Correção das respostas
+(sem respostas)
+
+---
+
+## Tarefa 2.4 — Estilo do Formulário, foto da miniatura (decisão) e limpeza de texto no Domínio (2026-10-13)
+
+### O que foi feito
+O `LivroFormularioView.swift` foi estilizado sobre o `Form` nativo, com o nome do campo aparecendo pequeno em cima só quando ele está preenchido, título e subtítulo em serifa e crescendo para baixo, e sugestões de prateleira reaproveitando o mesmo `campo(...)`. Em `RascunhoLivro.swift`, a limpeza de texto (apara pontas e junta espaços/quebras de linha em um espaço) passou a viver no Domínio, com o teste `testQuebraDeLinhaEEspacosRepetidosViramUmEspaco`. A foto da miniatura foi decidida (parâmetros e regras), mas **ainda não implementada** (passo 2, commit separado). Commits c40947b e 7912d8f; 348 testes. O resultado é **provisório**: o Ricardo pode pedir para desfazer.
+
+### Conceitos envolvidos
+
+**1. `Form` nativo vs. `ScrollView` + cartões.** O `Form` é uma `List` com estilo agrupado (`insetGrouped`). Em UIKit, por baixo, é uma `UICollectionView`/`UITableView`: células recicladas, cabeçalhos/rodapés de seção, `onDelete`/`onMove` (apagar e arrastar autores), integração com foco e com a fuga do teclado (a lista rola para o campo em foco). Tudo isso o `ScrollView` + `VStack` não dá de graça: você reimplementaria. No Detalhe o oposto valia: era tela de **leitura**, onde o controle visual dos cartões importava mais que o comportamento de edição. Regra: a ferramenta segue o tipo de interação (ler vs. editar).
+
+**2. Cores semânticas e o fundo "agrupado" que muda com o contexto.** `systemGroupedBackground` não é uma cor fixa: o sistema resolve por *trait collection*, incluindo o nível de elevação. Numa folha (sheet) em modo escuro, o nível "elevado" faz o fundo agrupado virar #1C1C1E e as linhas #2C2C2E. Nosso `cartao` escuro também é #1C1C1E, então ao pintar o fundo explicitamente os cartões **sumiram** (mesma cor). Lição: ao sobrescrever um fundo semântico, você assume a responsabilidade pelo par fundo/linha em todos os modos; deixar o `Form` fazer o par certo é mais robusto.
+
+**3. `TextField` com `prompt` e `axis: .vertical`.** `TextField(_ titleKey, text:, prompt:, axis:)` separa o *rótulo* (usado por acessibilidade e em alguns estilos) do *prompt* (o placeholder visual). Sem `prompt`, o SwiftUI usa o título como placeholder, e foi isso que repetia o nome (captura 1.0). Com `axis: .vertical` o campo cresce em várias linhas (iOS 16+, compatível com o Xcode 14.2), mas **o Return passa a inserir "\n"** em vez de encerrar a edição (achado F1).
+
+**4. `@FocusState` com valor `Hashable` e `WritableKeyPath`.** `@FocusState` aceita `Bool` ou qualquer `Hashable?`. `WritableKeyPath<RascunhoLivro, String>` é `Hashable`, então o próprio caminho do campo serve de identificador de foco: `.focused($campoEmFoco, equals: caminho)`. Um só `@FocusState` substitui um por campo, e `campoEmFoco == \.prateleira` responde "a prateleira está em foco?". Atribuir `nil` tira o foco (fecha o teclado). Observação de custo: comparar key paths é igualdade de identidade do caminho, barata.
+
+**5. Limpeza de texto: `trimmingCharacters` vs. `split` + `joined`.** `trimmingCharacters(in: .whitespacesAndNewlines)` só mexe nas **pontas**. A nova versão, `texto.split(whereSeparator: \.isWhitespace).joined(separator: " ")`, quebra a string em "palavras" (`split` omite pedaços vazios por padrão, `omittingEmptySubsequences: true`) e as une com um espaço. Efeito: apara as pontas **e** colapsa qualquer sequência de espaços/tabs/quebras no meio. Complexidade O(n) em tempo e espaço. Exemplo: `"Direito \n civil"` → `["Direito","civil"]` → `"Direito civil"`. Detalhe: `Character.isWhitespace` inclui "\n"; `isNewline` é mais estreito, e por isso o `onChange` da View (que só olha `isNewline`) deixa sobrar `"a   b"` de `"a \n b"`, e o Domínio completa a limpeza.
+
+**6. Onde mora uma regra: View vs. Domínio.** "Texto salvo não tem espaços duplos nem quebras" é regra sobre **dados**, não sobre apresentação. Na View ela não era testável sem simulador e valeria só por aquela porta de entrada; no `RascunhoLivro` vale para qualquer origem (importação, Fase 3) e tem teste puro. A View ficou apenas com a parte de interface: trocar a quebra por espaço e fechar o teclado.
+
+**7. Animação ligada a um valor.** `.animacaoSuave(valor: texto.isEmpty)` (modificador do projeto) anima as mudanças de layout quando aquele valor muda: o nome pequeno entra com `transition(.opacity)` e o campo se acomoda. Atrelar a animação a um valor (e não a `withAnimation` global) limita o efeito ao que interessa.
+
+**8. Imagem para guardar: resolução e custo (decisão da foto, ainda não implementada).** O princípio esclarecido pelo Ricardo: foto de alta qualidade é para **usar** (OCR na Fase 3 roda na resolução máxima da câmera in-app); depois se **reduz** para guardar e exibir. Conta: lado maior 1200 px, JPEG qualidade 0,8 ≈ 150 KB. 200 livros ≈ 30 MB no export. A original (3 a 10 MB) daria ~1 GB. Miniatura de 180 pt a @3x = 540 px, então 600 px bastaria, mas borraria uma vista ampliada; 1200 px dá folga de ~2x. JPEG é com perda e seu tamanho depende do conteúdo; a qualidade 0,8 é o ponto comum de "sem perda visível óbvia".
+
+### Por que assim
+- **Q1, `Form` nativo.** Apagar/arrastar autores, foco e fuga do teclado vêm prontos. A "List restilizada" foi descartada no Detalhe, mas lá era tela de leitura.
+- **Q2, nome em cima.** Resolve o problema de "1965" sem dizer que é o ano (um campo preenchido perde o placeholder). Na versão final, o nome pequeno só aparece com o campo preenchido: vazio, o placeholder já diz o que é.
+- **Q3, título em serifa.** Segue a regra de 12/10: New York só em títulos de livros. O que o usuário digita *é* um título de livro.
+- **Q4, foto agora, em commit separado.** Um assunto por commit: estilo e foto têm riscos e reversões diferentes.
+- **Q5′, 1200 px JPEG 0,8.** Ver conceito 8.
+- **Q6, gravar só no Salvar.** Cancelar descarta; o livro novo ainda não tem `id`, então não há nome de arquivo definitivo antes de salvar. Gravar antes deixaria arquivos órfãos.
+- **Q7, menu com "Remover foto".** Quem põe a foto precisa poder tirá-la.
+- **Q8, sugestões de prateleira e erros.** Decididos na captura, olhando a tela real, não em teoria.
+- **Reuso do `campo(...)` na prateleira (P1).** Antes a prateleira repetia o campo e tinha um segundo `FocusState`; duplicar estilo é onde as telas divergem com o tempo.
+- **Variável renomeada (P6).** O parâmetro `problema: campo` sombreava o nome `campo`; nome distinto evita ler errado.
+
+### Alternativas descartadas e história das capturas
+O caminho foi de tentativa e erro **olhando o simulador**:
+- **1.0, tokens (fundo branco + linhas `cartao` branco).** Os cartões sumiram: no Detalhe quem separa os cartões é a **sombra**, e o `Form` não tem sombra por seção. Além disso o `TextField` sem `prompt` repetia o nome como placeholder.
+- **1.1, `systemGroupedBackground`.** No escuro sumiu de novo (conceito 2). No texto grande, o título era cortado com "…". O Ricardo preferiu o visual antigo (cinza com cartões brancos) e achou que o nome sempre em cima poluía.
+- **1.2, nenhum fundo customizado.** O `Form` já faz o par certo (inclusive #1C1C1E/#2C2C2E na folha escura); nome pequeno só com o campo preenchido; título e subtítulo com `axis: .vertical`. Esta ficou. **Exceção ao Estilo 0** (tokens por toda parte) registrada no PLANO: aqui o fundo e as linhas são do sistema.
+- **F1 (Return com `axis: .vertical`).** Insere "\n". Alternativas: aceitar a quebra no título (suja o dado e a lista), ou `.submitLabel(.done)` + tratamento (não funciona de forma confiável com eixo vertical no iOS 16, não verifiquei em todas as versões; confira na documentação). A escolha: reagir no `onChange`, trocar por espaço e tirar o foco.
+- **Foto original guardada**: ~1 GB para 200 livros. **600 px**: bastaria para a miniatura, mas borra ao ampliar.
+- **Gravar a foto ao escolher**: deixaria órfãos ao cancelar.
+
+### Padrões e boas práticas
+- **Parse, don't validate (de novo).** `RascunhoLivro.montar` devolve um `Livro` já limpo; ninguém precisa lembrar de limpar depois.
+- **Revisão em dois eixos.** O revisor de padrões (P1 a P7) pegou duplicação, espaços duplos e sombreamento; o revisor-spec (E5) pegou a regra de dados na View sem teste, que foi para o Domínio com vermelho → verde. P3/P4/P5/P7 foram mantidos. P4: `onChange(of:)` de um parâmetro está deprecated no iOS 17, mas é o único que o Xcode 14.2 aceita; deve migrar quando o projeto subir de versão mínima/ferramenta.
+- **Teste que falha pelo motivo certo.** A segunda fronteira proposta ("texto sem quebra não muda") já era coberta por `testAparaEspacosNasPontas`; repetir seria teste redundante.
+- **E8.** A linha do Histórico dizia "vestido com os tokens", o que era falso depois da exceção; documentação que mente é pior que nenhuma.
+- Quando NÃO usar `Form`: telas de leitura/apresentação em que a identidade visual do app pede controle por cartão.
+
+### Armadilhas
+- Sobrescrever fundo semântico: some em um dos modos (claro/escuro, tela cheia/folha). Sempre capture nos dois modos e em folha.
+- `axis: .vertical` muda o Return. Texto colado também traz "\n".
+- `isNewline` ≠ `isWhitespace`: limpar só um deles deixa espaços duplos.
+- `onChange` que reatribui o próprio valor dispara de novo; a guarda `guard ... contains(where: \.isNewline)` impede o laço (depois da troca, não há mais quebras, e a segunda chamada sai).
+- `ForEach(indices, id: \.self)` para autores é aceitável aqui só porque `onDelete` atualiza a lista inteira; se houvesse estado por linha, a identidade por posição causaria saltos.
+- Foto: não deixe arquivos órfãos; chame a gravação só no Salvar e apague a antiga ao substituir/remover.
+
+### Para ir além
+- Documentação da Apple: `TextField`, `FocusState` e `Form` (developer.apple.com/documentation/swiftui).
+- Apple, "Human Interface Guidelines: Color" (seção sobre cores de fundo semânticas e elevação em modo escuro).
+- "Parse, don't validate", Alexis King (2019).
+
+### Perguntas
+1. Com suas palavras: por que o `Form` "ganha" do `ScrollView` + cartões no Formulário, mas perdeu no Detalhe? Cite pelo menos duas coisas concretas que o `Form` dá de graça.
+2. Aplicação: o Ricardo quer que "Páginas" também aceite colar "320 p." sem quebrar a validação. Em que camada isso entra (View, ViewModel ou `RascunhoLivro`) e que teste você escreveria primeiro? Dê o valor esperado de fonte independente.
+3. Raciocínio: `"  A\t\tB \n C  "` passa por `texto(_:)`. O que sai? E o que sai se o `split` usasse `omittingEmptySubsequences: false`? Bônus: por que, na foto, 200 livros com 1200 px/JPEG 0,8 custam cerca de 30 MB, e o que muda se você mantiver a original de 5 MB?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
