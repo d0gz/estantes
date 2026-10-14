@@ -67,6 +67,70 @@ final class CarregadorDeMiniaturasTests: XCTestCase {
         XCTAssertEqual(repositorio.leiturasDeFoto, 2)
     }
 
+    func testFotoInteiraSaiComOLadoMaiorGuardado() async throws {
+        let repositorio = BibliotecaRepositorioEmMemoria(livros: [livro])
+        repositorio.fotos[livro.id] = Self.jpeg(largura: 1600, altura: 2400)
+        let carregador = CarregadorDeMiniaturas(repositorio: repositorio)
+
+        let inteira = await carregador.fotoInteira(doLivro: livro.id)
+
+        // 1600 × 2400 com o lado maior em 1200 (o tamanho guardado): 800 × 1200.
+        let imagem = try XCTUnwrap(inteira?.cgImage)
+        XCTAssertEqual(imagem.width, 800)
+        XCTAssertEqual(imagem.height, 1200)
+    }
+
+    func testMiniaturaContinuaPequenaDepoisDeAmpliar() async throws {
+        let repositorio = BibliotecaRepositorioEmMemoria(livros: [livro])
+        repositorio.fotos[livro.id] = Self.jpeg(largura: 800, altura: 1200)
+        let carregador = CarregadorDeMiniaturas(repositorio: repositorio)
+        _ = await carregador.miniatura(doLivro: livro.id, ladoMaior: 132)
+
+        _ = await carregador.fotoInteira(doLivro: livro.id)
+        let depois = await carregador.miniatura(doLivro: livro.id, ladoMaior: 132)
+
+        // Se a inteira entrasse no cache, a lista desenharia a de 800 × 1200; a miniatura é 88 × 132.
+        XCTAssertEqual(try XCTUnwrap(depois?.cgImage).width, 88)
+    }
+
+    func testFotoInteiraSemFotoDevolveNil() async {
+        let repositorio = BibliotecaRepositorioEmMemoria(livros: [livro])
+        let carregador = CarregadorDeMiniaturas(repositorio: repositorio)
+
+        let inteira = await carregador.fotoInteira(doLivro: livro.id)
+
+        XCTAssertNil(inteira)
+    }
+
+    func testTemFotoDepoisDaMiniaturaNaoLeAPorta() async {
+        let repositorio = BibliotecaRepositorioEmMemoria(livros: [livro])
+        repositorio.fotos[livro.id] = Self.jpeg(largura: 300, altura: 450)
+        let carregador = CarregadorDeMiniaturas(repositorio: repositorio)
+        _ = await carregador.miniatura(doLivro: livro.id, ladoMaior: 132)
+
+        let tem = await carregador.temFoto(doLivro: livro.id)
+
+        XCTAssertTrue(tem)
+        XCTAssertEqual(repositorio.leiturasDeFoto, 1)
+    }
+
+    func testTemFotoSemCacheRespondePelaPortaSemGuardar() async {
+        let semFoto = Livro(estanteId: livro.estanteId, titulo: "Teoria pura do direito")
+        let repositorio = BibliotecaRepositorioEmMemoria(livros: [livro, semFoto])
+        repositorio.fotos[livro.id] = Self.jpeg(largura: 300, altura: 450)
+        let carregador = CarregadorDeMiniaturas(repositorio: repositorio)
+
+        let primeira = await carregador.temFoto(doLivro: livro.id)
+        let segunda = await carregador.temFoto(doLivro: livro.id)
+        let doSemFoto = await carregador.temFoto(doLivro: semFoto.id)
+
+        XCTAssertTrue(primeira)
+        XCTAssertTrue(segunda)
+        XCTAssertFalse(doSemFoto)
+        // A primeira não deixou nada no cache (uma imagem de tamanho qualquer seria lixo): a segunda lê de novo.
+        XCTAssertEqual(repositorio.leiturasDeFoto, 3)
+    }
+
     /// JPEG de uma cor só, com o tamanho exato em pixels (escala 1).
     private static func jpeg(largura: Int, altura: Int) -> Data {
         let formato = UIGraphicsImageRendererFormat()

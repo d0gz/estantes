@@ -49,6 +49,22 @@ final class CarregadorDeMiniaturas: ObservableObject {
         return reduzida
     }
 
+    /// Se o livro tem foto (o Detalhe só deixa ampliar com foto). Com a miniatura no cache, responde sem ler a porta;
+    /// sem ela, lê mas não guarda nada: não sabe o tamanho que a lista vai pedir.
+    func temFoto(doLivro livroId: UUID) async -> Bool {
+        if cache.object(forKey: livroId as NSUUID) != nil { return true }
+        return (try? await repositorio.fotoMiniatura(doLivro: livroId)) != nil
+    }
+
+    /// A foto guardada inteira, para a vista ampliada do Detalhe. Fora do cache: a de 1200 px (~5,8 MB decodificada)
+    /// tomaria o lugar da miniatura, e cada linha da lista passaria a desenhar a imagem grande.
+    func fotoInteira(doLivro livroId: UUID) async -> UIImage? {
+        guard let dados = try? await repositorio.fotoMiniatura(doLivro: livroId),
+              let imagem = RedutorDeFoto.imagem(dados, ladoMaior: RedutorDeFoto.ladoMaiorGuardado)
+        else { return nil }
+        return UIImage(cgImage: imagem)
+    }
+
     /// A foto do livro mudou: a próxima leitura vai à porta, e as miniaturas na tela pedem de novo.
     @MainActor
     func esquecer(_ livroId: UUID) {

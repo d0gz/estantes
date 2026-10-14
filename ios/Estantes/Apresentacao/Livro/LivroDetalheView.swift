@@ -8,7 +8,13 @@ struct LivroDetalheView: View {
     @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
     @State private var confirmandoExclusao: Bool
     @State private var editando: Bool
-    private let miniaturas: CarregadorDeMiniaturas
+    /// Observado: quando o formulário troca a foto (`trocas`), a tela volta a saber se há foto para ampliar.
+    @ObservedObject private var miniaturas: CarregadorDeMiniaturas
+    /// Só com foto a miniatura vira botão (a substituta não tem o que ampliar).
+    @State private var temFoto = false
+    @State private var fotoAberta: UIImage?
+    /// Lendo a foto inteira: um segundo toque nesse meio-tempo não lê de novo.
+    @State private var abrindoFoto = false
     /// Largura da miniatura do cabeçalho antes do teto: cresce com o texto grande.
     @ScaledMetric(relativeTo: .body) private var larguraBase: CGFloat = 140
     /// Nos tamanhos de acessibilidade ela ocuparia a tela e empurraria o título para baixo.
@@ -46,6 +52,7 @@ struct LivroDetalheView: View {
                 LivroFormularioView(viewModel: formulario(.edicao(livroId: viewModel.livroId)))
             }
             .task { await viewModel.carregar() }
+            .fotoAmpliada($fotoAberta)
             .aoVoltar { await viewModel.carregar() }
             .alert("Algo deu errado", isPresented: erroAberto) {
                 Button("OK", role: .cancel) {}
@@ -106,8 +113,24 @@ struct LivroDetalheView: View {
     private func cabecalho(_ livro: Livro) -> some View {
         let topo = LivroDetalheViewModel.cabecalho(de: livro)
         return VStack(spacing: Espaco.medio) {
-            MiniaturaDoLivro(livroId: livro.id, carregador: miniaturas, largura: larguraDaMiniatura)
-                .sombraSuave()
+            Button {
+                guard !abrindoFoto else { return }
+                abrindoFoto = true
+                Task { @MainActor in
+                    fotoAberta = await miniaturas.fotoInteira(doLivro: livro.id)
+                    abrindoFoto = false
+                }
+            } label: {
+                MiniaturaDoLivro(livroId: livro.id, carregador: miniaturas, largura: larguraDaMiniatura)
+                    .sombraSuave()
+            }
+            .buttonStyle(EstiloFoto())
+            .allowsHitTesting(temFoto)
+            .accessibilityHidden(!temFoto)
+            .accessibilityLabel("Ampliar foto")
+            .task(id: PedidoDaFoto(livroId: livro.id, trocas: miniaturas.trocas)) {
+                temFoto = await miniaturas.temFoto(doLivro: livro.id)
+            }
             VStack(spacing: Espaco.minimo) {
                 Text(topo.titulo)
                     .font(Fonte.tituloLivro)
@@ -193,5 +216,20 @@ struct LivroDetalheView: View {
 
     private var erroAberto: Binding<Bool> {
         Binding(get: { viewModel.mensagemDeErro != nil }, set: { if !$0 { viewModel.mensagemDeErro = nil } })
+    }
+}
+
+/// Pergunta de novo se há foto quando o formulário troca alguma (`trocas`, do carregador).
+private struct PedidoDaFoto: Equatable {
+    let livroId: UUID
+    let trocas: Int
+}
+
+/// A foto encolhe com a mola ao tocar e escurece de leve (o sinal parado, com "Reduzir movimento").
+private struct EstiloFoto: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .pressao(configuration.isPressed)
+            .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
