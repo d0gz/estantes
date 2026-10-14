@@ -418,6 +418,16 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   rolagem à mão no iOS 16). Exemplos: na Sala, um livro com 3 autores e outro com 2 de nome longo (capturas
   `LivroDetalheTresAutores` e `LivroDetalheDoisAutores`).
 
+- **Apagar estante (estilo aprovado em 13/10, capturas 1.1 claro, escuro e texto grande, via `/decidir`):** fica a
+  folha de ação nativa (`confirmationDialog`) em duas etapas, com a opção que preserva os livros ("Mover os 6 livros e
+  apagar…") antes da destrutiva; uma folha própria com cartões foi descartada (refazer posição, VoiceOver e iPad à mão
+  para uma confirmação que deve ser rápida e familiar). Os botões de **todos** os alertas e folhas de ação do app usam
+  o `destaque` (`Paleta.aplicarNoUIKit()`, proxy de aparência do `UIAlertController`, chamado no `init` do app): o
+  `.tint` do SwiftUI não chega a eles no iOS 16, e o azul do sistema destoava do petróleo; o destrutivo continua
+  vermelho. Título da segunda folha com a quantidade ("Mover os 6 livros para…", "Mover o livro para…"). Mantidos:
+  aspas retas (`Apagar "Escritório"?`; as curvas foram recusadas pelo Ricardo) e destinos só com o nome (a
+  quantidade pesaria a lista; o Inicio já a mostra).
+
 - **Formulário (estilo aprovado em 13/10, provisório, capturas 1.2–1.3, via `/decidir`):** `Form` nativo com o cinza
   agrupado e os cartões brancos do sistema (no escuro, `#1C1C1E`/`#2C2C2E` dentro da folha). **Exceção ao Estilo 0**,
   a pedido do Ricardo: nem `fundo` nem `cartao`, porque branco sobre branco sem sombra (o `Form` não tem sombra por
@@ -476,7 +486,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   depois o estilo, tela por tela)
   **Onde paramos (13/10, branch `fase2/telas`, 361 testes):** estilo do Inicio, da Estante, do Detalhe e do Formulário
   (provisório: o Ricardo avisa se quiser desfazer) aprovados, a foto da miniatura no Formulário e a foto ampliada no
-  Detalhe prontas; próximo: estilo de Apagar estante (passo 2, abaixo), depois o fechamento da 2.4. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
+  Detalhe prontas, e Apagar estante estilizada; próximo: o fechamento da 2.4 (passo 3, abaixo). No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
   cartão Obra quando há rótulo impresso (antes não aparecia em lugar nenhum) e o ISBN passou a ser validado
   (regra `ISBN` no Domínio; teclado `.numbersAndPunctuation` no formulário, para o hífen e o "X").
   Antes (12/10): lógica da 2.4a–e pronta e aprovada no simulador.
@@ -495,7 +505,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
         `sobreDestaque`, `textoSecundario`; em código com `UIColor(claro:escuro:)`, não em catálogo de cores, para o hex
         aparecer na revisão e o teste medir cada modo), `Espaco` (4–32), `Raio` (8/12/20) + `.cantos(_:)`, `Fonte` (só as
         serifadas), `Animacao` (`suave`, `rapida`, `esmaecer`) + `.animacaoSuave(valor:)`, `.sombraSuave()`, `EstiloVidro`;
-        `.tint(Cor.destaque)` na raiz (chega às folhas). `.secondary` do sistema reprovou (3,4:1 no branco) e virou
+        `.tint(Cor.destaque)` na raiz (chega às folhas do SwiftUI; alertas e folhas de ação, do UIKit, recebem o
+        `destaque` por `Paleta.aplicarNoUIKit()`, ver "Apagar estante" na seção Interface). `.secondary` do sistema reprovou (3,4:1 no branco) e virou
         `textoSecundario` próprio. `Contraste` (WCAG) e `PaletaTests` ficam no alvo de testes (o app não calcula contraste).
      c. ✅ Catálogo (12/10): `App/CatalogoDeEstilo.swift`, só em DEBUG, em duas páginas (`-captura Estilo` e
         `-captura EstiloTelas`; o `simctl` não rola a tela). Capturas `docs/capturas/Estilo/`: 1.0 (com candidatos
@@ -513,7 +524,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   2. **Estilo**, uma tela por vez: Inicio ✅ (12/10, ver "Inicio" na seção Interface; destaque claro revisto para
      `#0579B8`) → Estante ✅ (13/10, ver "Estante" na seção Interface) → Detalhe ✅ (13/10, ver "Detalhe" na seção
      Interface) → Formulário ✅ (13/10, provisório, ver "Formulário" na seção Interface) → foto da miniatura ✅
-     (13/10) → foto ampliada no Detalhe ✅ (13/10) → **próximo: Apagar estante** (ver "Forma de trabalho nas telas");
+     (13/10) → foto ampliada no Detalhe ✅ (13/10) → Apagar estante ✅ (13/10, ver "Apagar estante" na
+     seção Interface); **próximo: fechamento** (ver "Forma de trabalho nas telas");
      cada tela decide só a composição, sobre os fundamentos já aprovados.
      ✅ Campo preenchido perdia o nome (resolvido no Formulário: nome pequeno em cima com o campo preenchido).
      ✅ **Foto da miniatura (13/10):** `RedutorDeFoto` (`Componentes/`, ImageIO: lado maior 1200 px, JPEG 0,8; o
