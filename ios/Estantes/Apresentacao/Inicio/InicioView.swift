@@ -86,7 +86,7 @@ struct InicioView: View {
                 Text(mensagemDaExclusao(pedido))
             }
             .confirmationDialog(
-                "Mover os livros para…", isPresented: $escolhendoDestino, titleVisibility: .visible, presenting: exclusao
+                tituloDoDestino, isPresented: $escolhendoDestino, titleVisibility: .visible, presenting: exclusao
             ) { pedido in
                 ForEach(pedido.destinosPossiveis) { destino in
                     Button(destino.nome) {
@@ -197,6 +197,11 @@ struct InicioView: View {
 
     private var tituloDaExclusao: String {
         exclusao.map { "Apagar \"\($0.estante.nome)\"?" } ?? ""
+    }
+
+    /// Repete a quantidade da primeira folha ("Mover os 6 livros para…"): confirma quais livros vão.
+    private var tituloDoDestino: String {
+        exclusao.map { "Mover \(Self.textoDaQuantidade($0.quantidadeDeLivros, comArtigo: true)) para…" } ?? ""
     }
 
     private func textoDeApagar(_ pedido: PedidoDeExclusao) -> String {

@@ -34,6 +34,13 @@ enum Paleta {
     /// Ações destrutivas e erros. Os tons de alto contraste do vermelho da Apple: o `systemRed` (`#FF3B30`) dá só
     /// 3,6:1 no branco.
     static let perigo = UIColor(claro: 0xD70015, escuro: 0xFF6961)
+
+    /// Leva o `destaque` ao que o `.tint` do SwiftUI não alcança. Alertas e folhas de ação são do UIKit: no iOS 16 os
+    /// botões ficariam no azul do sistema ao lado do `destaque`. O botão destrutivo continua vermelho. Vale para o app
+    /// inteiro (proxy de aparência); chamada uma vez, ao abrir o app.
+    static func aplicarNoUIKit() {
+        UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = destaque
+    }
 }
 
 extension UIColor {

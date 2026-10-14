@@ -7,6 +7,10 @@ struct EstantesApp: App {
     /// `Result` em vez de `try!`: se o banco não abrir, o app mostra o erro em vez de fechar sozinho.
     private let montagem = Result { try Dependencias.producao() }
 
+    init() {
+        Paleta.aplicarNoUIKit()
+    }
+
     var body: some Scene {
         WindowGroup {
             RaizView(montagem: montagem)
