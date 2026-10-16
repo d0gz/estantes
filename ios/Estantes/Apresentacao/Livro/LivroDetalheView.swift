@@ -133,7 +133,7 @@ struct LivroDetalheView: View {
                 MiniaturaDoLivro(livroId: livro.id, carregador: miniaturas, largura: larguraDaMiniatura)
                     .sombraSuave()
             }
-            .buttonStyle(EstiloFoto())
+            .buttonStyle(EstiloPressao())
             // Dentro do conteúdo, e não em volta da `ScrollView`: uma vista do UIKit envolvendo a tela inteira impedia a
             // barra de navegação de reconhecer a rolagem (sem fundo, o texto passava por baixo do "voltar" e do "Editar").
             .fotoAmpliada($fotoAberta)
@@ -183,7 +183,7 @@ struct LivroDetalheView: View {
                 }
             }
         }
-        .buttonStyle(EstiloFoto())
+        .buttonStyle(EstiloPressao())
         .accessibilityLabel(categorias.isEmpty ? "Adicionar categoria" : "Categorias: " + categorias.map(\.nome).joined(separator: ", "))
         .accessibilityHint("Toque para escolher as categorias do livro.")
     }
@@ -251,13 +251,4 @@ struct LivroDetalheView: View {
 private struct PedidoDaFoto: Equatable {
     let livroId: UUID
     let trocas: Int
-}
-
-/// A foto encolhe com a mola ao tocar e escurece de leve (o sinal parado, com "Reduzir movimento").
-private struct EstiloFoto: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .pressao(configuration.isPressed)
-            .opacity(configuration.isPressed ? 0.85 : 1)
-    }
 }

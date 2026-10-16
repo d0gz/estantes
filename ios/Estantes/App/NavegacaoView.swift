@@ -46,6 +46,8 @@ struct NavegacaoView: View {
                         viewModel: dependencias.fazerEstanteViewModel(estante: estante),
                         miniaturas: dependencias.miniaturas,
                         formulario: dependencias.fazerLivroFormularioViewModel,
+                        escolha: dependencias.fazerEscolhaDeCategoriasViewModel,
+                        formularioDeCategoria: dependencias.fazerCategoriaFormularioViewModel,
                         abrirFormulario: folhaPendente?.folha(em: estante) == .formulario
                     )
                     .onAppear { folhaPendente?.esquecer(se: estante) }

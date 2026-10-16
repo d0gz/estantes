@@ -586,6 +586,9 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   (2.5)" na seção Interface e o Histórico de 16/10). Passos: 1 paleta + `PaletaTests` → 2 `ChipDeCategoria` + layout de
   fluxo (captura `EstiloCategorias_1.6`) → 3 `CorSugerida` `[eu escrevo]` → 4 porta (contagem) + tela de gerenciar +
   menu ⋯ → 5 folha de escolha + chips no Detalhe → 6 chips na Estante → 7 fechamento. **Próximo: passo 1.**
+  **Risco técnico a conferir à mão (passo 6):** na Estante, os chips são um botão dentro do botão da linha
+  (`NavigationLink`); o toque nos chips deve abrir a escolha, e no resto da linha, o Detalhe. O `simctl` não toca na
+  tela: o Ricardo confere no simulador.
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
