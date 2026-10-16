@@ -70,7 +70,7 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
 
     func testLivroCompletoIdaEVolta() async throws {
         let estante = try await novaEstante()
-        let categoria = Categoria(nome: "Contratos", cor: .azul)
+        let categoria = Categoria(nome: "Contratos", cor: .vermelho)
         try await repositorio.salvar(categoria)
 
         let livro = Livro(
@@ -264,7 +264,7 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
 
     func testApagarCategoriaSoTiraAEtiqueta() async throws {
         let estante = try await novaEstante()
-        let fica = Categoria(nome: "Fica", cor: .azul)
+        let fica = Categoria(nome: "Fica", cor: .vermelho)
         let sai = Categoria(nome: "Sai", cor: .vermelho)
         try await repositorio.salvar(fica)
         try await repositorio.salvar(sai)

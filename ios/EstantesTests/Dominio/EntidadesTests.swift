@@ -9,10 +9,13 @@ final class EntidadesTests: XCTestCase {
         XCTAssertEqual(OrigemItemSumario.allCases.map(\.rawValue), ["foto", "lexml", "gemini", "manual"])
     }
 
-    func testPaletaTemDezCoresComValoresBrutosUnicos() {
-        let valores = CorCategoria.allCases.map(\.rawValue)
-        XCTAssertEqual(valores.count, 10)
-        XCTAssertEqual(Set(valores).count, valores.count)
+    /// A ordem também é contrato: é o desempate da cor sugerida ao criar uma categoria.
+    /// Lista de 16/10 (PLANO, Histórico): sem azul nem turquesa, que se confundiam com o destaque.
+    func testValoresBrutosEOrdemDasCoresDeCategoria() {
+        XCTAssertEqual(
+            CorCategoria.allCases.map(\.rawValue),
+            ["vermelho", "laranja", "amarelo", "verde", "menta", "indigo", "roxo", "rosa", "marrom", "cinza"]
+        )
     }
 
     func testLivroNovoComecaManualSemSumarioNemCategorias() {

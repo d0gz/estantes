@@ -20,7 +20,7 @@ enum BibliotecaDeReferencia {
 
     private static let processoPenal = Categoria(id: uuid(101), nome: "Processo penal", cor: .vermelho)
     private static let trabalho = Categoria(id: uuid(102), nome: "Trabalho", cor: .laranja)
-    private static let constitucional = Categoria(id: uuid(103), nome: "Constitucional", cor: .azul)
+    private static let constitucional = Categoria(id: uuid(103), nome: "Constitucional", cor: .roxo)
     private static let sucessoes = Categoria(id: uuid(104), nome: "Sucessões", cor: .verde)
     private static let historia = Categoria(id: uuid(105), nome: "História", cor: .marrom)
 

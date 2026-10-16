@@ -68,6 +68,53 @@ final class PaletaTests: XCTestCase {
         }
     }
 
+    // MARK: Categorias
+
+    /// O texto do chip vai sobre o véu da cor (a 15%) em cima do cartão. Mede todas as cores do enum, então uma cor
+    /// nova sem tom de texto bom reprova aqui sem ninguém lembrar de pôr o par numa lista. O contorno e o ícone ficam
+    /// fora: são decorativos (o nome escrito diz a categoria), e o amarelo vivo daria 1,5:1 no branco.
+    func testTextoDoChipSobreOVeuDeCadaCorNosDoisModos() {
+        for cor in CorCategoria.allCases {
+            let tons = Paleta.categoria(cor)
+            for modo in [UIUserInterfaceStyle.light, .dark] {
+                let veu = misturar(resolver(tons.veu, modo), a: Paleta.opacidadeDoVeu, sobre: resolver(Paleta.cartao, modo))
+                let razao = Contraste.razao(resolver(tons.texto, modo), veu)
+                XCTAssertGreaterThanOrEqual(
+                    razao, piso,
+                    "texto × véu de \(cor.rawValue) (\(nome(modo))): \(String(format: "%.2f", razao))"
+                )
+            }
+        }
+    }
+
+    /// Os tons de texto no claro aprovados na captura `EstiloCategorias_1.5` (protótipo do catálogo, 12/10) e o do
+    /// cinza proposto em 16/10. Pega um hex copiado errado que ainda passasse no contraste.
+    func testTextoDoChipNoClaroEhOAprovado() {
+        let aprovados: [CorCategoria: UInt32] = [
+            .vermelho: 0xCE0B00, .laranja: 0x9E5C00, .amarelo: 0x876C00, .verde: 0x207C38, .menta: 0x007873,
+            .indigo: 0x5654D6, .roxo: 0x9D2BD7, .rosa: 0xCB0062, .marrom: 0x7D6648, .cinza: 0x636366,
+        ]
+        for cor in CorCategoria.allCases {
+            XCTAssertEqual(hex(resolver(Paleta.categoria(cor).texto, .light)), aprovados[cor], cor.rawValue)
+        }
+    }
+
+    /// Mistura alfa simples em sRGB (como o SwiftUI compõe uma cor com opacidade sobre outra).
+    private func misturar(_ cor: UIColor, a alfa: Double, sobre fundo: UIColor) -> UIColor {
+        var (r1, g1, b1, a1): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+        var (r2, g2, b2, a2): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+        cor.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        fundo.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        let a = CGFloat(alfa)
+        return UIColor(red: r1 * a + r2 * (1 - a), green: g1 * a + g2 * (1 - a), blue: b1 * a + b2 * (1 - a), alpha: 1)
+    }
+
+    private func hex(_ cor: UIColor) -> UInt32 {
+        var (r, g, b, a): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+        cor.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return UInt32(round(r * 255)) << 16 | UInt32(round(g * 255)) << 8 | UInt32(round(b * 255))
+    }
+
     private func conferirTextosSobreFundos(em modo: UIUserInterfaceStyle) {
         for fundo in fundos {
             for texto in textos {

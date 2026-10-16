@@ -3,15 +3,16 @@ import Foundation
 /// Cor de uma categoria, como identificador de uma paleta fixa.
 /// O Domínio não conhece `Color` (SwiftUI): a Apresentação converte cada caso num par de tons
 /// (claro e escuro) com contraste conferido. O valor bruto vai para o Core Data e para o JSON.
+/// Sem azul, ciano e teal: se confundiriam com o destaque do app. A ordem é a da paleta (desempate da cor sugerida).
 enum CorCategoria: String, CaseIterable {
-    case azul
-    case turquesa
-    case verde
-    case amarelo
-    case laranja
     case vermelho
-    case rosa
+    case laranja
+    case amarelo
+    case verde
+    case menta
+    case indigo
     case roxo
+    case rosa
     case marrom
     case cinza
 }
