@@ -2727,3 +2727,94 @@ O `get` deriva o booleano do opcional; o `set` só reage ao fechar (`false`), li
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+## Tarefa 2.5 — Categorias: paleta, chips, CorSugerida e telas (2026-10-16)
+
+### O que foi feito
+Criou-se o recurso de categorias de ponta a ponta: paleta de 10 cores com tons congelados em hex e teste de contraste, `ChipDeCategoria` e `FluxoDeChips` (layout de fluxo), a regra `CorSugerida` (escrita por você), a porta `quantidadeDeLivrosPorCategoria()`, os ViewModels (`CategoriasViewModel`, `CategoriaFormularioViewModel`, `EscolhaDeCategoriasViewModel`), as telas de gerenciar e de escolha, os chips no Detalhe e na Estante. Fechou-se com revisão em dois eixos (P1–P13, E1–E11) e 400 testes verdes.
+
+### Conceitos envolvidos
+
+**1. Leitura × escrita num subscrito com `default:`.** Em Swift, `dic[chave, default: 0]` é um subscrito com getter e setter.
+
+| Uso | Exemplo | O que acontece |
+| --- | --- | --- |
+| Leitura | `let uso = usosPorCor[cor, default: 0]` | devolve 0 se a chave não existe; **não grava nada** |
+| Escrita | `usosPorCor[c.cor, default: 0] += 1` | lê (0 se ausente), soma, **grava**: a chave nasce aqui |
+
+Por isso, após o primeiro laço de `CorSugerida`, o dicionário só contém cores usadas; as candidatas com 0 uso nunca estão lá, e é o `default:` na leitura que as "enxerga". Também por isso `dic.first` (dicionário não tem ordem garantida; a ordem varia entre execuções) é péssimo ponto de partida, e `keys.first(where:)` pede uma closure, não um valor. O ponto de partida correto é uma sentinela (`Int.max`), de modo que a primeira cor do laço sempre vença.
+
+**2. Por que `<` e não `<=` decide o desempate.** O laço percorre `allCases` na ordem da paleta. Rastreio do teste C2 (Penal amarelo, Civil laranja, Processo e Trabalho vermelho): `[vermelho: 2, laranja: 1, amarelo: 1]`.
+
+```
+menorUso = Int.max
+vermelho  2 < Int.max  sim -> vermelho (2)
+laranja   1 < 2        sim -> laranja  (1)
+amarelo   1 < 1        não
+verde     0 < 1        sim -> verde    (0)
+menta     0 < 0        não   (... demais cores com 0: não)
+resultado: verde
+```
+
+Com `<=`, cada cor empatada com o mínimo substituiria a anterior, e o resultado seria a **última** com 0 (cinza). O `<` estrito mantém a primeira; o C2 pega essa mutação. Nota do revisor: `min(by:)` devolve o primeiro mínimo na implementação atual, mas a documentação não promete; o laço deixa o desempate explícito e visível, e você optou por mantê-lo.
+
+**3. Função pura e injeção do que varia.** A dúvida "onde encontro as existentes?" tem a resposta: é o parâmetro. Quem chama entrega a lista (testes agora; o ViewModel da folha depois, via `repositorio.categorias()`). Assim a regra fica no Domínio, sem Core Data, e é testável com literais.
+
+**4. Layout customizado (`Layout`, iOS 16).** `FluxoDeChips` implementa `sizeThatFits` e `placeSubviews`. A parte que importa foi isolada numa função pura, `linhas(larguras:espaco:larguraDisponivel:) -> [[Int]]`: algoritmo guloso, O(n), que põe o chip na linha atual se `somaAtual + espaco + largura <= disponível`, senão abre outra linha. Duas bordas importantes: o encaixe exato cabe (`<=`) e um chip maior que a linha vai sozinho (guarda `!atual.isEmpty`; sem ela, abriria-se uma linha vazia). Foram conferidas duas mutações (`>` → `>=` e retirar a guarda), e cada uma morreu num teste diferente. `LazyVGrid` não serve: colunas de largura fixa cortam o texto com Dynamic Type grande.
+
+**5. Cores: congelar e medir contraste.** Cores do sistema (`.systemOrange`...) mudam entre versões do iOS, e o `PaletaTests` roda no iOS 16 do Mac enquanto o `.ipa` roda no iOS 26. Por isso os tons foram copiados em hex. O contraste segue WCAG: razão `(L1 + 0,05) / (L2 + 0,05)` entre luminâncias relativas, mínimo 4,5:1 para texto normal. O teste mistura o véu a 15% sobre o cartão (alfa escrito no próprio teste) e percorre `allCases`. Ele achou um caso real: índigo no escuro dava 4,30:1; escolheu-se #8582FF (4,67) só para o texto.
+
+**6. Teste tautológico × teste de congelamento.** Um teste que recalcula o esperado com a mesma fórmula do código só prova que o código é igual a si mesmo. O teste da paleta compara com hex literais copiados de uma captura aprovada: a fonte é independente (a decisão visual de uma pessoa, registrada). Ele não prova que a cor é bonita; prova que ninguém a muda sem perceber. Seria tautológico se o valor esperado fosse obtido chamando a mesma função/conversão que está sendo testada.
+
+**7. Diagnóstico: causa × mecanismo.** O bug da barra do Detalhe sem fundo ao rolar: sonda temporária que rolava a tela por código, três hipóteses (H1 `.fotoAmpliada`, H2 sem `navigationTitle`, H3 `ScrollView` dentro de `switch`). Tirar `.fotoAmpliada` curou (H1 confirmada), mas a primeira correção (trocar `UIViewControllerRepresentable` por `UIView`) não resolveu: o mecanismo suposto estava errado. A correção real foi a **posição**: o apresentador, que ficava como `.background` da tela inteira (irmão da `ScrollView`, e o SwiftUI usa a primeira `ScrollView` rastreável para o comportamento da barra), foi para dentro do conteúdo. Confirmar a causa não é confirmar o mecanismo; no segundo caso, descreva o que seria visto se estivesse certo e teste isso. (O mecanismo interno exato do SwiftUI é inferência; não está documentado.)
+
+**8. Várias formas de excluir (UX e custo).** Deslizar, menu de contexto e botão na folha de edição chamam a mesma função `pedirExclusao`. Desempenho não muda (modificadores só registram gestos; menu e botão são montados ao usar; `List` é preguiçosa). O custo é de manutenção. Padrão da plataforma (Notas, Lembretes, Mail): um caminho visível mais atalhos. Redundância confunde quando os resultados diferem, quando há botões repetidos à vista, ou quando é incoerente com o resto do app; nenhum caso ocorre aqui.
+
+### Por que assim
+- **Paleta de 10 cores com cinza mantido:** o cinza também é o fallback `?? .cinza` da conversão de cor desconhecida; por isso há teste "cor desconhecida vira cinza".
+- **Tons congelados, não cores do sistema:** estabilidade entre iOS 16 e iOS 26.
+- **`quantidadeDeLivrosPorCategoria() -> [UUID: Int]` com toda categoria presente (0 se vazia):** o chamador não precisa tratar ausência; Core Data conta a relação `livros`.
+- **`CategoriaFormularioViewModel` com id fixo desde a abertura:** se o salvamento falhar e o usuário tentar de novo, o mesmo id evita duplicar a categoria (idempotência).
+- **Folha sobre folha para "Nova categoria":** exceção justificada; evita perder a escolha em andamento.
+- **Folha com OK/Cancelar:** nota de que pode virar "grava a cada toque", como em Lembretes; trade-off entre poder desfazer e menos cliques.
+- **`[Categoria].comIds` no Domínio (P9):** conversão de ids em categorias é regra, não tela.
+- **P7/P10 anotados:** o OK grava o Livro inteiro lido ao abrir; é limitação conhecida (edição concorrente sobrescreve).
+- **P13 recusado:** `.foregroundColor(Cor.perigo)` é proposital, porque `role: .destructive` dá o `systemRed`, que reprova no contraste.
+
+### Alternativas descartadas
+- Cores do sistema ao vivo: mudam de versão; quebrariam o contraste sem aviso.
+- `LazyVGrid` para chips: corta texto grande.
+- `min(by:)` na `CorSugerida`: mais curto, mas o desempate fica implícito (e não documentado).
+- Sentinela opcional (`var corMenosUsada: CorCategoria?`): evitaria o `.cinza` inicial, ao custo de desembrulhar depois; ficou a sentinela comentada.
+- Só um caminho de exclusão: mais simples, porém menos descobrível (você mesmo não achava como apagar).
+
+### Padrões e boas práticas
+- **Função pura no Domínio com dependência por parâmetro** (`CorSugerida`, `linhas`): testável sem infraestrutura. NÃO force quando a regra precisa de estado ou I/O.
+- **Teste de mutação manual:** troque um operador e veja se algum teste morre. Se nenhum morre, o teste não protege essa linha.
+- **Idempotência por id estável** em operações que podem ser repetidas.
+- **Hipótese, previsão, experimento** ao diagnosticar; sonda temporária marcada (`[DEBUG-barra]`) e removida depois.
+- **Revisão cética:** o revisor chamou o teste da paleta de tautológico, e a análise mostrou que a fonte é independente (P3 virou renomeação para "congelamento", não remoção).
+
+### Armadilhas
+- `dic[k, default: 0]` na leitura não insere; na escrita insere. Confundir os dois leva a achar que o dicionário contém chaves que não tem.
+- `Dictionary.first` e `keys` não têm ordem estável: nunca use para desempate.
+- `Int.max` como sentinela: nunca some nele (overflow trava o app); aqui só se compara.
+- `->` só aparece em tipos de função; `sequence(first:next:)` gera sequências e `min` compara dois valores, e nenhum serve para "achar o menor de uma coleção" com desempate controlado.
+- Teste de UI via captura sofre interferência se você usa o simulador durante a captura (contaminou duas).
+- Sem XCUITest, o bug da barra não tem teste de regressão; ele só se previne lembrando a lição de posição do apresentador.
+- Botão dentro de `NavigationLink` (chips na Estante) pode se comportar diferente entre versões do iOS: conferido à mão no iOS 16; **iOS 26 pendente**.
+
+### Para ir além
+- Documentação Apple: protocolo `Layout` (SwiftUI, iOS 16) e `Dictionary.subscript(_:default:)`.
+- W3C WCAG 2.x, critério 1.4.3 (Contrast Minimum), com a fórmula de luminância relativa.
+- Kent Beck, *Test-Driven Development: By Example*, e o artigo sobre mutation testing (conceito geral; ferramentas variam por linguagem).
+
+### Perguntas
+1. Com suas palavras: qual a diferença entre `let uso = dic[cor, default: 0]` e `dic[cor, default: 0] += 1` quanto ao conteúdo do dicionário? Depois do primeiro laço de `CorSugerida`, uma cor sem categorias está no dicionário? Como o segundo laço a trata?
+2. Aplicação: no empate, a regra devolve a primeira cor da paleta. Mude `<` para `<=` e diga, para o teste C2 (vermelho 2, laranja 1, amarelo 1), qual cor sairia e por quê. Qual seria o resultado se a paleta fosse percorrida de trás para frente com `<`?
+3. Raciocínio: o teste da paleta compara com hex literais congelados. Por que isso não é tautológico? Dê um exemplo de como o mesmo teste ficaria tautológico, e diga o que ele não protege mesmo estando correto.
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
