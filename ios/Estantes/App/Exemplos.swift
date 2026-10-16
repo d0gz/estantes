@@ -163,6 +163,7 @@ enum Captura: String {
     case categorias = "Categorias"
     case categoriasVazia = "CategoriasVazia"
     case categoriaNova = "CategoriaNova"
+    case categoriaEditar = "CategoriaEditar"
     case apagarCategoria = "ApagarCategoria"
     case estilo = "Estilo"
     case estiloTelas = "EstiloTelas"
@@ -234,6 +235,13 @@ enum Captura: String {
             ComExemplos(vazio: true) { NavegacaoView(dependencias: $0, caminhoInicial: Self.caminhoDasCategorias) }
         case .categoriaNova:
             ComExemplos { NavegacaoView(dependencias: $0, acaoNasCategorias: .nova, caminhoInicial: Self.caminhoDasCategorias) }
+        case .categoriaEditar:
+            ComExemplos {
+                NavegacaoView(
+                    dependencias: $0, acaoNasCategorias: .editar(nomeDaCategoria: "Constitucional"),
+                    caminhoInicial: Self.caminhoDasCategorias
+                )
+            }
         case .apagarCategoria:
             ComExemplos {
                 NavegacaoView(

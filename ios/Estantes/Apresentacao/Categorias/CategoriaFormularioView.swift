@@ -7,11 +7,19 @@ struct CategoriaFormularioView: View {
     @Environment(\.dismiss) private var dismiss
     /// Recebe a categoria gravada antes de a folha fechar (a escolha no livro marca a nova).
     private let aoSalvar: (Categoria) -> Void
+    /// Só na edição, aberta pela tela de gerenciar: a folha fecha e quem a abriu mostra a confirmação (com a
+    /// contagem de livros), a mesma do deslizar e do menu de contexto.
+    private let aoPedirExclusao: ((Categoria) -> Void)?
     @ScaledMetric(relativeTo: .body) private var diametro: CGFloat = 36
 
-    init(viewModel: @autoclosure @escaping () -> CategoriaFormularioViewModel, aoSalvar: @escaping (Categoria) -> Void = { _ in }) {
+    init(
+        viewModel: @autoclosure @escaping () -> CategoriaFormularioViewModel,
+        aoSalvar: @escaping (Categoria) -> Void = { _ in },
+        aoPedirExclusao: ((Categoria) -> Void)? = nil
+    ) {
         _viewModel = StateObject(wrappedValue: viewModel())
         self.aoSalvar = aoSalvar
+        self.aoPedirExclusao = aoPedirExclusao
     }
 
     var body: some View {
@@ -82,6 +90,16 @@ struct CategoriaFormularioView: View {
                     .animacaoSuave(valor: viewModel.cor)
             } header: {
                 Text("Prévia").foregroundColor(Cor.textoSecundario)
+            }
+
+            if case .edicao(let categoria) = viewModel.modo, let aoPedirExclusao = aoPedirExclusao {
+                Section {
+                    Button("Apagar categoria", role: .destructive) {
+                        aoPedirExclusao(categoria)
+                        dismiss()
+                    }
+                    .foregroundColor(Cor.perigo)
+                }
             }
         }
     }

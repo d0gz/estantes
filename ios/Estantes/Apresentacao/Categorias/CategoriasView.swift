@@ -28,6 +28,9 @@ struct CategoriasView: View {
     }
 
     @State private var folha: Folha?
+    /// Pedida no botão da folha de edição: a confirmação só abre depois que a folha fecha (duas apresentações
+    /// ao mesmo tempo não aparecem).
+    @State private var excluirAoFecharFolha: Categoria?
     @State private var exclusao: ExclusaoDeCategoria?
     @State private var confirmandoExclusao = false
     @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
@@ -35,6 +38,7 @@ struct CategoriasView: View {
     /// Ação feita ao abrir a tela. Só as capturas do simulador usam (o `simctl` não toca na tela).
     enum AcaoInicial {
         case nova
+        case editar(nomeDaCategoria: String)
         case apagar(nomeDaCategoria: String)
     }
 
@@ -66,8 +70,11 @@ struct CategoriasView: View {
                     }
                 }
             }
-            .sheet(item: $folha, onDismiss: { Task { await viewModel.carregar() } }) { folha in
-                CategoriaFormularioView(viewModel: formulario(folha.modo))
+            .sheet(item: $folha, onDismiss: aoFecharFolha) { folha in
+                CategoriaFormularioView(
+                    viewModel: formulario(folha.modo),
+                    aoPedirExclusao: { excluirAoFecharFolha = $0 }
+                )
             }
             .confirmationDialog(
                 tituloDaExclusao, isPresented: $confirmandoExclusao, titleVisibility: .visible, presenting: exclusao
@@ -132,8 +139,27 @@ struct CategoriasView: View {
                             Label("Apagar", systemImage: "trash")
                         }
                     }
+                    // O deslizar é escondido; o menu de contexto (como nos cartões do Inicio) e o botão na folha de
+                    // edição são os caminhos visíveis.
+                    .contextMenu {
+                        Button {
+                            folha = .edicao(resumo.categoria)
+                        } label: {
+                            Label("Editar", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            Task { await pedirExclusao(de: resumo.categoria) }
+                        } label: {
+                            Label("Apagar", systemImage: "trash")
+                        }
+                    }
                 }
             }
+            // A sombra do Estilo 0 no cartão da lista, sobre o cinza agrupado: o fundo sai da `List` e volta por fora
+            // da sombra, que assim só nasce das partes opacas (o cartão branco).
+            .scrollContentBackground(.hidden)
+            .sombraSuave()
+            .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
             .transition(.entrada(reduzirMovimento: reduzirMovimento))
         case .erro(let texto):
             MensagemDeErroView(texto: texto) {
@@ -162,6 +188,16 @@ struct CategoriasView: View {
         }
     }
 
+    private func aoFecharFolha() {
+        Task {
+            await viewModel.carregar()
+            if let categoria = excluirAoFecharFolha {
+                excluirAoFecharFolha = nil
+                await pedirExclusao(de: categoria)
+            }
+        }
+    }
+
     private func pedirExclusao(de categoria: Categoria) async {
         guard let pedido = await viewModel.pedidoDeExclusao(de: categoria) else { return }
         exclusao = pedido
@@ -173,10 +209,15 @@ struct CategoriasView: View {
         switch acao {
         case .nova:
             folha = .nova
+        case .editar(let nome):
+            if let alvo = categoria(chamada: nome) { folha = .edicao(alvo) }
         case .apagar(let nome):
-            guard case .pronto(let resumos) = viewModel.estado,
-                  let alvo = resumos.first(where: { $0.categoria.nome == nome }) else { return }
-            await pedirExclusao(de: alvo.categoria)
+            if let alvo = categoria(chamada: nome) { await pedirExclusao(de: alvo) }
         }
+    }
+
+    private func categoria(chamada nome: String) -> Categoria? {
+        guard case .pronto(let resumos) = viewModel.estado else { return nil }
+        return resumos.first { $0.categoria.nome == nome }?.categoria
     }
 }
