@@ -428,7 +428,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   aspas retas (`Apagar "Escritório"?`; as curvas foram recusadas pelo Ricardo) e destinos só com o nome (a
   quantidade pesaria a lista; o Inicio já a mostra).
 
-- **Formulário (estilo aprovado em 13/10, provisório, capturas 1.2–1.3, via `/decidir`):** `Form` nativo com o cinza
+- **Formulário (estilo aprovado em 13/10, confirmado em 16/10, capturas 1.2–1.3, via `/decidir`):** `Form` nativo com o cinza
   agrupado e os cartões brancos do sistema (no escuro, `#1C1C1E`/`#2C2C2E` dentro da folha). **Exceção ao Estilo 0**,
   a pedido do Ricardo: nem `fundo` nem `cartao`, porque branco sobre branco sem sombra (o `Form` não tem sombra por
   seção) apagava os cartões, e o `Form` dá prontos apagar/arrastar autores, foco e fuga do teclado. Dos tokens vêm só
@@ -471,6 +471,9 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   este PLANO (onde parou e qual o próximo passo), commitar e abrir o PR em rascunho (`gh pr create --draft`) se ainda
   não houver. Voltar só quando o uso reiniciar ou o Ricardo mandar. O Claude não enxerga o `/usage`: **o Ricardo avisa**.
   Commits pequenos ao fim de cada passo limitam a perda se o aviso não vier.
+- **Idioma:** `developmentLanguage: pt-BR` e `CFBundleDevelopmentRegion: pt-BR` (Info.plist) no `project.yml`, para os
+  textos do próprio sistema ("Voltar", "Cancelar", "Editar", folhas e alertas) saírem em português sem catálogo de
+  tradução. O app é só em português; localizar em inglês fica fora do escopo.
 
 ### Checklist da Fase 2
 
@@ -481,12 +484,14 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [x] Entidades do Domínio (structs; `Livro` como agregado com o sumário; categorias por id; capa fora da struct) + porta `BibliotecaRepositorio` + regra do nome de categoria
 - [x] `ValidacaoSumario` `[eu escrevo]` (escrita pelo Ricardo; 12 testes)
 - [x] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória) + `BibliotecaRepositorioCoreData` (conversão `[eu escrevo]` em parte; 25 testes de Dados)
-- [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
+- [x] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
   (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário ✅ · 2.4e prateleira ✅ ·
-  depois o estilo, tela por tela)
-  **Onde paramos (13/10, branch `fase2/telas`, 361 testes):** estilo do Inicio, da Estante, do Detalhe e do Formulário
-  (provisório: o Ricardo avisa se quiser desfazer) aprovados, a foto da miniatura no Formulário e a foto ampliada no
-  Detalhe prontas, e Apagar estante estilizada; próximo: o fechamento da 2.4 (passo 3, abaixo). No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
+  estilo tela por tela ✅ · fechamento ✅)
+  **Onde paramos (16/10, branch `fase2/telas`, 361 testes):** 2.4 concluída. PR #23 pronto para revisão; o merge sai
+  quando o Ricardo mandar. **Próximo: 2.5 (categorias)**, numa branch nova a partir do `main` depois do merge, começando
+  pelo `/decidir`. Pendências do estilo que passam para a 2.5: promover o chip do catálogo a componente, chips com texto
+  grande quebrando letra a letra (também na 2.7) e a lista de pares do `PaletaTests` (com as cores novas).
+  Antes (13/10): estilo de todas as telas aprovado, fotos prontas. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
   cartão Obra quando há rótulo impresso (antes não aparecia em lugar nenhum) e o ISBN passou a ser validado
   (regra `ISBN` no Domínio; teclado `.numbersAndPunctuation` no formulário, para o hífen e o "X").
   Antes (12/10): lógica da 2.4a–e pronta e aprovada no simulador.
@@ -503,7 +508,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
      a. ✅ Referências e direção (12/10, via `/decidir`): ver "Fundamentos do estilo" na seção Interface.
      b. ✅ Tokens (12/10) em `Apresentacao/Componentes/`: `Cor`/`Paleta` (`fundo`, `cartao`, `superficie`, `destaque`,
         `sobreDestaque`, `textoSecundario`; em código com `UIColor(claro:escuro:)`, não em catálogo de cores, para o hex
-        aparecer na revisão e o teste medir cada modo), `Espaco` (4–32), `Raio` (8/12/20) + `.cantos(_:)`, `Fonte` (só as
+        aparecer na revisão e o teste medir cada modo), `Espaco` (4–24), `Raio` (8/12/20) + `.cantos(_:)`, `Fonte` (só as
         serifadas), `Animacao` (`suave`, `rapida`, `esmaecer`) + `.animacaoSuave(valor:)`, `.sombraSuave()`, `EstiloVidro`;
         `.tint(Cor.destaque)` na raiz (chega às folhas do SwiftUI; alertas e folhas de ação, do UIKit, recebem o
         `destaque` por `Paleta.aplicarNoUIKit()`, ver "Apagar estante" na seção Interface). `.secondary` do sistema reprovou (3,4:1 no branco) e virou
@@ -519,13 +524,13 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
         - ✅ Trocar `.secondary` por `Cor.textoSecundario` (Inicio, Estante, Detalhe e `MensagemDeErroView`).
         - Com texto grande, chips lado a lado quebram letra a letra (rolagem horizontal ou quebra de linha; busca).
         - Promover o chip do catálogo a componente em `Componentes/` (o cartão de estante já foi, no Inicio).
-        Revisão adiada: lista de pares do `PaletaTests` à mão (revisitar com cor nova); tokens sem uso apagados ao fim
-        do estilo. O modificador de pressão foi extraído no Inicio (terceiro estilo de botão).
+        Revisão adiada: lista de pares do `PaletaTests` à mão (revisitar com cor nova, na 2.5); ✅ tokens sem uso
+        apagados ao fim do estilo (16/10: só o `Espaco.enorme`). O modificador de pressão foi extraído no Inicio (terceiro estilo de botão).
   2. **Estilo**, uma tela por vez: Inicio ✅ (12/10, ver "Inicio" na seção Interface; destaque claro revisto para
      `#0579B8`) → Estante ✅ (13/10, ver "Estante" na seção Interface) → Detalhe ✅ (13/10, ver "Detalhe" na seção
-     Interface) → Formulário ✅ (13/10, provisório, ver "Formulário" na seção Interface) → foto da miniatura ✅
+     Interface) → Formulário ✅ (13/10, confirmado em 16/10, ver "Formulário" na seção Interface) → foto da miniatura ✅
      (13/10) → foto ampliada no Detalhe ✅ (13/10) → Apagar estante ✅ (13/10, ver "Apagar estante" na
-     seção Interface); **próximo: fechamento** (ver "Forma de trabalho nas telas");
+     seção Interface) → fechamento ✅ (16/10, passo 3);
      cada tela decide só a composição, sobre os fundamentos já aprovados.
      ✅ Campo preenchido perdia o nome (resolvido no Formulário: nome pequeno em cima com o campo preenchido).
      ✅ **Foto da miniatura (13/10):** `RedutorDeFoto` (`Componentes/`, ImageIO: lado maior 1200 px, JPEG 0,8; o
@@ -544,13 +549,19 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
      lugar da miniatura).
      Nota: com "Caixa azul" e "caixa azul" na estante, a sugestão mostra "caixa azul" (ordem natural), e o grupo da
      estante, a grafia mais usada; podem diferir (a porta não traz contagem).
-  3. Fechamento: CI verde, PR pronto para revisão, checklist e CLAUDE.md atualizados.
+  3. ✅ Fechamento (16/10): revisão final da branch inteira com `revisor` e `revisor-spec`; aprovados e feitos: P1
+     (`Quantidade.livros` em `Componentes/`, saiu da `InicioView`, de que a Estante dependia só para o plural), P2
+     (`.alertaDeErro(_:)` no lugar de três cópias do mesmo alerta), P4 (`SecaoDoLivro` → `GrupoDeCampos`: "seção" é termo
+     a evitar no GLOSSARY), E1 (este PLANO), E3 (idioma em "Forma de trabalho nas telas"). Recusados: P3 (generalizar o
+     carregando/erro seria prematuro), P5 (as pastas `Confirmacao/` e `Scanner/` têm `.gitkeep` desde a Fase 0), P6 e E5
+     (`Estante` `Hashable`, exigido pela navegação). CI verde, PR pronto, checklist e CLAUDE.md atualizados.
   Ferramentas: `./scripts/testar.sh` (com `TEST_RUNNER_RELATORIO=1` na frente, roda também o relatório `[referencia]`
   e a varredura `[varredura]` da busca, que fora disso ficam pulados; a saída fica no log); `./scripts/capturar.sh <Tela> <versão> [<pasta>]` (casos no enum `Captura`, `App/Exemplos.swift`);
   testar à mão com `xcrun simctl launch "iPhone 14" com.ricardo.estantes -captura Inicio` (exemplos em memória).
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
   + chips no cartão do livro na Estante (linha abaixo de autor · ano): chip fantasma "+ Categoria" só nos livros sem
   categoria; tocar nos chips abre a escolha; menu de contexto "Categorias…" (decisão de 13/10)
+  + pendências do estilo: chip do catálogo como componente, chips com texto grande, pares do `PaletaTests`
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
@@ -789,6 +800,7 @@ do parser e do Gemini.
 | 13/10 | Detalhe: cabeçalho centralizado (miniatura, título em serifa, volume e autores só pelos sobrenomes, como na ABNT: até 3, depois "et al.") e cartões por seção, com o cartão Autores listando os nomes completos | Com texto grande, a quebra dentro de um nome no cabeçalho se confundia com outro autor (vista nas capturas com 3 autores); "e mais N" soava traduzido e "+ N" colidiria com o "+ Categoria" da 2.5. List restilizada e cabeçalho lado a lado descartados |
 | 13/10 | ISBN validado no Domínio (`ISBN.normalizar`): 10 ou 13 dígitos (hífens, inclusive Unicode, e espaços ignorados), "X" só no fim do ISBN-10, prefixo 978/979 e dígito verificador; guarda só os 13 dígitos (o ISBN-10 é convertido) | Antes aceitava letras. Livros anteriores a 2007 trazem ISBN-10; um formato só compara com código de barras e catálogos. Validar só quando o usuário muda o ISBN foi descartado: deixaria passar ISBN inválido de outra porta (como o "pede para completar" de 10/10). Sem o prefixo, o EAN de um produto passaria como livro na Fase 3 |
 | 13/10 | Categoria no cartão do livro (2.5): chip fantasma "+ Categoria" só sem categoria, tocar nos chips abre a escolha, e o menu de contexto | Pedido do Ricardo. Um "+" em todo cartão foi descartado: alvo sobreposto ao link, 44 pt engordando cada linha, repetido em todas |
-| 13/10 | Formulário no `Form` nativo com o cinza agrupado e os cartões brancos do sistema (pedido do Ricardo; só texto secundário, espaçamento e fonte vêm dos tokens), não ScrollView com `.cartao()` como no Detalhe (provisório: a confirmar nas capturas; o Ricardo avisa se quiser outra forma) | O Detalhe é leitura; o formulário precisa de apagar/arrastar autores, foco e fuga do teclado, que o `Form` dá prontos. Refazê-los à mão foi descartado (mais código e risco por um raio de canto) |
-| 13/10 | Foto do livro guardada reduzida (lado maior 1200 px, JPEG 0,8); a de alta qualidade só é usada (na Fase 3, o OCR roda na resolução máxima da câmera in-app) e depois descartada (provisório: a confirmar nas capturas) | A original (3–10 MB) pesaria banco e export (200 livros ≈ 1 GB); 600 px borraria uma futura vista ampliada. Complementa a linha de 13/10 da miniatura (no banco só uma foto) |
+| 13/10 | Formulário no `Form` nativo com o cinza agrupado e os cartões brancos do sistema (pedido do Ricardo; só texto secundário, espaçamento e fonte vêm dos tokens), não ScrollView com `.cartao()` como no Detalhe (confirmado em 16/10) | O Detalhe é leitura; o formulário precisa de apagar/arrastar autores, foco e fuga do teclado, que o `Form` dá prontos. Refazê-los à mão foi descartado (mais código e risco por um raio de canto) |
+| 13/10 | Foto do livro guardada reduzida (lado maior 1200 px, JPEG 0,8); a de alta qualidade só é usada (na Fase 3, o OCR roda na resolução máxima da câmera in-app) e depois descartada (confirmado em 16/10) | A original (3–10 MB) pesaria banco e export (200 livros ≈ 1 GB); 600 px borraria uma futura vista ampliada. Complementa a linha de 13/10 da miniatura (no banco só uma foto) |
 | 13/10 | Foto ampliada do Detalhe apresentada pelo UIKit (`.overFullScreen` + esmaecer, num `UIViewControllerRepresentable` invisível), não por `fullScreenCover` nem por overlay | No iOS 16 o `fullScreenCover` é opaco (tira o Detalhe, e o fundo esmaecido precisa dele atrás) e o `presentationBackground` é do 16.4; overlay no Detalhe deixa a barra de navegação por cima do escuro, e na raiz do app espalha estado e uma ação pelo ambiente até uma tela funda |
+| 16/10 | Formulário no `Form` nativo e foto guardada a 1200 px confirmados como definitivos | Revisa as duas linhas de 13/10 marcadas "provisório: a confirmar nas capturas": os dois foram vistos e aprovados nas capturas 1.2–2.3; manter o rótulo deixaria a dúvida aberta sem motivo |
