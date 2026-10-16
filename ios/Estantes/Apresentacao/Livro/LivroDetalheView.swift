@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Detalhe de um livro: cabeçalho centralizado (miniatura, título em serifa, subtítulo, volume e autores), um cartão
-/// por seção com os campos preenchidos (rótulo em cima, valor embaixo) e "Apagar livro" no fim, num cartão próprio.
+/// por grupo com os campos preenchidos (rótulo em cima, valor embaixo) e "Apagar livro" no fim, num cartão próprio.
 struct LivroDetalheView: View {
     @StateObject private var viewModel: LivroDetalheViewModel
     @Environment(\.dismiss) private var dismiss
@@ -54,11 +54,7 @@ struct LivroDetalheView: View {
             .task { await viewModel.carregar() }
             .fotoAmpliada($fotoAberta)
             .aoVoltar { await viewModel.carregar() }
-            .alert("Algo deu errado", isPresented: erroAberto) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(viewModel.mensagemDeErro ?? "")
-            }
+            .alertaDeErro($viewModel.mensagemDeErro)
     }
 
     /// Troca de estado (carregando → livro) com a mola `suave`, como no Inicio e na Estante.
@@ -82,8 +78,8 @@ struct LivroDetalheView: View {
             ScrollView {
                 VStack(spacing: Espaco.grande) {
                     cabecalho(livro)
-                    ForEach(LivroDetalheViewModel.secoes(de: livro)) { secao in
-                        cartao(secao)
+                    ForEach(LivroDetalheViewModel.grupos(de: livro)) { grupo in
+                        cartao(grupo)
                     }
                     botaoApagar
                 }
@@ -156,17 +152,17 @@ struct LivroDetalheView: View {
         .padding(.top, Espaco.pequeno)
     }
 
-    /// Título da seção fora do cartão (como na Estante) e os campos dentro, separados por uma linha.
-    private func cartao(_ secao: SecaoDoLivro) -> some View {
+    /// Título do grupo fora do cartão (como na Estante) e os campos dentro, separados por uma linha.
+    private func cartao(_ grupo: GrupoDeCampos) -> some View {
         VStack(alignment: .leading, spacing: Espaco.pequeno) {
-            Text(secao.titulo)
+            Text(grupo.titulo)
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(Cor.textoSecundario)
                 .padding(.horizontal, Espaco.minimo)
                 .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
                 // Pela posição: o mesmo autor digitado duas vezes daria dois campos iguais.
-                ForEach(Array(secao.campos.enumerated()), id: \.offset) { indice, campo in
+                ForEach(Array(grupo.campos.enumerated()), id: \.offset) { indice, campo in
                     if indice > 0 {
                         Divider().padding(.leading, Espaco.padrao)
                     }
@@ -212,10 +208,6 @@ struct LivroDetalheView: View {
     private var livroCarregado: Bool {
         if case .pronto = viewModel.estado { return true }
         return false
-    }
-
-    private var erroAberto: Binding<Bool> {
-        Binding(get: { viewModel.mensagemDeErro != nil }, set: { if !$0 { viewModel.mensagemDeErro = nil } })
     }
 }
 

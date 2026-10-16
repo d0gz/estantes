@@ -119,40 +119,40 @@ final class LivroDetalheViewModelTests: XCTestCase {
 
     // MARK: Campos mostrados
 
-    func testSecoesSoComCamposPreenchidos() {
-        let secoes = LivroDetalheViewModel.secoes(de: livroCompleto())
+    func testGruposSoComCamposPreenchidos() {
+        let grupos = LivroDetalheViewModel.grupos(de: livroCompleto())
 
         // Subtítulo e volume ficam só no cabeçalho; os autores, no primeiro cartão, sem rótulo por linha.
-        XCTAssertEqual(secoes.map(\.titulo), ["Autor", "Obra", "Publicação", "Na estante"])
-        XCTAssertEqual(secoes[0].campos, [CampoDoLivro(rotulo: nil, valor: "Miranda, Pontes de")])
+        XCTAssertEqual(grupos.map(\.titulo), ["Autor", "Obra", "Publicação", "Na estante"])
+        XCTAssertEqual(grupos[0].campos, [CampoDoLivro(rotulo: nil, valor: "Miranda, Pontes de")])
         // O cabeçalho mostra o rótulo ("Tomo XLVIII"); o número aparece aqui, para não sumir.
-        XCTAssertEqual(secoes[1].campos, [
+        XCTAssertEqual(grupos[1].campos, [
             CampoDoLivro(rotulo: "Parte", valor: "Parte especial"),
             CampoDoLivro(rotulo: "Número do volume", valor: "48"),
             CampoDoLivro(rotulo: "Artigos", valor: "Arts. 1710–1779"),
         ])
         // Edição, páginas e ISBN vazios não aparecem; o ano sem ponto de milhar.
-        XCTAssertEqual(secoes[2].campos, [
+        XCTAssertEqual(grupos[2].campos, [
             CampoDoLivro(rotulo: "Editora", valor: "Borsoi"),
             CampoDoLivro(rotulo: "Local", valor: "Rio de Janeiro"),
             CampoDoLivro(rotulo: "Ano", valor: "1965"),
         ])
-        XCTAssertEqual(secoes[3].campos, [
+        XCTAssertEqual(grupos[3].campos, [
             CampoDoLivro(rotulo: "Prateleira", valor: "caixa azul"),
             CampoDoLivro(rotulo: "Origem", valor: "LexML"),
         ])
     }
 
     func testLivroSoComTituloMostraSoAOrigem() {
-        let secoes = LivroDetalheViewModel.secoes(de: Livro(estanteId: sala.id, titulo: "A"))
-        XCTAssertEqual(secoes, [
-            SecaoDoLivro(titulo: "Na estante", campos: [CampoDoLivro(rotulo: "Origem", valor: "Cadastro manual")]),
+        let grupos = LivroDetalheViewModel.grupos(de: Livro(estanteId: sala.id, titulo: "A"))
+        XCTAssertEqual(grupos, [
+            GrupoDeCampos(titulo: "Na estante", campos: [CampoDoLivro(rotulo: "Origem", valor: "Cadastro manual")]),
         ])
     }
 
     func testVariosAutoresUmPorLinhaNaOrdem() {
         let livro = Livro(estanteId: sala.id, titulo: "A", autores: ["Um", "  ", "Dois"])
-        XCTAssertEqual(LivroDetalheViewModel.secoes(de: livro).first, SecaoDoLivro(titulo: "Autores", campos: [
+        XCTAssertEqual(LivroDetalheViewModel.grupos(de: livro).first, GrupoDeCampos(titulo: "Autores", campos: [
             CampoDoLivro(rotulo: nil, valor: "Um"),
             CampoDoLivro(rotulo: nil, valor: "Dois"),
         ]))
@@ -161,19 +161,19 @@ final class LivroDetalheViewModelTests: XCTestCase {
     func testVolumeSoComNumeroFicaSoNoCabecalho() {
         let livro = Livro(estanteId: sala.id, titulo: "A", volume: 3)
         XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro).volume, "Vol. 3")
-        XCTAssertFalse(LivroDetalheViewModel.secoes(de: livro).contains { $0.titulo == "Obra" })
+        XCTAssertFalse(LivroDetalheViewModel.grupos(de: livro).contains { $0.titulo == "Obra" })
     }
 
     func testRotuloSemNumeroNaoGeraALinhaDoNumero() {
         let livro = Livro(estanteId: sala.id, titulo: "A", volumeRotulo: "Tomo II")
         XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro).volume, "Tomo II")
-        XCTAssertFalse(LivroDetalheViewModel.secoes(de: livro).contains { $0.titulo == "Obra" })
+        XCTAssertFalse(LivroDetalheViewModel.grupos(de: livro).contains { $0.titulo == "Obra" })
     }
 
     func testRotuloSoDeEspacosValeComoSemRotulo() {
         let livro = Livro(estanteId: sala.id, titulo: "A", volume: 48, volumeRotulo: "  ")
         XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro).volume, "Vol. 48")
-        XCTAssertFalse(LivroDetalheViewModel.secoes(de: livro).contains { $0.titulo == "Obra" })
+        XCTAssertFalse(LivroDetalheViewModel.grupos(de: livro).contains { $0.titulo == "Obra" })
     }
 
     func testVolumeSemRotuloUsaONumero() {

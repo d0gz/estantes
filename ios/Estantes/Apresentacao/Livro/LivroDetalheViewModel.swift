@@ -1,14 +1,14 @@
 import Foundation
 
-/// Um campo do livro como o detalhe o mostra ("Editora", "Malheiros"). Sem rótulo quando o título da seção já diz
+/// Um campo do livro como o detalhe o mostra ("Editora", "Malheiros"). Sem rótulo quando o título do grupo já diz
 /// o que é (cada autor no cartão "Autores").
 struct CampoDoLivro: Equatable {
     let rotulo: String?
     let valor: String
 }
 
-/// Uma seção do detalhe ("Publicação") com os campos preenchidos.
-struct SecaoDoLivro: Equatable, Identifiable {
+/// Um grupo de campos do detalhe ("Publicação") com os campos preenchidos.
+struct GrupoDeCampos: Equatable, Identifiable {
     let titulo: String
     let campos: [CampoDoLivro]
 
@@ -97,23 +97,23 @@ final class LivroDetalheViewModel: ObservableObject {
         return preenchido(String(autor[..<virgula])) ?? autor
     }
 
-    /// As seções do detalhe, só com os campos preenchidos; seção sem nenhum campo some.
+    /// Os grupos de campos do detalhe, só com os campos preenchidos; grupo sem nenhum campo some.
     /// Título, subtítulo e volume não entram: estão no `cabecalho(de:)`. Os autores, sim, um por linha (o
     /// cabeçalho mostra só os sobrenomes).
-    static func secoes(de livro: Livro) -> [SecaoDoLivro] {
+    static func grupos(de livro: Livro) -> [GrupoDeCampos] {
         let autores = autoresPreenchidos(livro)
-        let secoes = [
-            SecaoDoLivro(
+        let grupos = [
+            GrupoDeCampos(
                 titulo: autores.count > 1 ? "Autores" : "Autor",
                 campos: autores.map { CampoDoLivro(rotulo: nil, valor: $0) }
             ),
-            SecaoDoLivro(titulo: "Obra", campos: campos([
+            GrupoDeCampos(titulo: "Obra", campos: campos([
                 ("Parte", livro.parte),
                 ("Número do volume", numeroDoVolumeForaDoCabecalho(livro)),
                 ("Série", livro.serie),
                 ("Artigos", textoDosArtigos(inicio: livro.artigosInicio, fim: livro.artigosFim)),
             ])),
-            SecaoDoLivro(titulo: "Publicação", campos: campos([
+            GrupoDeCampos(titulo: "Publicação", campos: campos([
                 ("Editora", livro.editora),
                 ("Local", livro.local),
                 ("Edição", livro.edicao),
@@ -121,12 +121,12 @@ final class LivroDetalheViewModel: ObservableObject {
                 ("Páginas", livro.paginas.map(String.init)),
                 ("ISBN", livro.isbn13),
             ])),
-            SecaoDoLivro(titulo: "Na estante", campos: campos([
+            GrupoDeCampos(titulo: "Na estante", campos: campos([
                 ("Prateleira", livro.prateleira),
                 ("Origem", textoDaOrigem(livro.origem)),
             ])),
         ]
-        return secoes.filter { !$0.campos.isEmpty }
+        return grupos.filter { !$0.campos.isEmpty }
     }
 
     /// Descarta os valores ausentes ou só de espaços.

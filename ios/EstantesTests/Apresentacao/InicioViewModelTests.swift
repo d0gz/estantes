@@ -193,12 +193,4 @@ final class InicioViewModelTests: XCTestCase {
         XCTAssertEqual(InicioViewModel.nomeValido("  Sala  "), "Sala")
         XCTAssertNil(InicioViewModel.nomeValido(" \n "))
     }
-
-    func testTextoDaQuantidadeNoSingularENoPlural() {
-        XCTAssertEqual(InicioView.textoDaQuantidade(0), "0 livros")
-        XCTAssertEqual(InicioView.textoDaQuantidade(1), "1 livro")
-        XCTAssertEqual(InicioView.textoDaQuantidade(12), "12 livros")
-        XCTAssertEqual(InicioView.textoDaQuantidade(1, comArtigo: true), "o livro")
-        XCTAssertEqual(InicioView.textoDaQuantidade(3, comArtigo: true), "os 3 livros")
-    }
 }

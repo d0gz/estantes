@@ -74,7 +74,7 @@ struct InicioView: View {
                 tituloDaExclusao, isPresented: $confirmandoExclusao, titleVisibility: .visible, presenting: exclusao
             ) { pedido in
                 if pedido.podeMover {
-                    Button("Mover \(Self.textoDaQuantidade(pedido.quantidadeDeLivros, comArtigo: true)) e apagar…") {
+                    Button("Mover \(Quantidade.livros(pedido.quantidadeDeLivros, comArtigo: true)) e apagar…") {
                         escolhendoDestino = true
                     }
                 }
@@ -97,11 +97,7 @@ struct InicioView: View {
             } message: { pedido in
                 Text("A estante \"\(pedido.estante.nome)\" será apagada depois de mover os livros.")
             }
-            .alert("Algo deu errado", isPresented: erroAberto) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(viewModel.mensagemDeErro ?? "")
-            }
+            .alertaDeErro($viewModel.mensagemDeErro)
     }
 
     /// Troca de estado (carregando → lista ou vazio) e cartões que entram ou saem: com a mola `suave`.
@@ -147,7 +143,7 @@ struct InicioView: View {
                         NavigationLink(value: resumo.estante) {
                             CartaoDeEstante(
                                 nome: resumo.estante.nome,
-                                detalhe: Self.textoDaQuantidade(resumo.quantidadeDeLivros)
+                                detalhe: Quantidade.livros(resumo.quantidadeDeLivros)
                             )
                         }
                         .buttonStyle(EstiloCartao())
@@ -183,16 +179,6 @@ struct InicioView: View {
         return Array(repeating: GridItem(.flexible(), spacing: Espaco.padrao), count: quantidade)
     }
 
-    /// "1 livro", "3 livros"; com artigo, "o livro", "os 3 livros" (para as frases da confirmação).
-    static func textoDaQuantidade(_ quantidade: Int, comArtigo: Bool = false) -> String {
-        switch (quantidade, comArtigo) {
-        case (1, false): return "1 livro"
-        case (1, true): return "o livro"
-        case (_, false): return "\(quantidade) livros"
-        case (_, true): return "os \(quantidade) livros"
-        }
-    }
-
     // MARK: Apagar estante
 
     private var tituloDaExclusao: String {
@@ -201,13 +187,13 @@ struct InicioView: View {
 
     /// Repete a quantidade da primeira folha ("Mover os 6 livros para…"): confirma quais livros vão.
     private var tituloDoDestino: String {
-        exclusao.map { "Mover \(Self.textoDaQuantidade($0.quantidadeDeLivros, comArtigo: true)) para…" } ?? ""
+        exclusao.map { "Mover \(Quantidade.livros($0.quantidadeDeLivros, comArtigo: true)) para…" } ?? ""
     }
 
     private func textoDeApagar(_ pedido: PedidoDeExclusao) -> String {
         pedido.quantidadeDeLivros == 0
             ? "Apagar estante"
-            : "Apagar a estante e \(Self.textoDaQuantidade(pedido.quantidadeDeLivros, comArtigo: true))"
+            : "Apagar a estante e \(Quantidade.livros(pedido.quantidadeDeLivros, comArtigo: true))"
     }
 
     private func mensagemDaExclusao(_ pedido: PedidoDeExclusao) -> String {
@@ -254,10 +240,6 @@ struct InicioView: View {
     /// O `.alert` quer um `Binding<Bool>`; este é derivado do `pedido`, para não haver dois estados a sincronizar.
     private var pedidoAberto: Binding<Bool> {
         Binding(get: { pedido != nil }, set: { if !$0 { pedido = nil } })
-    }
-
-    private var erroAberto: Binding<Bool> {
-        Binding(get: { viewModel.mensagemDeErro != nil }, set: { if !$0 { viewModel.mensagemDeErro = nil } })
     }
 
     private func pedirNome(_ novoPedido: PedidoDeNome) {

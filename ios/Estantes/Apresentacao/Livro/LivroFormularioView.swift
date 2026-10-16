@@ -48,11 +48,7 @@ struct LivroFormularioView: View {
         .onChange(of: viewModel.rascunho.estanteId) { _ in
             Task { await viewModel.carregarPrateleiras() }
         }
-        .alert("Algo deu errado", isPresented: erroAberto) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.mensagemDeErro ?? "")
-        }
+        .alertaDeErro($viewModel.mensagemDeErro)
     }
 
     @ViewBuilder
@@ -295,10 +291,6 @@ struct LivroFormularioView: View {
         let r = viewModel.rascunho
         return [r.volume, r.volumeRotulo, r.parte, r.serie, r.artigosInicio, r.artigosFim]
             .contains { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-    }
-
-    private var erroAberto: Binding<Bool> {
-        Binding(get: { viewModel.mensagemDeErro != nil }, set: { if !$0 { viewModel.mensagemDeErro = nil } })
     }
 }
 

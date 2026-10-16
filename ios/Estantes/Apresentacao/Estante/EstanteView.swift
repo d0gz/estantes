@@ -118,7 +118,7 @@ struct EstanteView: View {
                 .accessibilityAddTraits(.isHeader)
                 // O VoiceOver leria "Caixa azul ponto 2": falado, com a palavra "livros".
                 .accessibilityLabel(
-                    "\(EstanteViewModel.nomeDaPrateleira(grupo)), \(InicioView.textoDaQuantidade(grupo.livros.count))"
+                    "\(EstanteViewModel.nomeDaPrateleira(grupo)), \(Quantidade.livros(grupo.livros.count))"
                 )
             VStack(spacing: 0) {
                 ForEach(Array(grupo.livros.enumerated()), id: \.element.id) { indice, livro in
