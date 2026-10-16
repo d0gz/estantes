@@ -24,8 +24,8 @@ extension Paleta {
         case .amarelo: return tons(viva: 0xFFCC00, texto: 0x876C00, forte: 0xFFD426, veuEscuro: 0xFFD60A)
         case .verde: return tons(viva: 0x34C759, texto: 0x207C38, forte: 0x30DB5B, veuEscuro: 0x30D158)
         case .menta: return tons(viva: 0x00C7BE, texto: 0x007873, forte: 0x63E6E2, veuEscuro: 0x63E6E2)
-        // Provisório até a captura `EstiloCategorias_1.6`: o texto no alto contraste (`#7D7AFF`) dava 4,3:1 sobre o
-        // véu; `#8582FF` é ele clareado só até ~4,6:1. O contorno continua no `#7D7AFF`.
+        // O texto no alto contraste (`#7D7AFF`) dava 4,3:1 sobre o véu; `#8582FF` é ele clareado só até ~4,6:1
+        // (escolhido na captura `EstiloCategorias_1.6`). O contorno continua no `#7D7AFF`.
         case .indigo:
             return tons(viva: 0x5856D6, texto: 0x5654D6, forte: 0x7D7AFF, veuEscuro: 0x5E5CE6, textoEscuro: 0x8582FF)
         case .roxo: return tons(viva: 0xAF52DE, texto: 0x9D2BD7, forte: 0xDA8FFF, veuEscuro: 0xBF5AF2)

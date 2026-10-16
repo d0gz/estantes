@@ -101,61 +101,24 @@ struct CatalogoDeEstiloView: View {
         }
     }
 
-    // MARK: Página 3 — chips de categoria (protótipo para a 2.5)
+    // MARK: Página 3 — chips de categoria (2.5: componente e tons em hex)
 
-    /// Categorias de exemplo, cada uma com uma cor do sistema (sem azul, ciano e teal: são do destaque) e o tom
-    /// escuro do mesmo matiz para o texto no claro (escurecido só até 4,6:1 sobre o fundo pastel).
-    private static let exemplos: [(nome: String, cor: UIColor, textoClaro: UInt32)] = [
-        ("Constitucional", .systemRed, 0xCE0B00), ("Civil", .systemOrange, 0x9E5C00),
-        ("Penal", .systemYellow, 0x876C00), ("Processo", .systemGreen, 0x207C38),
-        ("Tributário", .systemMint, 0x007873), ("Trabalho", .systemIndigo, 0x5654D6),
-        ("Administrativo", .systemPurple, 0x9D2BD7), ("Empresarial", rosa, 0xCB0062),
-        ("Filosofia", .systemBrown, 0x7D6648),
+    private static let exemplos: [Categoria] = [
+        Categoria(nome: "Constitucional", cor: .vermelho), Categoria(nome: "Civil", cor: .laranja),
+        Categoria(nome: "Penal", cor: .amarelo), Categoria(nome: "Processo", cor: .verde),
+        Categoria(nome: "Tributário", cor: .menta), Categoria(nome: "Trabalho", cor: .indigo),
+        Categoria(nome: "Administrativo", cor: .roxo), Categoria(nome: "Empresarial", cor: .rosa),
+        Categoria(nome: "Filosofia", cor: .marrom), Categoria(nome: "Ler depois", cor: .cinza),
     ]
-
-    /// Rosa próprio (matiz 331°): o `systemPink` (349°) ficava a 14° do vermelho e se confundia com ele.
-    private static let rosa = UIColor(claro: 0xFF2D92, escuro: 0xFF7AC0)
 
     @ViewBuilder
     private var categorias: some View {
-        secao("Categorias — pastel, contorno vivo, texto escuro do matiz") {
+        secao("Categorias — as 10 cores e o fantasma") {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: Espaco.pequeno, alignment: .leading)],
                       alignment: .leading, spacing: Espaco.pequeno) {
-                ForEach(Self.exemplos, id: \.nome) { exemplo in
-                    chipDeCategoria(exemplo.nome, cor: exemplo.cor, textoClaro: exemplo.textoClaro)
-                }
+                ForEach(Self.exemplos) { ChipDeCategoria($0) }
+                ChipDeCategoria.fantasma
             }
-        }
-    }
-
-    /// Claro: a identidade vem do fundo pastel e do contorno vivo; o texto é o mesmo matiz, mais escuro.
-    /// Escuro: texto e contorno na variante de alto contraste, sobre um véu da cor.
-    private func chipDeCategoria(_ nome: String, cor: UIColor, textoClaro: UInt32) -> some View {
-        let forte = Self.comAltoContraste(cor)
-        let viva = Color(uiColor: UIColor { tracos in
-            (tracos.userInterfaceStyle == .dark ? forte : cor).resolvedColor(with: tracos)
-        })
-        let texto = Color(uiColor: UIColor { tracos in
-            tracos.userInterfaceStyle == .dark ? forte.resolvedColor(with: tracos) : UIColor(claro: textoClaro, escuro: textoClaro)
-        })
-        return HStack(spacing: Espaco.minimo) {
-            Image(systemName: "tag").foregroundColor(viva)
-            Text(nome).foregroundColor(texto)
-        }
-        .font(.subheadline.weight(.medium))
-        .padding(.horizontal, Espaco.medio)
-        .padding(.vertical, Espaco.pequeno)
-        // O primeiro `background` fica por cima: véu da cor sobre o fundo do cartão.
-        .background(Color(uiColor: cor).opacity(0.15), in: Capsule())
-        .background(Cor.cartao, in: Capsule())
-        .overlay(Capsule().strokeBorder(viva, lineWidth: 1))
-    }
-
-    /// A mesma cor do sistema na variante que o iOS usa com "Aumentar contraste" (mais escura no claro,
-    /// mais clara no escuro), mantendo o modo claro/escuro de quem pede.
-    private static func comAltoContraste(_ cor: UIColor) -> UIColor {
-        UIColor { tracos in
-            cor.resolvedColor(with: UITraitCollection(traitsFrom: [tracos, UITraitCollection(accessibilityContrast: .high)]))
         }
     }
 
