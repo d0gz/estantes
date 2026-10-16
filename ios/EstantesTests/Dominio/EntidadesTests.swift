@@ -18,6 +18,17 @@ final class EntidadesTests: XCTestCase {
         )
     }
 
+    /// Mantém a ordem da lista (não a do conjunto de ids) e ignora id sem categoria.
+    func testCategoriasComIdsMantemAOrdemDaLista() {
+        let civil = Categoria(nome: "Civil", cor: .laranja)
+        let penal = Categoria(nome: "Penal", cor: .amarelo)
+        let processo = Categoria(nome: "Processo", cor: .verde)
+
+        let escolhidas = [civil, penal, processo].comIds([processo.id, civil.id, UUID()])
+
+        XCTAssertEqual(escolhidas, [civil, processo])
+    }
+
     func testLivroNovoComecaManualSemSumarioNemCategorias() {
         let livro = Livro(estanteId: UUID(), titulo: "Curso de Direito Civil")
         XCTAssertEqual(livro.origem, .manual)

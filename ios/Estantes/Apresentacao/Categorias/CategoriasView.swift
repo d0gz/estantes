@@ -8,30 +8,11 @@ struct CategoriasView: View {
     private let formulario: (CategoriaFormularioViewModel.Modo) -> CategoriaFormularioViewModel
 
     /// Qual folha está aberta: criar ou editar uma categoria.
-    private enum Folha: Identifiable {
-        case nova
-        case edicao(Categoria)
-
-        var id: String {
-            switch self {
-            case .nova: return "nova"
-            case .edicao(let categoria): return categoria.id.uuidString
-            }
-        }
-
-        var modo: CategoriaFormularioViewModel.Modo {
-            switch self {
-            case .nova: return .nova
-            case .edicao(let categoria): return .edicao(categoria)
-            }
-        }
-    }
-
-    @State private var folha: Folha?
+    @State private var folha: CategoriaFormularioViewModel.Modo?
     /// Pedida no botão da folha de edição: a confirmação só abre depois que a folha fecha (duas apresentações
     /// ao mesmo tempo não aparecem).
     @State private var excluirAoFecharFolha: Categoria?
-    @State private var exclusao: ExclusaoDeCategoria?
+    @State private var exclusao: CategoriaResumo?
     @State private var confirmandoExclusao = false
     @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
 
@@ -72,7 +53,7 @@ struct CategoriasView: View {
             }
             .sheet(item: $folha, onDismiss: aoFecharFolha) { folha in
                 CategoriaFormularioView(
-                    viewModel: formulario(folha.modo),
+                    viewModel: formulario(folha),
                     aoPedirExclusao: { excluirAoFecharFolha = $0 }
                 )
             }
@@ -84,7 +65,7 @@ struct CategoriasView: View {
                 }
                 Button("Cancelar", role: .cancel) {}
             } message: { pedido in
-                Text(Self.mensagemDaExclusao(pedido.quantidadeDeLivros))
+                Text(CategoriasViewModel.mensagemDaExclusao(pedido.quantidadeDeLivros))
             }
             .alertaDeErro($viewModel.mensagemDeErro)
             .task {
@@ -177,15 +158,6 @@ struct CategoriasView: View {
 
     private var tituloDaExclusao: String {
         exclusao.map { "Apagar \"\($0.categoria.nome)\"?" } ?? ""
-    }
-
-    /// Os livros ficam; só perdem a etiqueta (nullify). A frase diz isso, para "apagar" não assustar.
-    static func mensagemDaExclusao(_ quantidade: Int) -> String {
-        switch quantidade {
-        case 0: return "Nenhum livro tem esta categoria."
-        case 1: return "1 livro perde esta categoria. O livro continua na estante."
-        default: return "\(quantidade) livros perdem esta categoria. Os livros continuam nas estantes."
-        }
     }
 
     private func aoFecharFolha() {

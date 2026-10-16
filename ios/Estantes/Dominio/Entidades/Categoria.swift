@@ -17,6 +17,13 @@ enum CorCategoria: String, CaseIterable {
     case cinza
 }
 
+extension Array where Element == Categoria {
+    /// Só as categorias com estes ids (as de um livro), na ordem em que já estão (a alfabética do repositório).
+    func comIds(_ ids: Set<UUID>) -> [Categoria] {
+        filter { ids.contains($0.id) }
+    }
+}
+
 /// Etiqueta de assunto escolhida pelo usuário, ligada a vários livros (muitos-para-muitos).
 /// O nome é único sem diferenciar maiúsculas nem acentos (ver `NomeDeCategoria`).
 struct Categoria: Identifiable, Equatable {

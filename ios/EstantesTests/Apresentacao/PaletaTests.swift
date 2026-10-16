@@ -87,9 +87,10 @@ final class PaletaTests: XCTestCase {
         }
     }
 
-    /// Os tons de texto no claro aprovados na captura `EstiloCategorias_1.5` (protótipo do catálogo, 12/10) e o do
-    /// cinza proposto em 16/10. Pega um hex copiado errado que ainda passasse no contraste.
-    func testTextoDoChipNoClaroEhOAprovado() {
+    /// Congelamento de propósito: os tons de texto no claro aprovados na captura `EstiloCategorias_1.5` (protótipo do
+    /// catálogo, 12/10) e o do cinza (captura 1.6). A fonte é a captura, não o código; pega um hex copiado errado que
+    /// ainda passasse no contraste. Um retoque de tom precisa de captura nova e da troca aqui.
+    func testTextoDoChipNoClaroCongeladoNosTonsAprovados() {
         let aprovados: [CorCategoria: UInt32] = [
             .vermelho: 0xCE0B00, .laranja: 0x9E5C00, .amarelo: 0x876C00, .verde: 0x207C38, .menta: 0x007873,
             .indigo: 0x5654D6, .roxo: 0x9D2BD7, .rosa: 0xCB0062, .marrom: 0x7D6648, .cinza: 0x636366,

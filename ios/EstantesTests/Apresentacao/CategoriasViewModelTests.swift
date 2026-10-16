@@ -83,6 +83,14 @@ final class CategoriasViewModelTests: XCTestCase {
 
         let pedido = await viewModel.pedidoDeExclusao(de: penal)
 
-        XCTAssertEqual(pedido, ExclusaoDeCategoria(categoria: penal, quantidadeDeLivros: 1))
+        XCTAssertEqual(pedido, CategoriaResumo(categoria: penal, quantidadeDeLivros: 1))
+    }
+
+    func testMensagemDaExclusaoNoSingularNoPluralESemLivros() {
+        XCTAssertEqual(CategoriasViewModel.mensagemDaExclusao(0), "Nenhum livro tem esta categoria.")
+        XCTAssertEqual(CategoriasViewModel.mensagemDaExclusao(1), "1 livro perde esta categoria. O livro continua na estante.")
+        XCTAssertEqual(
+            CategoriasViewModel.mensagemDaExclusao(3), "3 livros perdem esta categoria. Os livros continuam nas estantes."
+        )
     }
 }

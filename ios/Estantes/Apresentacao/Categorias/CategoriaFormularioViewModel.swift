@@ -4,9 +4,17 @@ import Foundation
 /// nome, `CorSugerida` para a cor inicial); aqui ficam só o estado da folha e a gravação.
 @MainActor
 final class CategoriaFormularioViewModel: ObservableObject {
-    enum Modo: Equatable {
+    /// `Identifiable` para abrir a folha direto com `sheet(item:)`.
+    enum Modo: Equatable, Identifiable {
         case nova
         case edicao(Categoria)
+
+        var id: String {
+            switch self {
+            case .nova: return "nova"
+            case .edicao(let categoria): return categoria.id.uuidString
+            }
+        }
     }
 
     enum Estado: Equatable {

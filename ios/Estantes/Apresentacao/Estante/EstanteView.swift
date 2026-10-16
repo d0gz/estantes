@@ -157,35 +157,36 @@ struct EstanteView: View {
     }
 
     private func linha(_ livro: Livro) -> some View {
-        VStack(alignment: .leading, spacing: Espaco.pequeno) {
-        HStack(alignment: .top, spacing: Espaco.medio) {
-            MiniaturaDoLivro(livroId: livro.id, carregador: miniaturas, largura: larguraDaMiniatura)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(livro.titulo)
-                    .font(Fonte.tituloLivroNaLista)
-                    .foregroundColor(.primary)
-                    // Nos tamanhos de acessibilidade, o título inteiro: cortado em 3 linhas, sobravam duas palavras.
-                    .lineLimit(tamanhoDoTexto.isAccessibilitySize ? nil : 3)
-                if let volume = LivroDetalheViewModel.textoDoVolume(livro) {
-                    Text(volume)
-                        .font(.subheadline)
+        // Nos tamanhos de acessibilidade, os chips ocupam a linha inteira, embaixo da miniatura: na coluna ao lado dela,
+        // um nome como "Constitucional" não cabia e quebrava no meio da palavra.
+        let chipsNaLarguraDaLinha = tamanhoDoTexto.isAccessibilitySize
+        return VStack(alignment: .leading, spacing: Espaco.pequeno) {
+            HStack(alignment: .top, spacing: Espaco.medio) {
+                MiniaturaDoLivro(livroId: livro.id, carregador: miniaturas, largura: larguraDaMiniatura)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(livro.titulo)
+                        .font(Fonte.tituloLivroNaLista)
                         .foregroundColor(.primary)
+                        // Nos tamanhos de acessibilidade, o título inteiro: cortado em 3 linhas, sobravam duas palavras.
+                        .lineLimit(tamanhoDoTexto.isAccessibilitySize ? nil : 3)
+                    if let volume = LivroDetalheViewModel.textoDoVolume(livro) {
+                        Text(volume)
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                    }
+                    if let secundaria = EstanteViewModel.linhaSecundaria(livro) {
+                        Text(secundaria)
+                            .font(.subheadline)
+                            .foregroundColor(Cor.textoSecundario)
+                    }
+                    if !chipsNaLarguraDaLinha {
+                        chips(de: livro)
+                            .padding(.top, Espaco.pequeno)
+                    }
                 }
-                if let secundaria = EstanteViewModel.linhaSecundaria(livro) {
-                    Text(secundaria)
-                        .font(.subheadline)
-                        .foregroundColor(Cor.textoSecundario)
-                }
-                if !tamanhoDoTexto.isAccessibilitySize {
-                    chips(de: livro)
-                        .padding(.top, Espaco.pequeno)
-                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
-        }
-            // Nos tamanhos de acessibilidade, os chips ocupam a linha inteira, embaixo da miniatura: na coluna ao lado
-            // dela, um nome como "Constitucional" não cabia e quebrava no meio da palavra.
-            if tamanhoDoTexto.isAccessibilitySize {
+            if chipsNaLarguraDaLinha {
                 chips(de: livro)
             }
         }
@@ -199,7 +200,7 @@ struct EstanteView: View {
     }
 
     /// Os chips do livro, ou o fantasma "+ Categoria" sem nenhuma. Um botão dentro do botão da linha: o toque nos chips
-    /// abre a escolha, e no resto da linha, o Detalhe (conferido à mão: o `simctl` não toca na tela).
+    /// abre a escolha, e no resto da linha, o Detalhe (conferido à mão no iOS 16; no iOS 26, ainda não: ver PLANO).
     private func chips(de livro: Livro) -> some View {
         let categorias = viewModel.categorias(de: livro)
         return Button {

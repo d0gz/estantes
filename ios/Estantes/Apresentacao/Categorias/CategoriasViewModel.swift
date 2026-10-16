@@ -9,14 +9,6 @@ struct CategoriaResumo: Identifiable, Equatable {
     var id: UUID { categoria.id }
 }
 
-/// O que a confirmação de "apagar categoria" mostra, lido do banco na hora do pedido.
-struct ExclusaoDeCategoria: Identifiable, Equatable {
-    let categoria: Categoria
-    let quantidadeDeLivros: Int
-
-    var id: UUID { categoria.id }
-}
-
 /// Estado da tela de gerenciar categorias (aberta pelo menu ⋯ do Inicio) e a ação de apagar.
 /// Criar e editar ficam no `CategoriaFormularioViewModel`, numa folha; depois dela a tela chama `carregar()`.
 @MainActor
@@ -51,15 +43,25 @@ final class CategoriasViewModel: ObservableObject {
         }
     }
 
-    /// Prepara a confirmação. A quantidade é relida do banco (e não tirada da lista): numa ação destrutiva, o
-    /// número mostrado precisa ser o de agora (como no "apagar estante").
-    func pedidoDeExclusao(de categoria: Categoria) async -> ExclusaoDeCategoria? {
+    /// Prepara a confirmação: o mesmo resumo da lista, mas com a quantidade relida do banco (e não tirada da lista):
+    /// numa ação destrutiva, o número mostrado precisa ser o de agora (como no "apagar estante").
+    func pedidoDeExclusao(de categoria: Categoria) async -> CategoriaResumo? {
         do {
             let quantidades = try await repositorio.quantidadeDeLivrosPorCategoria()
-            return ExclusaoDeCategoria(categoria: categoria, quantidadeDeLivros: quantidades[categoria.id, default: 0])
+            return CategoriaResumo(categoria: categoria, quantidadeDeLivros: quantidades[categoria.id, default: 0])
         } catch {
             mensagemDeErro = "Não foi possível preparar a exclusão da categoria."
             return nil
+        }
+    }
+
+    /// O texto da confirmação. Os livros ficam; só perdem a etiqueta (nullify): a frase diz isso, para "apagar" não
+    /// assustar.
+    static func mensagemDaExclusao(_ quantidade: Int) -> String {
+        switch quantidade {
+        case 0: return "Nenhum livro tem esta categoria."
+        case 1: return "1 livro perde esta categoria. O livro continua na estante."
+        default: return "\(quantidade) livros perdem esta categoria. Os livros continuam nas estantes."
         }
     }
 

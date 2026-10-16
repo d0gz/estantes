@@ -68,6 +68,24 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         XCTAssertEqual(lidas, [categoria])
     }
 
+    /// Uma cor gravada que o enum não conhece mais (o "azul" da paleta de 03/10, ou um banco de versão mais nova)
+    /// vira cinza na leitura, em vez de derrubar a lista. Aceito na 2.5: ainda não havia dados reais gravados.
+    func testCorDesconhecidaNoBancoViraCinza() async throws {
+        let id = UUID()
+        let contexto = persistencia.container.newBackgroundContext()
+        try await contexto.perform {
+            let antiga = CategoriaMO(context: contexto)
+            antiga.id = id
+            antiga.nome = "Antiga"
+            antiga.cor = "azul"
+            try contexto.save()
+        }
+
+        let lidas = try await repositorio.categorias()
+
+        XCTAssertEqual(lidas, [Categoria(id: id, nome: "Antiga", cor: .cinza)])
+    }
+
     func testLivroCompletoIdaEVolta() async throws {
         let estante = try await novaEstante()
         let categoria = Categoria(nome: "Contratos", cor: .vermelho)

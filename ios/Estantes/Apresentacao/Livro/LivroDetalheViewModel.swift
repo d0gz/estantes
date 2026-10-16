@@ -58,7 +58,7 @@ final class LivroDetalheViewModel: ObservableObject {
                 return
             }
             // O livro guarda só os ids; nomes e cores vêm das categorias.
-            categoriasDoLivro = try await repositorio.categorias().filter { livro.categoriaIds.contains($0.id) }
+            categoriasDoLivro = try await repositorio.categorias().comIds(livro.categoriaIds)
             estado = .pronto(livro)
         } catch {
             estado = .erro("Não foi possível carregar o livro.")

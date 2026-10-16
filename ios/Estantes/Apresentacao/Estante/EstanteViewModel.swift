@@ -34,7 +34,7 @@ final class EstanteViewModel: ObservableObject {
 
     /// As categorias do livro, na ordem alfabética (chips da linha).
     func categorias(de livro: Livro) -> [Categoria] {
-        todasAsCategorias.filter { livro.categoriaIds.contains($0.id) }
+        todasAsCategorias.comIds(livro.categoriaIds)
     }
 
     /// Linha de baixo do livro na lista: autores e ano ("Silva, José Afonso da · 2014").
