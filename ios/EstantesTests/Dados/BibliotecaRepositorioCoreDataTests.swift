@@ -139,6 +139,38 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         XCTAssertNil(lido?.local)
     }
 
+    // Ficha CIP real: "A essência da constituição / Ferdinand Lassale; prefácio de Aurélio Wander Bastos".
+    // O segundo colaborador (sem papel impresso) testa a ordem e o papel vazio.
+    func testColaboradoresIdaEVoltaNaOrdem() async throws {
+        let estante = try await novaEstante()
+        let livro = Livro(
+            estanteId: estante.id,
+            titulo: "A essência da constituição",
+            autores: ["Lassale, Ferdinand"],
+            colaboradores: [
+                Colaborador(nome: "Bastos, Aurélio Wander", papel: "prefácio"),
+                Colaborador(nome: "Cordeiro Filho, Antonio", papel: ""),
+            ],
+            adicionadoEm: data
+        )
+        try await repositorio.salvar(livro)
+
+        let lido = try await repositorio.livro(id: livro.id)
+        XCTAssertEqual(lido?.colaboradores, [
+            Colaborador(nome: "Bastos, Aurélio Wander", papel: "prefácio"),
+            Colaborador(nome: "Cordeiro Filho, Antonio", papel: ""),
+        ])
+    }
+
+    func testLivroSemColaboradoresVoltaComListaVazia() async throws {
+        let estante = try await novaEstante()
+        let livro = Livro(estanteId: estante.id, titulo: "Manual", adicionadoEm: data)
+        try await repositorio.salvar(livro)
+
+        let lido = try await repositorio.livro(id: livro.id)
+        XCTAssertEqual(lido?.colaboradores, [])
+    }
+
     func testTomoDeObraEmVariosVolumesIdaEVolta() async throws {
         let estante = try await novaEstante()
         let livro = Livro(

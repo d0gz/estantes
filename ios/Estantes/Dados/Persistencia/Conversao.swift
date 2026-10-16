@@ -23,6 +23,9 @@ enum FormatoPersistido {
     static let separadorAutores = "\n"
     /// Decidido no PLANO.md: "Direito > Direito civil > Contratos".
     static let separadorCddir = " > "
+    /// Separa o papel do nome em cada linha de colaborador: a tabulação não aparece em texto impresso,
+    /// e o nome tem vírgula e o papel pode ter espaços.
+    static let separadorPapel = "\t"
 }
 
 // Exemplo escrito pelo Claude, para servir de modelo às outras três.
@@ -89,6 +92,8 @@ extension LivroMO {
             titulo: titulo,
             subtitulo: subtitulo,
             autores: Self.lista(autores, separador: FormatoPersistido.separadorAutores),
+            colaboradores: Self.lista(colaboradores, separador: FormatoPersistido.separadorAutores)
+                .map(Self.colaborador),
             editora: editora,
             local: local,
             edicao: edicao,
@@ -122,6 +127,9 @@ extension LivroMO {
         titulo = livro.titulo
         subtitulo = livro.subtitulo
         autores = livro.autores.joined(separator: FormatoPersistido.separadorAutores)
+        colaboradores = livro.colaboradores
+            .map { $0.papel + FormatoPersistido.separadorPapel + $0.nome }
+            .joined(separator: FormatoPersistido.separadorAutores)
         editora = livro.editora
         local = livro.local
         edicao = livro.edicao
@@ -146,5 +154,14 @@ extension LivroMO {
     /// não `[]`. Sem este cuidado, um livro sem autores voltaria do banco com um autor "".
     private static func lista(_ texto: String, separador: String) -> [String] {
         texto.isEmpty ? [] : texto.components(separatedBy: separador)
+    }
+
+    /// "prefácio⇥Bastos, Aurélio Wander" → papel e nome. Corta na primeira tabulação; uma linha sem ela
+    /// (não deveria existir) vira nome sem papel, em vez de sumir.
+    private static func colaborador(_ linha: String) -> Colaborador {
+        guard let corte = linha.range(of: FormatoPersistido.separadorPapel) else {
+            return Colaborador(nome: linha, papel: "")
+        }
+        return Colaborador(nome: String(linha[corte.upperBound...]), papel: String(linha[..<corte.lowerBound]))
     }
 }

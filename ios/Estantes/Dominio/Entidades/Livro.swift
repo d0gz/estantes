@@ -23,6 +23,8 @@ struct Livro: Identifiable, Equatable {
     /// ("Direito das Obrigações: Contrato coletivo do trabalho. …"). Entra na busca.
     var subtitulo: String?
     var autores: [String]
+    /// Quem participou sem ser autor (prefácio, tradução…), na ordem impressa.
+    var colaboradores: [Colaborador]
     var editora: String?
     /// Cidade da editora ("Rio de Janeiro").
     var local: String?
@@ -62,6 +64,7 @@ struct Livro: Identifiable, Equatable {
         titulo: String,
         subtitulo: String? = nil,
         autores: [String] = [],
+        colaboradores: [Colaborador] = [],
         editora: String? = nil,
         local: String? = nil,
         edicao: String? = nil,
@@ -88,6 +91,7 @@ struct Livro: Identifiable, Equatable {
         self.titulo = titulo
         self.subtitulo = subtitulo
         self.autores = autores
+        self.colaboradores = colaboradores
         self.editora = editora
         self.local = local
         self.edicao = edicao

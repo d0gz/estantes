@@ -28,6 +28,7 @@
         <attribute name="artigosFim" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
         <attribute name="artigosInicio" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
         <attribute name="autores" attributeType="String" defaultValueString=""/>
+        <attribute name="colaboradores" attributeType="String" defaultValueString=""/>
         <attribute name="cddir" optional="YES" attributeType="String"/>
         <attribute name="cddirCaminho" attributeType="String" defaultValueString=""/>
         <attribute name="edicao" optional="YES" attributeType="String"/>
