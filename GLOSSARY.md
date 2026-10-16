@@ -29,12 +29,22 @@ texto impresso ("Tomo XLVIII", "Vol. 24").
 _Evitar_: tomo (só como rótulo impresso), fascículo
 
 **Parte**:
-Texto da folha de rosto que delimita a matéria tratada no volume.
+Divisão da obra impressa na folha de rosto ("Parte Geral", "Parte Especial").
 _Evitar_: seção, capítulo
+
+**Subtítulo**:
+Texto que completa o título; nos volumes, a matéria tratada, impressa abaixo do rótulo do volume
+("Direito das Obrigações: Contrato coletivo do trabalho. …").
+_Evitar_: descrição, ementa
 
 **Intervalo de artigos**:
 Os artigos de lei comentados no volume ("Arts. 1.710-1.779").
 _Evitar_: faixa, âncora
+
+**Colaborador**:
+Quem participa do livro sem ser autor, com o papel como vem impresso ("prefácio de Aurélio Wander
+Bastos", tradução, organização, coordenação). Aparece na ficha do livro, não no cabeçalho.
+_Evitar_: coautor, contribuidor
 
 **Série**:
 Coleção editorial a que o livro pertence, como impressa na ficha CIP.

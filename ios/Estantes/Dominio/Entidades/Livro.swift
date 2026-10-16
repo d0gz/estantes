@@ -19,6 +19,8 @@ struct Livro: Identifiable, Equatable {
     let id: UUID
     var estanteId: UUID
     var titulo: String
+    /// Completa o título. Nos volumes, a matéria impressa abaixo do rótulo do volume
+    /// ("Direito das Obrigações: Contrato coletivo do trabalho. …"). Entra na busca.
     var subtitulo: String?
     var autores: [String]
     var editora: String?
@@ -31,7 +33,7 @@ struct Livro: Identifiable, Equatable {
     var volume: Int?
     /// Como o volume está impresso ("Tomo XLVIII", "Vol. 24"); é o que a tela mostra.
     var volumeRotulo: String?
-    /// Texto médio da folha de rosto, entre o título e o volume ("Direito de família"). Entra na busca.
+    /// Divisão da obra, impressa entre o título e o volume ("Parte Especial"). Entra na busca.
     var parte: String?
     /// Coleção, como vem na ficha CIP ("Coleção Tratado de direito privado").
     var serie: String?

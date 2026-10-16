@@ -18,9 +18,9 @@ final class RascunhoLivroTests: XCTestCase {
     /// ISBN válido: 978852030000 com pesos 1,3,1,3… soma 82 → dígito verificador (10 − 2) = 8.
     private func livroCompleto() -> Livro {
         Livro(
-            estanteId: escritorio, titulo: "Tratado de direito privado", subtitulo: "Parte especial",
+            estanteId: escritorio, titulo: "Tratado de direito privado", subtitulo: "Direito de família",
             autores: ["Miranda, Pontes de", "Nery Jr., Nelson"], editora: "Borsoi", local: "Rio de Janeiro",
-            edicao: "2.ª ed.", volume: 48, volumeRotulo: "Tomo XLVIII", parte: "Direito de família",
+            edicao: "2.ª ed.", volume: 48, volumeRotulo: "Tomo XLVIII", parte: "Parte especial",
             serie: "Coleção Tratado", artigosInicio: 1710, artigosFim: 1779, ano: 1965, isbn13: "9788520300008",
             paginas: 512, cddir: "341.1", cddirCaminho: ["Direito civil", "Família"], urn: "urn:lex:br:1965",
             origem: .lexml, prateleira: "caixa azul", categoriaIds: [UUID()],
