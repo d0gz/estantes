@@ -23,9 +23,10 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
     /// Roda no meio da leitura das prateleiras, antes da resposta: simula o usuário mexendo na tela enquanto espera.
     var durantePrateleiras: (@MainActor () async -> Void)?
 
-    init(estantes: [Estante] = [], livros: [Livro] = []) {
+    init(estantes: [Estante] = [], livros: [Livro] = [], categorias: [Categoria] = []) {
         for estante in estantes { estantesGuardadas[estante.id] = estante }
         for livro in livros { livrosGuardados[livro.id] = livro }
+        for categoria in categorias { categoriasGuardadas[categoria.id] = categoria }
     }
 
     private func lendo() throws {
