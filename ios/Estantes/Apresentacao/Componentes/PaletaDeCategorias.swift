@@ -46,3 +46,22 @@ extension Paleta {
         )
     }
 }
+
+extension CorCategoria {
+    /// Nome da cor na tela e no VoiceOver ("Vermelho"). Fica na Apresentação: o valor bruto do Domínio é
+    /// identificador de arquivo, não texto para o usuário.
+    var nomeNaTela: String {
+        switch self {
+        case .vermelho: return "Vermelho"
+        case .laranja: return "Laranja"
+        case .amarelo: return "Amarelo"
+        case .verde: return "Verde"
+        case .menta: return "Menta"
+        case .indigo: return "Índigo"
+        case .roxo: return "Roxo"
+        case .rosa: return "Rosa"
+        case .marrom: return "Marrom"
+        case .cinza: return "Cinza"
+        }
+    }
+}

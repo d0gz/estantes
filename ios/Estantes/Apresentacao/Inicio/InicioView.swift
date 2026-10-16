@@ -33,10 +33,17 @@ struct InicioView: View {
     }
 
     private let acaoInicial: AcaoInicial?
+    /// Empurra a tela de categorias; quem monta a pilha (`App/Navegacao`) decide o que abrir.
+    private let abrirCategorias: () -> Void
 
     /// `@autoclosure`: o `StateObject` cria o ViewModel uma vez só, mesmo que a tela seja recriada.
-    init(viewModel: @autoclosure @escaping () -> InicioViewModel, acaoInicial: AcaoInicial? = nil) {
+    init(
+        viewModel: @autoclosure @escaping () -> InicioViewModel,
+        abrirCategorias: @escaping () -> Void,
+        acaoInicial: AcaoInicial? = nil
+    ) {
         _viewModel = StateObject(wrappedValue: viewModel())
+        self.abrirCategorias = abrirCategorias
         self.acaoInicial = acaoInicial
     }
 
@@ -54,6 +61,17 @@ struct InicioView: View {
                         } label: {
                             Label("Nova estante", systemImage: "plus")
                         }
+                    }
+                }
+                // Também no vazio: dá para criar categorias antes de ter estantes. Por ora só "Categorias";
+                // exportar e importar entram aqui na 2.8.
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button(action: abrirCategorias) {
+                            Label("Categorias", systemImage: "tag")
+                        }
+                    } label: {
+                        Label("Mais opções", systemImage: "ellipsis.circle")
                     }
                 }
             }

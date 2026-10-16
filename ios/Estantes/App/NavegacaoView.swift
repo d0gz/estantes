@@ -7,6 +7,7 @@ import SwiftUI
 struct NavegacaoView: View {
     let dependencias: Dependencias
     private let acaoInicial: InicioView.AcaoInicial?
+    private let acaoNasCategorias: CategoriasView.AcaoInicial?
     /// Em `@State` para sobreviver quando quem monta esta view a recria (o pedido já usado não volta).
     @State private var folhaPendente: FolhaPendente?
     @State private var caminho: NavigationPath
@@ -15,18 +16,31 @@ struct NavegacaoView: View {
     init(
         dependencias: Dependencias,
         acaoInicial: InicioView.AcaoInicial? = nil,
+        acaoNasCategorias: CategoriasView.AcaoInicial? = nil,
         caminhoInicial: NavigationPath = NavigationPath(),
         folhaInicial: FolhaPendente? = nil
     ) {
         self.dependencias = dependencias
         self.acaoInicial = acaoInicial
+        self.acaoNasCategorias = acaoNasCategorias
         _folhaPendente = State(initialValue: folhaInicial)
         _caminho = State(initialValue: caminhoInicial)
     }
 
     var body: some View {
         NavigationStack(path: $caminho) {
-            InicioView(viewModel: dependencias.fazerInicioViewModel(), acaoInicial: acaoInicial)
+            InicioView(
+                viewModel: dependencias.fazerInicioViewModel(),
+                abrirCategorias: { caminho.append(RotaDasCategorias()) },
+                acaoInicial: acaoInicial
+            )
+                .navigationDestination(for: RotaDasCategorias.self) { _ in
+                    CategoriasView(
+                        viewModel: dependencias.fazerCategoriasViewModel(),
+                        formulario: dependencias.fazerCategoriaFormularioViewModel,
+                        acaoInicial: acaoNasCategorias
+                    )
+                }
                 .navigationDestination(for: Estante.self) { estante in
                     EstanteView(
                         viewModel: dependencias.fazerEstanteViewModel(estante: estante),
