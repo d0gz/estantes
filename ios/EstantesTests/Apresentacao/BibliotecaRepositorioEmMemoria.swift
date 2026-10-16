@@ -144,4 +144,11 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
             livrosGuardados[livro.id]?.categoriaIds.remove(id)
         }
     }
+
+    func quantidadeDeLivrosPorCategoria() async throws -> [UUID: Int] {
+        try lendo()
+        return categoriasGuardadas.keys.reduce(into: [:]) { quantidades, id in
+            quantidades[id] = livrosGuardados.values.filter { $0.categoriaIds.contains(id) }.count
+        }
+    }
 }
