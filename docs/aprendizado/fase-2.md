@@ -2662,3 +2662,68 @@ Fechou-se o estilo da tela de apagar estante. O `Paleta.aplicarNoUIKit()` (`Cor.
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+### Correção das respostas
+(sem respostas)
+
+## Tarefa 2.4 — Fechamento: revisão da branch, extrações e keepalive (2026-10-16)
+
+### O que foi feito
+Fechou-se a 2.4 com uma revisão da branch inteira (64 commits, 59 arquivos) por dois revisores em paralelo. Do que apontaram, entraram: `Quantidade.livros` (`Componentes/Quantidade.swift`, com `QuantidadeTests`), o modificador `.alertaDeErro` (`Componentes/AlertaDeErro.swift`), o renome `SecaoDoLivro` → `GrupoDeCampos` (`LivroDetalheViewModel.swift`) e a remoção do token `Espaco.enorme`. O PLANO e o CLAUDE.md foram atualizados (próximo: 2.5). Os 361 testes seguem verdes. Também se conferiu o keepalive do Supabase.
+
+### Conceitos envolvidos
+
+**1. Acoplamento entre telas e a função no lugar errado.** `EstanteView` chamava `InicioView.textoDaQuantidade` só para pluralizar. Uma tela dependia de outra por causa de um utilitário: se o Inicio mudasse ou fosse removido, a Estante quebraria sem motivo de negócio. É o cheiro "Mudança divergente" (uma classe muda por razões que não são dela) e também um começo de dependência circular entre módulos de tela. A saída é mover o utilitário para uma camada comum (`Componentes/`), da qual as duas dependem. Dependências passam a formar um grafo em V (telas -> componentes), não uma fila (Estante -> Inicio).
+
+**2. Regra de três e extração de modificador.** Três cópias do mesmo `.alert` justificavam extrair; a Fase 3 seria a quarta. Como `.alert(isPresented:)` pede `Binding<Bool>` e o ViewModel guarda `String?`, o modificador faz a ponte:
+
+```swift
+Binding(get: { mensagem.wrappedValue != nil },
+        set: { if !$0 { mensagem.wrappedValue = nil } })
+```
+
+O `get` deriva o booleano do opcional; o `set` só reage ao fechar (`false`), limpando a mensagem. Assim há uma única fonte de verdade (a mensagem); o booleano nunca é estado próprio e não pode ficar fora de sincronia. `extension View` com função que devolve `some View` é o jeito idiomático de criar modificadores próprios em SwiftUI (alternativa mais pesada: um tipo `ViewModifier`, útil quando o modificador precisa de `@State` próprio).
+
+**3. Linguagem ubíqua (DDD).** O GLOSSARY lista "seção" como termo a evitar (em Parte e em Prateleira). `SecaoDoLivro` usava a palavra num terceiro sentido, e o leitor teria de adivinhar qual. Nomes de código fazem parte do vocabulário do domínio; renomear é barato (o compilador acha todos os usos), ambiguidade deixada custa a cada leitura.
+
+**4. Código morto detectado por grep.** Para cada `static` em `Componentes/`, procurou-se uso no resto do código; só `Espaco.enorme` não tinha. Técnica simples e eficaz em projeto pequeno. Em projeto grande, o compilador não avisa de símbolos públicos sem uso; existem ferramentas de análise estática para isso (verifique, por exemplo, o Periphery).
+
+**5. Keepalive e o que conta como atividade.** O plano gratuito do Supabase pausa projetos inativos (confira a regra atual na documentação). Só uma requisição que chega ao Postgres conta: um ping sem chave é barrado no gateway (API gateway) antes e não prova nada. Por isso a execução de 15/10 consultou `lexml_livros` de verdade (HTTP 200, 83.612 livros). Outro ponto: o `cron` do GitHub Actions é "melhor esforço": agendado para 12:17 UTC, rodou às 17:05. Atrasos de horas são normais, então o intervalo entre execuções precisa de folga em relação ao limite (aqui, abaixo de 7 dias).
+
+### Por que assim
+- **Revisão da branch inteira:** revisar commit a commit não vê o que só aparece no conjunto (duplicação que nasce em três commits distantes, acoplamento entre telas). Dois revisores com focos diferentes (padrões e aderência ao plano) cobrem eixos distintos.
+- **Aceitar P1, P2, P4; recusar P3:** generalizar o `switch` carregando/erro/pronto seria generalidade especulativa. O estado "pronto" é diferente em cada tela, então a abstração teria muitos parâmetros e pouca reutilização. Duplicação *aparente* não é duplicação de *conhecimento*.
+- **Conferir o achado P5 antes de aceitar:** o revisor disse que `Confirmacao/` e `Scanner/` estavam vazias e fora do git; mas têm `.gitkeep` versionado. Revisor (humano ou modelo) erra; aceitar sem verificar teria criado trabalho inútil.
+- **Teste da quantidade só mudou de arquivo:** por isso a contagem ficou em 361. O teste testa a função onde ela agora mora.
+- **Só uma linha no Histórico:** o critério é "difícil de reverter". Formulário no `Form` nativo e foto a 1200 px entram (afetam dados e estrutura); o restante se desfaz apagando código.
+- **PR pronto, merge por ordem do Ricardo; 2.5 em branch nova a partir do `main`:** mantém PRs revisáveis e evita empilhar trabalho numa branch longa.
+
+### Alternativas descartadas
+- Manter `textoDaQuantidade` na `InicioView` e deixá-la `static` pública: resolve a compilação, mas mantém o acoplamento.
+- Um componente genérico `EstadoDeTela<Carregando, Erro, Pronto>`: ver P3 acima.
+- Colocar a quantidade em `Dominio/`: é texto de apresentação em português, não regra de negócio; o Domínio deve ficar sem formatação de tela.
+- Renomear só no código e deixar "seção" nos comentários: foi renomeado em ambos, senão a incoerência volta.
+
+### Padrões e boas práticas
+- **Regra de três** (Fowler, *Refactoring*): duplique até a terceira vez, então extraia. Antes disso, você ainda não sabe o que varia. NÃO use quando as cópias parecem iguais mas mudam por razões diferentes.
+- **Fonte única de verdade:** derive o que puder (o booleano do alerta) em vez de armazenar.
+- **Refatorar com testes verdes:** a suíte de 361 testes é a rede de segurança que permite renomear e mover sem medo.
+- **Ceticismo com relatórios automáticos:** verificar a evidência antes de agir.
+
+### Armadilhas
+- O `set` do `Binding` derivado é chamado também quando o alerta fecha por outro caminho; se ele limpasse a mensagem sem checar `$0`, abrir o alerta poderia zerá-la.
+- Mover um teste de arquivo sem mudar o conteúdo é fácil de esquecer de rodar: confirme que o total de testes não caiu por engano (aqui, a contagem igual vem de um teste removido e um adicionado).
+- Cron do GitHub Actions: não confie no horário exato; se o limite do serviço fosse apertado, um atraso poderia estourá-lo.
+
+### Para ir além
+- Martin Fowler, *Refactoring* (2ª ed.): "Duplicated Code", "Divergent Change" e a Regra de Três.
+- Eric Evans, *Domain-Driven Design*: capítulo sobre Linguagem Ubíqua.
+- Documentação do GitHub Actions sobre o evento `schedule` (atrasos e limitações).
+
+### Perguntas
+1. Com suas palavras: por que `EstanteView` depender de `InicioView.textoDaQuantidade` era um problema, mesmo compilando e passando nos testes? Que direção as dependências passaram a ter?
+2. Aplicação: na Fase 3 surge uma quarta tela com mensagem de erro e uma quinta com dois alertas diferentes. O que `.alertaDeErro` já resolve e o que você precisaria mudar nele (ou não usá-lo) para o segundo caso?
+3. Raciocínio: o revisor recusado (P3) propunha unificar o `switch` de estados. Dê um critério para decidir quando uma duplicação deve virar abstração e quando é só coincidência. Aplique-o ao `switch` das telas.
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
