@@ -20,6 +20,8 @@ enum DadosDeExemplo {
         criadaEm: Date(timeIntervalSinceReferenceDate: 3)
     )
     static let tratadoTomo48 = UUID(uuidString: "B0000000-0000-0000-0000-000000000048")!
+    /// Sem categoria: o chip fantasma no Detalhe e na Estante.
+    static let tratadoTomo47 = UUID(uuidString: "B0000000-0000-0000-0000-000000000047")!
     static let cursoConstitucional = UUID(uuidString: "B0000000-0000-0000-0000-000000000001")!
     /// Três autores e dois de nome longo, para o Detalhe: sobrenomes no cabeçalho, nomes inteiros no cartão "Autores".
     static let teoriaGeralDoProcesso = UUID(uuidString: "B0000000-0000-0000-0000-000000000003")!
@@ -56,7 +58,7 @@ enum DadosDeExemplo {
                   autores: ["Miranda, Pontes de"], editora: "Borsoi", local: "Rio de Janeiro", edicao: "2.ª ed.",
                   volume: 48, volumeRotulo: "Tomo XLVIII", parte: "Parte especial", ano: 1965, prateleira: "caixa azul",
                   categoriaIds: [civil.id]),
-            Livro(estanteId: escritorio.id, titulo: "Tratado de direito privado",
+            Livro(id: tratadoTomo47, estanteId: escritorio.id, titulo: "Tratado de direito privado",
                   autores: ["Miranda, Pontes de"], editora: "Borsoi", local: "Rio de Janeiro",
                   volume: 47, volumeRotulo: "Tomo XLVII", parte: "Parte especial", ano: 1965, prateleira: "caixa azul"),
             Livro(estanteId: escritorio.id, titulo: "Lições preliminares de direito",
@@ -158,6 +160,8 @@ enum Captura: String {
     case livroDetalheTresAutores = "LivroDetalheTresAutores"
     case livroDetalheDoisAutores = "LivroDetalheDoisAutores"
     case apagarLivro = "ApagarLivro"
+    case livroDetalheSemCategoria = "LivroDetalheSemCategoria"
+    case escolhaDeCategorias = "EscolhaDeCategorias"
     case formularioNovo = "FormularioNovo"
     case formularioEditar = "FormularioEditar"
     case categorias = "Categorias"
@@ -202,6 +206,18 @@ enum Captura: String {
         case .livroDetalheDoisAutores:
             ComExemplos {
                 NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.sala, livro: DadosDeExemplo.cursoMendesBranco))
+            }
+        case .livroDetalheSemCategoria:
+            ComExemplos {
+                NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo47))
+            }
+        case .escolhaDeCategorias:
+            ComExemplos {
+                NavegacaoView(
+                    dependencias: $0,
+                    caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48),
+                    folhaInicial: FolhaPendente(.categorias, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo48))
+                )
             }
         case .apagarLivro:
             ComExemplos {

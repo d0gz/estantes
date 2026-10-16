@@ -7,6 +7,8 @@ import SwiftUI
 /// `Layout` é do iOS 16: dispensa medir os chips com `GeometryReader` e `PreferenceKey`.
 struct FluxoDeChips: Layout {
     var espaco: CGFloat = Espaco.pequeno
+    /// Centraliza cada linha (cabeçalho do Detalhe); senão os chips começam à esquerda (Estante).
+    var centralizado = false
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let largura = proposal.width ?? .infinity
@@ -51,7 +53,9 @@ struct FluxoDeChips: Layout {
         var posicoes = Array(repeating: (origem: CGPoint.zero, tamanho: CGSize.zero), count: subviews.count)
         var y: CGFloat = 0
         for linha in Self.linhas(larguras: tamanhos.map(\.width), espaco: espaco, larguraDisponivel: largura) {
-            var x: CGFloat = 0
+            let ocupada = linha.map { tamanhos[$0].width }.reduce(0, +) + espaco * CGFloat(linha.count - 1)
+            // Só com largura conhecida: medindo sem limite (`.infinity`), não há sobra para dividir.
+            var x: CGFloat = centralizado && largura.isFinite ? max(0, (largura - ocupada) / 2) : 0
             let altura = linha.map { tamanhos[$0].height }.max() ?? 0
             for indice in linha {
                 // Centrado na vertical dentro da linha (um chip com nome em duas linhas fica mais alto).

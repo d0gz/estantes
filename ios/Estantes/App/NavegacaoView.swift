@@ -56,8 +56,11 @@ struct NavegacaoView: View {
                         viewModel: dependencias.fazerLivroDetalheViewModel(livroId: rota.livroId),
                         miniaturas: dependencias.miniaturas,
                         formulario: dependencias.fazerLivroFormularioViewModel,
+                        escolha: dependencias.fazerEscolhaDeCategoriasViewModel,
+                        formularioDeCategoria: dependencias.fazerCategoriaFormularioViewModel,
                         abrirConfirmacao: folha == .confirmacaoDeApagar,
-                        abrirFormulario: folha == .formulario
+                        abrirFormulario: folha == .formulario,
+                        abrirCategorias: folha == .categorias
                     )
                     .onAppear { folhaPendente?.esquecer(se: rota) }
                 }
@@ -78,6 +81,7 @@ final class FolhaPendente {
     enum Folha {
         case formulario
         case confirmacaoDeApagar
+        case categorias
     }
 
     private var pedido: (folha: Folha, alvo: AnyHashable)?
