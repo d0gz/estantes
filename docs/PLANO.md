@@ -451,25 +451,45 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   a anterior (`.task(id:)`). Se só a foto falhar ao gravar: "O livro foi salvo, mas a foto não." (folha aberta; Salvar
   de novo atualiza o mesmo livro). Se a foto atual não abrir na edição, aviso "Não foi possível abrir a foto atual."
 
-- **Categorias (2.5, decidido em 16/10 via `/decidir`):**
+- **Categorias (2.5, decidido em 16/10 via `/decidir`, estilo aprovado nas capturas `EstiloCategorias_1.6–1.7`,
+  `Categorias_0.1–0.2`, `LivroDetalhe_2.0`, `Estante_2.0–2.1`):**
   - Paleta de 10 (`vermelho, laranja, amarelo, verde, menta, indigo, roxo, rosa, marrom, cinza`) com hex fixos em
-    `Paleta` (ver Histórico de 16/10); véu = cor viva a 15% sobre o `cartao`. O cinza (`#8E8E93`, texto claro
-    `#636366`) só congela depois da captura `EstiloCategorias_1.6`. `PaletaTests` mede o texto do chip sobre o véu
-    para todas as `CorCategoria.allCases`, nos dois modos.
-  - Componentes: `ChipDeCategoria` (com a variante fantasma "+ Categoria") e um layout de fluxo próprio (`Layout`, iOS 16)
-    que quebra os chips em linhas; todos os chips visíveis, sem "+N" (serve também à 2.7).
-  - Gerenciar: menu ⋯ do Inicio (por ora só "Categorias", visível também sem estantes) → lista alfabética com o chip
-    e a contagem ("Penal · 3", pela porta `quantidadeDeLivrosPorCategoria() -> [UUID: Int]`); uma folha só para criar e
-    editar (nome, grade de círculos com ✓ e nome da cor para o VoiceOver, prévia do chip); erro do `NomeDeCategoria`
-    em `Cor.perigo` só depois de tentar salvar; deslizar apaga, com confirmação que diz quantos livros perdem a etiqueta.
-    A cor já vem sugerida: a menos usada, empate pela ordem da paleta (`CorSugerida`, `[eu escrevo]` com ajuda).
+    `Paleta.categoria(_:)` (`Componentes/PaletaDeCategorias.swift`; ver Histórico de 16/10). Por cor: **viva** (contorno e
+    ícone: no claro a cor do sistema, no escuro a variante de alto contraste), **texto** (no claro o matiz escurecido até
+    ~4,6:1; no escuro o alto contraste) e **véu** (fundo, a 15% sobre o `cartao`: a cor do sistema **normal** de cada
+    modo, não o alto contraste, como no protótipo aprovado). Exceção: o **índigo** no escuro tem texto `#8582FF` (o
+    alto contraste `#7D7AFF` dava 4,3:1 sobre o véu; escolhido entre três na captura 1.6), contorno no `#7D7AFF`. O
+    **cinza** (`#8E8E93`, texto claro `#636366`, escuro `#AEAEB2`) foi aprovado e congelado na captura 1.6.
+    `PaletaTests` mede o texto do chip sobre o véu para todas as `CorCategoria.allCases`, nos dois modos, e congela os
+    tons de texto do claro (fonte: as capturas). Cor gravada desconhecida (o "azul" antigo) vira cinza na leitura.
+  - Componentes: `ChipDeCategoria` (com a variante fantasma "+ Categoria": `plus`, contorno tracejado em
+    `textoSecundario`, sem véu) e o `FluxoDeChips` (`Layout`, iOS 16; conta das linhas pura e testada; alinhamento à
+    esquerda ou centralizado) que quebra os chips em linhas; todos visíveis, sem "+N" (serve também à 2.7). Com texto
+    grande os nomes não cortam letra a letra (captura `EstiloCategorias_1.7-textogrande`). `EstiloPressao` (encolhe e
+    escurece ao tocar) em `Componentes/`, para a foto e os chips.
+  - Gerenciar: menu ⋯ do Inicio (`ellipsis.circle`, à direita do "+"; por ora só "Categorias", visível também sem
+    estantes) → tela **empurrada** (não folha: a de criar/editar abriria folha sobre folha) com a lista alfabética, o
+    chip e a contagem ("3 livros", pela porta `quantidadeDeLivrosPorCategoria() -> [UUID: Int]`), em `List` sobre o
+    cinza agrupado do sistema com a `.sombraSuave()` no cartão (exceção ao Estilo 0, como o Formulário). Uma folha só
+    para criar e editar (nome, grade de círculos com anel em `.primary` e ✓ na escolhida e o nome da cor para o
+    VoiceOver, prévia do chip); erro do `NomeDeCategoria` em `Cor.perigo` só depois de tentar salvar. **Apagar por três
+    caminhos** que levam à mesma confirmação (quantos livros perdem a etiqueta; os livros ficam): deslizar a linha, menu
+    de contexto (Editar, Apagar) e "Apagar categoria" no fim da folha de edição (o caminho visível; os outros são
+    atalhos, como em Notas e Lembretes). A cor já vem sugerida: a menos usada, empate pela ordem da paleta
+    (`CorSugerida`, `[eu escrevo]` com ajuda).
   - Escolha no livro: folha com todas as categorias (alfabética, ✓, sem busca; as marcadas não sobem), "Nova categoria"
     no fim (volta já marcada); vazio com frase + "Nova categoria". Grava no "OK"; "Cancelar" descarta.
-    **Nota:** pode virar "grava a cada toque" (estilo Lembretes), se o uso pedir.
+    **Nota:** pode virar "grava a cada toque" (estilo Lembretes), se o uso pedir. "Nova categoria" abre a folha de criar
+    **por cima** da de escolha (folha sobre folha, exceção ao motivo da tela empurrada: empurrar o formulário dentro da
+    folha poria uma `NavigationStack` dentro da outra). **Limitação conhecida:** o "OK" grava o `Livro` inteiro lido ao
+    abrir a folha; se o livro mudasse entre abrir e confirmar, a mudança se perderia (mesma família da limitação da 2.2;
+    rever se surgir uma porta só para categorias).
   - Detalhe: chips centralizados no cabeçalho, abaixo dos autores (no lugar de um cartão com "Editar"); tocar abre a
     escolha; sem categoria, o chip fantasma. Estante: linha de chips abaixo de autor · ano, fantasma só sem categoria,
     toque nos chips e menu de contexto "Categorias…" abrem a mesma folha; VoiceOver lê a linha combinada e ganha a ação
-    "Categorias…" (`accessibilityAction`). O Formulário continua sem categorias.
+    "Categorias…" (`accessibilityAction`). Nos tamanhos de acessibilidade, os chips da Estante saem da coluna ao lado da
+    miniatura e ocupam a largura da linha ("Constitucional" quebrava no meio da palavra). O Formulário continua sem
+    categorias.
 
 ### Forma de trabalho nas telas (2.4 em diante)
 
@@ -578,17 +598,20 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   Ferramentas: `./scripts/testar.sh` (com `TEST_RUNNER_RELATORIO=1` na frente, roda também o relatório `[referencia]`
   e a varredura `[varredura]` da busca, que fora disso ficam pulados; a saída fica no log); `./scripts/capturar.sh <Tela> <versão> [<pasta>]` (casos no enum `Captura`, `App/Exemplos.swift`);
   testar à mão com `xcrun simctl launch "iPhone 14" com.ricardo.estantes -captura Inicio` (exemplos em memória).
-- [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
+- [x] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
   + chips no cartão do livro na Estante (linha abaixo de autor · ano): chip fantasma "+ Categoria" só nos livros sem
   categoria; tocar nos chips abre a escolha; menu de contexto "Categorias…" (decisão de 13/10)
   + pendências do estilo: chip do catálogo como componente, chips com texto grande, pares do `PaletaTests`
-  **Onde paramos (16/10, branch `fase2/categorias`, 361 testes):** decisões tomadas no `/decidir` (ver "Categorias
-  (2.5)" na seção Interface e o Histórico de 16/10). Passos: 1 paleta + `PaletaTests` → 2 `ChipDeCategoria` + layout de
-  fluxo (captura `EstiloCategorias_1.6`) → 3 `CorSugerida` `[eu escrevo]` → 4 porta (contagem) + tela de gerenciar +
-  menu ⋯ → 5 folha de escolha + chips no Detalhe → 6 chips na Estante → 7 fechamento. **Próximo: passo 1.**
-  **Risco técnico a conferir à mão (passo 6):** na Estante, os chips são um botão dentro do botão da linha
-  (`NavigationLink`); o toque nos chips deve abrir a escolha, e no resto da linha, o Detalhe. O `simctl` não toca na
-  tela: o Ricardo confere no simulador.
+  **Onde paramos (16/10, branch `fase2/categorias`, 400 testes):** 2.5 concluída (passos 1 paleta + `PaletaTests` ✅ ·
+  2 `ChipDeCategoria` + `FluxoDeChips` ✅ · 3 `CorSugerida` `[eu escrevo]` ✅ · 4 porta + gerenciar + menu ⋯ ✅ · 5 escolha
+  + Detalhe ✅ · 6 Estante ✅ · 7 fechamento ✅). Pendências do estilo resolvidas: chip como componente, chips com texto
+  grande (`EstiloCategorias_1.7-textogrande`, `Estante_2.1-textogrande`), pares do `PaletaTests` (laço em `allCases`).
+  No meio, a correção da barra do Detalhe sem fundo ao rolar (ver Histórico de 16/10). Revisão final: aplicados P1, P3–P6,
+  P8, P9 e E1–E11; recusados P2 (foto ampliada sem janela: só com tela na janela, testada à mão), P11 (laço da
+  `CorSugerida` mantido), P12, P13. **Próximo: 2.6 (sumário manual)**, numa branch nova depois do merge, pelo `/decidir`.
+  **Risco técnico (passo 6):** na Estante, os chips são um botão dentro do botão da linha (`NavigationLink`). Conferido à
+  mão pelo Ricardo no **iOS 16** (chips abrem a escolha, o resto da linha abre o Detalhe, segurar mostra "Categorias…");
+  no **iOS 26** ainda não (sem aparelho nem simulador 26 no Mac): conferir quando houver.
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
@@ -832,4 +855,5 @@ do parser e do Gemini.
 | 13/10 | Foto ampliada do Detalhe apresentada pelo UIKit (`.overFullScreen` + esmaecer, num `UIViewControllerRepresentable` invisível), não por `fullScreenCover` nem por overlay | No iOS 16 o `fullScreenCover` é opaco (tira o Detalhe, e o fundo esmaecido precisa dele atrás) e o `presentationBackground` é do 16.4; overlay no Detalhe deixa a barra de navegação por cima do escuro, e na raiz do app espalha estado e uma ação pelo ambiente até uma tela funda |
 | 16/10 | Formulário no `Form` nativo e foto guardada a 1200 px confirmados como definitivos | Revisa as duas linhas de 13/10 marcadas "provisório: a confirmar nas capturas": os dois foram vistos e aprovados nas capturas 1.2–2.3; manter o rótulo deixaria a dúvida aberta sem motivo |
 | 16/10 | Paleta de categorias com 10 casos: vermelho, laranja, amarelo, verde, menta, índigo, roxo, rosa, marrom, cinza (saem azul e turquesa do enum de 03/10) | O enum ainda tinha azul e turquesa, vetados na linha de 12/10 (colidem com o destaque); as 9 vêm do protótipo aprovado (captura `EstiloCategorias_1.5`) e o cinza dá uma etiqueta neutra. O valor bruto vai para o Core Data e para o JSON v1, por isso muda agora, antes da 2.8. Só as 9, sem cinza, foi descartado |
+| 16/10 | Apresentador da foto ampliada dentro do conteúdo rolável (no botão da miniatura) e como `UIViewRepresentable` que apresenta pelo topo da janela; revisa o detalhe de implementação da linha de 13/10 (continua UIKit com `.overFullScreen`) | No Detalhe, a barra de navegação não ganhava fundo ao rolar e o texto passava por baixo do "voltar". Causa (diagnosticada com captura rolada): uma vista do UIKit em volta da `ScrollView` (o `.background` na tela inteira) impede a barra de reconhecer a rolagem. Trocar só o `UIViewControllerRepresentable` por uma `UIView` não resolveu; o que resolveu foi a posição. Sem teste de regressão (sem XCUITest) |
 | 16/10 | Tons das categorias congelados em hex (viva, texto claro, alto contraste escuro), lidos do iOS 16 em que foram aprovados, em vez de derivar das cores do sistema em tempo de execução | O `PaletaTests` roda no iOS 16 do Mac, mas o `.ipa` roda no iOS 26, cujas cores do sistema podem mudar: derivar deixaria o teste medindo outra cor que a da tela. Hex fixo aparece na revisão, como nos outros tokens |
