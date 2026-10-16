@@ -252,6 +252,27 @@ final class LivroFormularioViewModelTests: XCTestCase {
         }
     }
 
+    // MARK: Colaboradores
+
+    /// Os helpers de apagar e mover são os mesmos dos autores (testados acima); aqui só a ligação com a lista certa.
+    func testAdicionarApagarEMoverColaboradores() {
+        let viewModel = LivroFormularioViewModel(modo: .novo(estanteId: escritorio.id), repositorio: BibliotecaRepositorioEmMemoria(), fotoTrocada: { _ in })
+        let bastos = Colaborador(nome: "Bastos, Aurélio Wander", papel: "prefácio")
+        let cordeiro = Colaborador(nome: "Cordeiro Filho, Antonio", papel: "produção")
+        viewModel.rascunho.colaboradores = [bastos, cordeiro]
+
+        viewModel.adicionarColaborador()
+        XCTAssertEqual(viewModel.rascunho.colaboradores, [bastos, cordeiro, Colaborador(nome: "", papel: "")])
+
+        viewModel.moverColaboradores(de: IndexSet([0]), para: 2)
+        XCTAssertEqual(viewModel.rascunho.colaboradores, [cordeiro, bastos, Colaborador(nome: "", papel: "")])
+
+        viewModel.apagarColaboradores(em: IndexSet([2]))
+        XCTAssertEqual(viewModel.rascunho.colaboradores, [cordeiro, bastos])
+        // Os autores não foram tocados.
+        XCTAssertEqual(viewModel.rascunho.autores, [""])
+    }
+
     // MARK: Prateleira
 
     private func repositorioComPrateleiras() -> BibliotecaRepositorioEmMemoria {

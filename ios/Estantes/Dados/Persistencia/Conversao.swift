@@ -23,8 +23,10 @@ enum FormatoPersistido {
     static let separadorAutores = "\n"
     /// Decidido no PLANO.md: "Direito > Direito civil > Contratos".
     static let separadorCddir = " > "
-    /// Separa o papel do nome em cada linha de colaborador: a tabulação não aparece em texto impresso,
-    /// e o nome tem vírgula e o papel pode ter espaços.
+    /// Um colaborador por linha. Próprio, e não o dos autores: mudar um não pode quebrar o outro.
+    static let separadorColaboradores = "\n"
+    /// Separa o papel do nome em cada linha de colaborador: o nome tem vírgula e o papel pode ter espaços.
+    /// Os dois separadores viram espaço dentro do texto ao gravar (`semSeparadores`).
     static let separadorPapel = "\t"
 }
 
@@ -92,7 +94,7 @@ extension LivroMO {
             titulo: titulo,
             subtitulo: subtitulo,
             autores: Self.lista(autores, separador: FormatoPersistido.separadorAutores),
-            colaboradores: Self.lista(colaboradores, separador: FormatoPersistido.separadorAutores)
+            colaboradores: Self.lista(colaboradores, separador: FormatoPersistido.separadorColaboradores)
                 .map(Self.colaborador),
             editora: editora,
             local: local,
@@ -128,8 +130,8 @@ extension LivroMO {
         subtitulo = livro.subtitulo
         autores = livro.autores.joined(separator: FormatoPersistido.separadorAutores)
         colaboradores = livro.colaboradores
-            .map { $0.papel + FormatoPersistido.separadorPapel + $0.nome }
-            .joined(separator: FormatoPersistido.separadorAutores)
+            .map { Self.semSeparadores($0.papel) + FormatoPersistido.separadorPapel + Self.semSeparadores($0.nome) }
+            .joined(separator: FormatoPersistido.separadorColaboradores)
         editora = livro.editora
         local = livro.local
         edicao = livro.edicao
@@ -154,6 +156,13 @@ extension LivroMO {
     /// não `[]`. Sem este cuidado, um livro sem autores voltaria do banco com um autor "".
     private static func lista(_ texto: String, separador: String) -> [String] {
         texto.isEmpty ? [] : texto.components(separatedBy: separador)
+    }
+
+    /// O formulário já limpa o texto, mas um `Livro` vindo do OCR ou de uma importação pode trazer tabulação ou
+    /// quebra de linha; sem esta troca, o colaborador voltaria partido em dois ou com o papel dentro do nome.
+    private static func semSeparadores(_ texto: String) -> String {
+        texto.replacingOccurrences(of: FormatoPersistido.separadorPapel, with: " ")
+            .replacingOccurrences(of: FormatoPersistido.separadorColaboradores, with: " ")
     }
 
     /// "prefácio⇥Bastos, Aurélio Wander" → papel e nome. Corta na primeira tabulação; uma linha sem ela

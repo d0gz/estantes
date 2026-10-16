@@ -29,7 +29,7 @@ final class LivroMO: NSManagedObject {
     @NSManaged var subtitulo: String?
     /// Um autor por linha (`FormatoPersistido.separadorAutores`).
     @NSManaged var autores: String
-    /// Um colaborador por linha, "papel⇥nome" (`FormatoPersistido.separadorPapel`).
+    /// Um colaborador por linha, "papel⇥nome" (`FormatoPersistido.separadorColaboradores` e `.separadorPapel`).
     @NSManaged var colaboradores: String
     @NSManaged var editora: String?
     @NSManaged var local: String?

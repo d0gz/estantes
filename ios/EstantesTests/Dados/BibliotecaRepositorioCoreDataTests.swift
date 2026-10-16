@@ -162,6 +162,22 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         ])
     }
 
+    // Um `Livro` que não passou pelo formulário (OCR, Gemini, importação) pode trazer tabulação ou quebra de linha
+    // dentro do texto, os mesmos caracteres que separam papel, nome e linhas no banco. Viram espaço ao gravar.
+    func testTabulacaoEQuebraDeLinhaNoTextoNaoQuebramOColaborador() async throws {
+        let estante = try await novaEstante()
+        let livro = Livro(
+            estanteId: estante.id,
+            titulo: "A essência da constituição",
+            colaboradores: [Colaborador(nome: "Bastos,\nAurélio Wander", papel: "pre\tfácio")],
+            adicionadoEm: data
+        )
+        try await repositorio.salvar(livro)
+
+        let lido = try await repositorio.livro(id: livro.id)
+        XCTAssertEqual(lido?.colaboradores, [Colaborador(nome: "Bastos, Aurélio Wander", papel: "pre fácio")])
+    }
+
     func testLivroSemColaboradoresVoltaComListaVazia() async throws {
         let estante = try await novaEstante()
         let livro = Livro(estanteId: estante.id, titulo: "Manual", adicionadoEm: data)

@@ -147,11 +147,14 @@ final class LivroDetalheViewModel: ObservableObject {
     /// Depois dos autores, cada colaborador com o papel como rótulo ("Prefácio"); sem papel, "Colaborador".
     private static func camposDosColaboradores(_ livro: Livro) -> [CampoDoLivro] {
         livro.colaboradores.compactMap { colaborador in
-            preenchido(colaborador.nome).map { nome in
-                let papel = preenchido(colaborador.papel).map { $0.prefix(1).uppercased() + $0.dropFirst() }
-                return CampoDoLivro(rotulo: papel ?? "Colaborador", valor: nome)
-            }
+            guard let nome = preenchido(colaborador.nome) else { return nil }
+            return CampoDoLivro(rotulo: preenchido(colaborador.papel).map(inicialMaiuscula) ?? "Colaborador", valor: nome)
         }
+    }
+
+    /// "prefácio" → "Prefácio": o papel vem minúsculo, como impresso no meio da frase da ficha CIP.
+    private static func inicialMaiuscula(_ texto: String) -> String {
+        texto.prefix(1).uppercased() + texto.dropFirst()
     }
 
     /// Os autores sem os vazios ou só de espaços, na ordem do livro.
