@@ -40,6 +40,8 @@ final class LivroDetalheViewModel: ObservableObject {
 
     @Published private(set) var estado: Estado = .carregando
     @Published var mensagemDeErro: String?
+    /// As categorias do livro (chips do cabeçalho), na ordem alfabética do repositório.
+    @Published private(set) var categoriasDoLivro: [Categoria] = []
 
     let livroId: UUID
     private let repositorio: BibliotecaRepositorio
@@ -51,7 +53,13 @@ final class LivroDetalheViewModel: ObservableObject {
 
     func carregar() async {
         do {
-            estado = try await repositorio.livro(id: livroId).map(Estado.pronto) ?? .naoEncontrado
+            guard let livro = try await repositorio.livro(id: livroId) else {
+                estado = .naoEncontrado
+                return
+            }
+            // O livro guarda só os ids; nomes e cores vêm das categorias.
+            categoriasDoLivro = try await repositorio.categorias().filter { livro.categoriaIds.contains($0.id) }
+            estado = .pronto(livro)
         } catch {
             estado = .erro("Não foi possível carregar o livro.")
         }
