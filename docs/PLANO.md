@@ -252,7 +252,7 @@ create index edicoes_obra on edicoes (obra_id);
 | Entidade | Campos | Regras |
 | --- | --- | --- |
 | `Estante` | id (UUID), nome, criadaEm | `livros` com exclusão em cascata; a interface confirma quantos livros serão apagados e oferece movê-los |
-| `Livro` | id (UUID), titulo, subtitulo, autores, editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoCapa, adicionadoEm; **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
+| `Livro` | id (UUID), titulo, subtitulo, autores, editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoMiniatura (foto livre: capa, folha de rosto…; era `fotoCapa`), adicionadoEm; isbn13 sempre com 13 dígitos sem hífens, prefixo 978/979 e verificador válido (regra `ISBN`, 13/10: toda porta de entrada passa por ela); **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
 | `ItemSumario` | id (UUID), ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3", "Art. 1.710", "§ 5.108"), titulo, pagina (opcional, **texto** desde a 2.3b: "245", "XI"), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
 | `Categoria` | id (UUID), nome (único, sem diferenciar maiúsculas/acentos), cor (identificador da paleta) | muitos-para-muitos com `Livro`; apagar a categoria = **nullify** (os livros só perdem a etiqueta) |
 
@@ -347,12 +347,133 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 ### Interface
 
 - Botão da câmera embaixo, centralizado.
-- Estantes em grade; estado vazio com livros esmaecidos `#cbe8f5` e "+" azul-escuro (conferir contraste).
+- Estantes em grade; estado vazio com livros esmaecidos na cor `superficie` (`#AED3FC`), frase e um botão só (ver "Inicio" abaixo).
 - Topo: último livro escaneado + campo de busca (`.searchable`): título, autor e assunto →
   "Livro · item do sumário, p. N · Estante X · prateleira". Com a busca ativa, aparecem os chips de filtro.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
   menu (⋯) no canto superior.
+
+- **Fundamentos do estilo (Estilo 0, decididos em 12/10):**
+  - Referências: Apple Books (disposição dos livros: capas protagonistas, serifa, transição capa → detalhe), Bevel (forma e
+    movimento: cartões macios, molas), Goodreads (densidade de informação do Detalhe) e Shelf Life (simplicidade).
+  - Cores por papel (60-30-10): branco `fundo`; `#AED3FC` `superficie`/seleção; azul `#0579B8` único
+    `destaque` (4,7:1 no branco; matiz do `#0369A1`, longe do índigo das categorias). Sobre a `superficie` clara o texto é
+    `.primary` (13,5:1) e o destaque só aparece como ícone ou forma (3,05:1 ≥ 3:1, WCAG 1.4.11, no piso: não clarear
+    mais): nenhum azul vivo passa 4,5:1 sobre o `#AED3FC`. No escuro, `#AED3FC`
+    vira destaque e a superfície, azul-marinho `#12305A` (branco sobre ele 13,2:1). `textoSecundario` próprio
+    (`#4A5A62`/`#C9D6DC`): o `.secondary` do sistema reprova (3,4:1 no branco). O petróleo `#1F5F73` saiu (opaco, "triste").
+  - Tipografia: SF na interface; New York (`design: .serif`) só em títulos de livros e estantes; tudo Dynamic Type.
+  - Forma: cantos contínuos, raios 8/12/20; sem contornos (separação por cor e sombra leve; no escuro, elevação por cor).
+  - Movimento: animações por mola com tokens nomeados; transições de entrada e saída em vez de aparecer seco; respeitar
+    "Reduzir movimento".
+  - "Vidro" (Liquid Glass) imitado no iOS 16 (`.ultraThinMaterial`, brilho claro fino na borda, pressão com mola) só nos
+    elementos flutuantes (botão da câmera, barra de filtros); as barras do sistema ganham o vidro real sozinhas no `.ipa`
+    da CI (Xcode 26) em iPhone com iOS 26. Ícone do vidro em `.primary` (o material segue o modo, não a capa; o azul
+    sumia sobre capas); o azul só no véu ao tocar. Limite conhecido: contraste sobre o que está atrás não é testado.
+  - Ação principal com `EstiloPrincipal` (fundo `destaque`, rótulo `sobreDestaque`), não `.borderedProminent`: esse
+    pinta o rótulo sempre de branco, ilegível sobre o `#AED3FC` no escuro (visto no catálogo).
+  - Categorias (2.5), chip "A": etiqueta (`tag`), contorno na cor viva, fundo pastel (cor a 15% sobre o cartão) e
+    texto no tom escuro do mesmo matiz no claro (escurecido só até ~4,6:1; ex. amarelo `#876C00`); no escuro, texto e
+    contorno na variante de alto contraste do sistema. Cores do sistema sem azul/ciano/teal, e rosa próprio `#FF2D92`
+    (escuro `#FF7AC0`), porque o `systemPink` ficava a 14° do vermelho. Protótipo em `-captura EstiloCategorias`;
+    na 2.5, tons fixos por cor com teste de contraste (inclusive o texto sobre o véu escuro) e ajuste do verde se preciso.
+  - Texto e controles sobre a `superficie` vão em `.primary` (o tint global daria 3,05:1 no claro).
+  - SF Symbols: `.symbolRenderingMode(.hierarchical)`; variante `.fill` só no estado selecionado; tamanho acompanha o texto; sem enum de ícones.
+  - Capas × lombadas: resolvido na Estante (13/10) com lista e miniatura; ver "Estante" abaixo.
+
+- **Inicio (estilo aprovado em 12/10, capturas 1.4–1.5; degraus do azul em `Inicio_1.3-t1…t4` e `Estilo_1.4-t1…t4`):** `CartaoDeEstante` em `Componentes/` (fundo `cartao` com
+  `.sombraSuave()`, ícone `books.vertical.fill` no destaque, nome em serifa e contagem em `textoSecundario` presos à base,
+  altura mínima 96); grade de 2 colunas, 1 nos tamanhos de texto de acessibilidade; pressão com mola (`EstiloCartao`,
+  modificador `.pressao` comum ao vidro e ao principal); entrada e troca de estado com a mola `suave` (esmaecer e subir
+  um pouco; só esmaecer com "Reduzir movimento"; sem cascata). Vazio no padrão da HIG: ilustração que só informa
+  (lombadas, sem "+"), título, frase e **uma** ação (`EstiloPrincipal`); o "+" da barra some sem estantes e surge com o
+  primeiro cartão. Variantes descartadas: duas ações (botão + "+" da barra) e só o "+" da barra (estilo Notas).
+
+- **Estante (estilo aprovado em 13/10, capturas 1.0–1.1, via `/decidir`):** um cartão por prateleira (`ScrollView` +
+  `LazyVStack`, fundo `cartao`, `.sombraSuave()`, `Raio.grande`), cabeçalho fora do cartão em SF semibold
+  `textoSecundario` com a contagem ("Caixa azul · 2"; o VoiceOver lê "Caixa azul, 2 livros"). Linha: `MiniaturaDoLivro`
+  2:3 (44 pt, cresce com o texto até 66 pt), título em serifa (`Fonte.tituloLivroNaLista`, até 3 linhas; inteiro nos
+  tamanhos de acessibilidade), volume, autor · ano; sem seta; toque com véu do destaque sem encolher (`EstiloLinha`).
+  Sem foto, a substituta: `superficie` com `book.closed` em `.primary`. A miniatura é a **foto livre** do livro
+  (`fotoMiniatura`), lida por linha pelo `CarregadorDeMiniaturas` (ImageIO + `NSCache` com o tamanho guardado).
+  Vazio igual ao Inicio ("Nenhum livro nesta estante", "Adicione os livros que ficam neste móvel.", "Adicionar
+  livro"); o "+" da barra só com livros. Exemplos: duas fotos desenhadas em código (sem fotos reais). Descartados: grade
+  de capas, lombadas, `List` restilizada, seta ›, miniatura de 56 pt. Os chips de categoria entram na 2.5 (abaixo).
+
+- **Detalhe (estilo aprovado em 13/10, capturas 1.0–1.2, via `/decidir`):** `ScrollView` com cabeçalho centralizado
+  (referência: Apple Books): `MiniaturaDoLivro` de 140 pt (`@ScaledMetric`, teto de 180 pt nos tamanhos de
+  acessibilidade) com `.sombraSuave()`, título em `Fonte.tituloLivro`, subtítulo em `textoSecundario`, volume em
+  semibold e a linha dos autores. **Autores no cabeçalho só pelos sobrenomes, como na ABNT (NBR 6023):** um autor,
+  nome inteiro; 2–3, "Cintra, Grinover e Dinamarco"; 4 ou mais, "Sarlet et al."; sobrenome = o que vem antes da
+  vírgula ("Sobrenome, Nome"), sem vírgula vai o nome inteiro. Depois, um cartão por seção (modificador `.cartao()`,
+  comum a Inicio, Estante e Detalhe; título fora do cartão como na Estante): **Autor/Autores** primeiro (nomes
+  inteiros, um por linha, sem rótulo), Obra (parte, número do volume quando há rótulo impresso, série, artigos),
+  Publicação e Na estante; campos com rótulo pequeno (`.caption`, `textoSecundario`) em cima e valor embaixo.
+  "Apagar livro" no fim, em cartão próprio, em `Cor.perigo` (vermelho de alto contraste da Apple, `#D70015`/`#FF6961`:
+  o `systemRed` dá 3,6:1 no branco). Barra só com voltar e "Editar"; empurrão padrão com entrada pela mola `suave`.
+  Sem espaço reservado para sumário (2.6) e categorias (2.5). Descartados: `List` restilizada, cabeçalho lado a
+  lado, todos os autores com nome inteiro no cabeçalho (com texto grande a quebra dentro de um nome parecia outro
+  autor), "e mais N" (soava traduzido), "+ N" (colide com o "+ Categoria" da 2.5), título na barra (pediria medir a
+  rolagem à mão no iOS 16). Exemplos: na Sala, um livro com 3 autores e outro com 2 de nome longo (capturas
+  `LivroDetalheTresAutores` e `LivroDetalheDoisAutores`).
+
+- **Apagar estante (estilo aprovado em 13/10, capturas 1.1 claro, escuro e texto grande, via `/decidir`):** fica a
+  folha de ação nativa (`confirmationDialog`) em duas etapas, com a opção que preserva os livros ("Mover os 6 livros e
+  apagar…") antes da destrutiva; uma folha própria com cartões foi descartada (refazer posição, VoiceOver e iPad à mão
+  para uma confirmação que deve ser rápida e familiar). Os botões de **todos** os alertas e folhas de ação do app usam
+  o `destaque` (`Paleta.aplicarNoUIKit()`, proxy de aparência do `UIAlertController`, chamado no `init` do app): o
+  `.tint` do SwiftUI não chega a eles no iOS 16, e o azul do sistema destoava do petróleo; o destrutivo continua
+  vermelho. Título da segunda folha com a quantidade ("Mover os 6 livros para…", "Mover o livro para…"). Mantidos:
+  aspas retas (`Apagar "Escritório"?`; as curvas foram recusadas pelo Ricardo) e destinos só com o nome (a
+  quantidade pesaria a lista; o Inicio já a mostra).
+
+- **Formulário (estilo aprovado em 13/10, confirmado em 16/10, capturas 1.2–1.3, via `/decidir`):** `Form` nativo com o cinza
+  agrupado e os cartões brancos do sistema (no escuro, `#1C1C1E`/`#2C2C2E` dentro da folha). **Exceção ao Estilo 0**,
+  a pedido do Ricardo: nem `fundo` nem `cartao`, porque branco sobre branco sem sombra (o `Form` não tem sombra por
+  seção) apagava os cartões, e o `Form` dá prontos apagar/arrastar autores, foco e fuga do teclado. Dos tokens vêm só
+  `textoSecundario` (nomes dos campos e títulos das seções), `Espaco` e a serifa do título. Campo vazio: nome e exemplo
+  no placeholder ("Edição (ex.: 3.ª ed.)"); preenchido: o nome passa para cima, pequeno (`.caption`), entrando com a
+  mola `suave` (resolve o "1965 sem dizer que é o ano"); escondido do VoiceOver, que lê o rótulo do `TextField`.
+  Título digitado em serifa (`Fonte.tituloLivroNaLista`). Título e subtítulo quebram linha (`axis: .vertical`), mas o
+  Return (ou texto colado com linhas) vira espaço e fecha o teclado; ao salvar, o `RascunhoLivro` junta espaços e
+  quebras repetidos num espaço só (todos os campos de texto). Autor com placeholder "Sobrenome, Nome" (o formato de
+  que o cabeçalho do Detalhe tira o sobrenome). Sugestões de prateleira (linhas ↳) e erros em `Cor.perigo` como na
+  lógica. Descartados: ScrollView com `.cartao()` (refazer o comportamento do `Form` à mão), nome sempre em cima
+  (poluía e dobrava a altura do Novo), nome à esquerda, fundo branco com linhas em `superficie`. Aviso esperado no
+  Xcode 26: `onChange(of:)` de um parâmetro é deprecated no iOS 17, mas é a única forma que o Xcode 14.2 aceita.
+  **Foto (13/10, capturas 2.0–2.3):** primeira seção, sem cartão (`.listRowBackground(Color.clear)`), com a
+  `MolduraDaFoto` (a mesma moldura da `MiniaturaDoLivro`, extraída) de 72 pt (`@ScaledMetric`, teto 120; menor que no
+  Detalhe, aqui é só para conferir). Sem foto, o botão "Adicionar foto" abre a fototeca direto; com foto, o `Menu`
+  "Trocar foto" tem "Escolher outra foto" e "Remover foto" (destrutivo). `PhotosPicker` com
+  `preferredItemEncoding: .current`: o padrão converte a foto cheia (HEIC → JPEG) antes de entregar, e no simulador
+  essa conversão falha (`PAMediaConversionServiceErrorDomain` 2). Escolher outra foto enquanto a anterior reduz cancela
+  a anterior (`.task(id:)`). Se só a foto falhar ao gravar: "O livro foi salvo, mas a foto não." (folha aberta; Salvar
+  de novo atualiza o mesmo livro). Se a foto atual não abrir na edição, aviso "Não foi possível abrir a foto atual."
+
+### Forma de trabalho nas telas (2.4 em diante)
+
+- **Primeiro a lógica, depois o estilo.** A 2.4 faz todas as telas funcionarem com componentes nativos do SwiftUI, sem
+  decisões visuais (2.4a montagem e tela inicial · 2.4b apagar estante com confirmação · 2.4c estante → livros (agrupados
+  por prateleira) → detalhe · 2.4d adicionar/editar livro à mão · 2.4e prateleira com sugestões). Depois vem o estilo,
+  **uma tela por vez** (Inicio → Estante → Detalhe → Formulário → Apagar estante), depois de um "Estilo 0" com os
+  fundamentos comuns (tokens de cor, tipografia, espaçamento, forma; ver "Onde paramos"). A tela só fecha com a aprovação do Ricardo.
+- **Estilo:** a direção é um app moderno, "smooth" e "seamless". A cada captura, o Claude traz de 2 a 4 perguntas de estilo
+  numeradas, com opções e uma recomendação (cartões, cores, tipografia, animações, SF Symbols, modo escuro).
+  O estilo comum fica em `Apresentacao/Componentes/` (cores, fontes, espaçamentos), e cada tela mantém
+  identidade própria. As escolhas são registradas na seção Interface. Só APIs do iOS 16, sem `if #available`.
+- **Capturas:** `docs/capturas/<Tela>/<Tela>_<versão>.png` (ex.: `Inicio/Inicio_1.2.png`), **só locais** (no `.gitignore`).
+  Versão: o primeiro número é a rodada (0 = lógica, 1, 2… = estilo); o segundo, o ajuste dentro dela.
+  Feitas com `xcodebuild build` + `xcrun simctl boot/install/launch` + `xcrun simctl io booted screenshot`. O `simctl`
+  não toca na tela; para telas internas, o app aceita **só em DEBUG** o argumento `-captura <Tela>`, que abre a tela
+  direto com dados de exemplo em memória (sem tocar no banco real).
+- **Parada por limite de uso:** quando faltarem 5–8% do limite da sessão (o `/usage`), parar onde estiver, atualizar
+  este PLANO (onde parou e qual o próximo passo), commitar e abrir o PR em rascunho (`gh pr create --draft`) se ainda
+  não houver. Voltar só quando o uso reiniciar ou o Ricardo mandar. O Claude não enxerga o `/usage`: **o Ricardo avisa**.
+  Commits pequenos ao fim de cada passo limitam a perda se o aviso não vier.
+- **Idioma:** `developmentLanguage: pt-BR` e `CFBundleDevelopmentRegion: pt-BR` (Info.plist) no `project.yml`, para os
+  textos do próprio sistema ("Voltar", "Cancelar", "Editar", folhas e alertas) saírem em português sem catálogo de
+  tradução. O app é só em português; localizar em inglês fica fora do escopo.
 
 ### Checklist da Fase 2
 
@@ -363,8 +484,84 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [x] Entidades do Domínio (structs; `Livro` como agregado com o sumário; categorias por id; capa fora da struct) + porta `BibliotecaRepositorio` + regra do nome de categoria
 - [x] `ValidacaoSumario` `[eu escrevo]` (escrita pelo Ricardo; 12 testes)
 - [x] Modelo `Estantes.xcdatamodeld` (com `ItemSumario` e `Categoria`) + `PersistenceController` (com versão em memória) + `BibliotecaRepositorioCoreData` (conversão `[eu escrevo]` em parte; 25 testes de Dados)
-- [ ] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
+- [x] Tela inicial, estante → livros → detalhe, adição/edição manual, prateleira com sugestões
+  (2.4a montagem e tela inicial ✅ · 2.4b apagar estante ✅ · 2.4c estante → livros → detalhe ✅ · 2.4d formulário ✅ · 2.4e prateleira ✅ ·
+  estilo tela por tela ✅ · fechamento ✅)
+  **Onde paramos (16/10, branch `fase2/telas`, 361 testes):** 2.4 concluída. PR #23 pronto para revisão; o merge sai
+  quando o Ricardo mandar. **Próximo: 2.5 (categorias)**, numa branch nova a partir do `main` depois do merge, começando
+  pelo `/decidir`. Pendências do estilo que passam para a 2.5: promover o chip do catálogo a componente, chips com texto
+  grande quebrando letra a letra (também na 2.7) e a lista de pares do `PaletaTests` (com as cores novas).
+  Antes (13/10): estilo de todas as telas aprovado, fotos prontas. No Detalhe, a pedido do Ricardo, duas correções da lógica: o número do volume aparece no
+  cartão Obra quando há rótulo impresso (antes não aparecia em lugar nenhum) e o ISBN passou a ser validado
+  (regra `ISBN` no Domínio; teclado `.numbersAndPunctuation` no formulário, para o hífen e o "X").
+  Antes (12/10): lógica da 2.4a–e pronta e aprovada no simulador.
+  2.4d: `RascunhoLivro` (Domínio; tudo texto, autores em lista; obrigatórios título, ≥ 1 autor, editora e ano, só no
+  formulário; números inteiros > 0 com ponto de milhar; a edição preserva o que o formulário não mostra) +
+  `LivroFormularioView` em folha (asterisco nos obrigatórios, erros em vermelho só depois de tentar salvar, autores com
+  adicionar/apagar/reordenar, "Volume e coleção" recolhível, seletor de estante). Capturas `FormularioNovo`/`FormularioEditar`
+  abrem a folha de verdade via `FolhaPendente` (uma vez só, na tela pedida).
+  2.4e: `SugestaoDePrateleira` (Domínio; grafias juntadas pela `Normalizacao.chave`, espaços arrumados; vazio → todas em
+  ordem natural; começa-por antes de contém; some a igual ao digitado; até 5) + sugestões no formulário só com o campo
+  em foco (`@FocusState`), relidas ao trocar de estante; falha na leitura não atrapalha o formulário.
+  Próximos, nesta ordem, cada um começando pela explicação e esperando o OK (o Ricardo testa cada passo à mão):
+  1. **Estilo 0 — fundamentos** (antes de qualquer tela; base: Human Interface Guidelines da Apple):
+     a. ✅ Referências e direção (12/10, via `/decidir`): ver "Fundamentos do estilo" na seção Interface.
+     b. ✅ Tokens (12/10) em `Apresentacao/Componentes/`: `Cor`/`Paleta` (`fundo`, `cartao`, `superficie`, `destaque`,
+        `sobreDestaque`, `textoSecundario`; em código com `UIColor(claro:escuro:)`, não em catálogo de cores, para o hex
+        aparecer na revisão e o teste medir cada modo), `Espaco` (4–24), `Raio` (8/12/20) + `.cantos(_:)`, `Fonte` (só as
+        serifadas), `Animacao` (`suave`, `rapida`, `esmaecer`) + `.animacaoSuave(valor:)`, `.sombraSuave()`, `EstiloVidro`;
+        `.tint(Cor.destaque)` na raiz (chega às folhas do SwiftUI; alertas e folhas de ação, do UIKit, recebem o
+        `destaque` por `Paleta.aplicarNoUIKit()`, ver "Apagar estante" na seção Interface). `.secondary` do sistema reprovou (3,4:1 no branco) e virou
+        `textoSecundario` próprio. `Contraste` (WCAG) e `PaletaTests` ficam no alvo de testes (o app não calcula contraste).
+     c. ✅ Catálogo (12/10): `App/CatalogoDeEstilo.swift`, só em DEBUG, em duas páginas (`-captura Estilo` e
+        `-captura EstiloTelas`; o `simctl` não rola a tela). Capturas `docs/capturas/Estilo/`: 1.0 (com candidatos
+        `#0A5FD6`, `#2563EB`, `#0369A1` e o petróleo, escolhido `#0A5FD6`; revisto para `#0579B8` no Inicio), escuro e texto grande (argumento
+        `-UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL`; o `simctl` do Xcode 14.2 não muda o
+        tamanho do texto); 1.1 com o `EstiloPrincipal` e o vidro em `.primary`.
+        Página de categorias (`-captura EstiloCategorias`): 1.2 cor padrão × alto contraste; 1.3 propostas A, B e alto
+        contraste; 1.4/1.5 a A com rosa próprio (escolhida). Texto grande das três páginas na 1.2.
+        Pendências para as telas (cada uma no seu passo de estilo):
+        - ✅ Trocar `.secondary` por `Cor.textoSecundario` (Inicio, Estante, Detalhe e `MensagemDeErroView`).
+        - Com texto grande, chips lado a lado quebram letra a letra (rolagem horizontal ou quebra de linha; busca).
+        - Promover o chip do catálogo a componente em `Componentes/` (o cartão de estante já foi, no Inicio).
+        Revisão adiada: lista de pares do `PaletaTests` à mão (revisitar com cor nova, na 2.5); ✅ tokens sem uso
+        apagados ao fim do estilo (16/10: só o `Espaco.enorme`). O modificador de pressão foi extraído no Inicio (terceiro estilo de botão).
+  2. **Estilo**, uma tela por vez: Inicio ✅ (12/10, ver "Inicio" na seção Interface; destaque claro revisto para
+     `#0579B8`) → Estante ✅ (13/10, ver "Estante" na seção Interface) → Detalhe ✅ (13/10, ver "Detalhe" na seção
+     Interface) → Formulário ✅ (13/10, confirmado em 16/10, ver "Formulário" na seção Interface) → foto da miniatura ✅
+     (13/10) → foto ampliada no Detalhe ✅ (13/10) → Apagar estante ✅ (13/10, ver "Apagar estante" na
+     seção Interface) → fechamento ✅ (16/10, passo 3);
+     cada tela decide só a composição, sobre os fundamentos já aprovados.
+     ✅ Campo preenchido perdia o nome (resolvido no Formulário: nome pequeno em cima com o campo preenchido).
+     ✅ **Foto da miniatura (13/10):** `RedutorDeFoto` (`Componentes/`, ImageIO: lado maior 1200 px, JPEG 0,8; o
+     `CarregadorDeMiniaturas` também reduz com ele); a foto fica no ViewModel e só é gravada no "Salvar", só se mudou
+     ("Cancelar" descarta); depois a closure `fotoTrocada` (sem valor padrão: a montagem é obrigada a ligar) chama o
+     `esquecer(livroId)` do carregador, que soma um em `trocas` (`@Published`) para as `MiniaturaDoLivro` relerem.
+     Cabeçalho na seção Interface ("Formulário").
+     ✅ **Foto ampliada no Detalhe (13/10, pedido do Ricardo, aprovada no simulador):** com foto, a miniatura do
+     Detalhe vira botão ("Ampliar foto"; ao tocar, encolhe com a mola e fica a 85% de opacidade); sem foto, nada acontece
+     (`CarregadorDeMiniaturas.temFoto`: com a miniatura no cache, não lê a porta; sem ela, lê sem guardar). Toque
+     abre `FotoAmpliada.swift`: apresentada pelo UIKit (`.overFullScreen` + esmaecer; ver Histórico de 13/10) sobre
+     preto a 88%, com o Detalhe de leve atrás. Zoom pela `UIScrollView` embrulhada (até 4×; duplo toque 2,5× no ponto
+     e volta). Fecha pelo ✕ ou puxando, para baixo ou para cima, como no Fotos (a foto acompanha o dedo e o escuro
+     some na proporção; fecha passados 120 pt ou num puxão rápido, senão volta com mola); com zoom, arrastar só anda
+     pela foto. Imagem: a guardada inteira (1200 px), por `fotoInteira`, fora do cache (a grande no cache tomaria o
+     lugar da miniatura).
+     Nota: com "Caixa azul" e "caixa azul" na estante, a sugestão mostra "caixa azul" (ordem natural), e o grupo da
+     estante, a grafia mais usada; podem diferir (a porta não traz contagem).
+  3. ✅ Fechamento (16/10): revisão final da branch inteira com `revisor` e `revisor-spec`; aprovados e feitos: P1
+     (`Quantidade.livros` em `Componentes/`, saiu da `InicioView`, de que a Estante dependia só para o plural), P2
+     (`.alertaDeErro(_:)` no lugar de três cópias do mesmo alerta), P4 (`SecaoDoLivro` → `GrupoDeCampos`: "seção" é termo
+     a evitar no GLOSSARY), E1 (este PLANO), E3 (idioma em "Forma de trabalho nas telas"). Recusados: P3 (generalizar o
+     carregando/erro seria prematuro), P5 (as pastas `Confirmacao/` e `Scanner/` têm `.gitkeep` desde a Fase 0), P6 e E5
+     (`Estante` `Hashable`, exigido pela navegação). CI verde, PR pronto, checklist e CLAUDE.md atualizados.
+  Ferramentas: `./scripts/testar.sh` (com `TEST_RUNNER_RELATORIO=1` na frente, roda também o relatório `[referencia]`
+  e a varredura `[varredura]` da busca, que fora disso ficam pulados; a saída fica no log); `./scripts/capturar.sh <Tela> <versão> [<pasta>]` (casos no enum `Captura`, `App/Exemplos.swift`);
+  testar à mão com `xcrun simctl launch "iPhone 14" com.ricardo.estantes -captura Inicio` (exemplos em memória).
 - [ ] Categorias: paleta com contraste conferido, tela de gerenciar, escolha na tela do livro
+  + chips no cartão do livro na Estante (linha abaixo de autor · ano): chip fantasma "+ Categoria" só nos livros sem
+  categoria; tocar nos chips abre a escolha; menu de contexto "Categorias…" (decisão de 13/10)
+  + pendências do estilo: chip do catálogo como componente, chips com texto grande, pares do `PaletaTests`
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
@@ -413,8 +610,9 @@ altura normalizados 0–1, confiança), montada em `Dados/Visao` a partir do Vis
   - ano = 4 dígitos no terço inferior; editora = Editor/Editora/Livraria/Ltda/S.A.; local = lista de cidades;
   - subtítulo/parte = texto de tamanho médio entre o título e o volume (entra na busca).
 - **Capa**: maior texto (altura da caixa) = candidato a título.
-- Regex de ISBN (com dígito verificador; ISBN-10 → 13) e ano; conversão romano/arábico (regra da 2.3b,
-  reaproveitada para volume e página).
+- ISBN: reaproveitar `ISBN.normalizar` (`Dominio/Regras/ISBN.swift`, 13/10: dígito verificador, ISBN-10 → 13,
+  prefixo 978/979, que já descarta o EAN de produto no código de barras); falta só achar o ISBN no texto (regex).
+  Ano e conversão romano/arábico (regra da 2.3b, reaproveitada para volume e página).
 - Mandar a `buscar_livro` **só o título extraído**, nunca o texto inteiro: autor e editora no texto
   derrubam a `similarity` abaixo do limiar (Fase 1, opção (c″)). Medir no conjunto de avaliação.
 - NLTagger (`.personalName`) e NLGazetteer (editoras jurídicas) como apoio para autor e editora.
@@ -513,6 +711,8 @@ do parser e do Gemini.
   Ricardo responde por escrito e o teacher corrige na entrada seguinte.
 - `teacher-consolidador` (Opus) + `/fechar-fase`: guia da fase em `docs/guias/fase-N.md`.
 - `revisor` (Sonnet): revisa as tarefas marcadas `[eu escrevo]`, sem reescrever.
+- `revisor-spec` (Sonnet): em paralelo com o `revisor`, compara o diff com o item do checklist e as
+  decisões deste plano (o que faltou, o que sobrou, o que parece feito mas está errado).
 
 ## Histórico de decisões
 
@@ -577,3 +777,30 @@ do parser e do Gemini.
 | 09/10 | Correção de digitação por distância de edição (OSA), só para termo desconhecido; trigramas descartados; não espera a Fase 5 | Termo desconhecido já daria lista vazia, então corrigir não muda consulta que funciona. Vocabulário pequeno dispensa índice de trigramas; a Fase 5 é de sinônimos |
 | 09/10 | OU de reserva só com E vazio e ≥ 2 termos, ordenado por nível de coordenação; `RespostaBusca` com `modo`, `correcoes` e `palavrasAusentes` | Sem penalidade nem mistura com o E: as notas dos dois grupos não se comparam. A tela precisa explicar a lista |
 | 09/10 | Peso do sumário 0,5 → 0,25 (revisa a linha de 09/10 que descartou o 0,25) | O plural tirou a parte estrutural da #11; duas consultas de risco inverso, escritas antes de medir, não pioraram. Continua na ponta da grade: não se estende a grade atrás de mais ganho |
+| 09/10 | 2.4: primeiro a lógica de todas as telas (componentes nativos), depois o estilo tela por tela, com perguntas a cada captura | Garante o fluxo certo antes de gastar tempo com aparência; decidir o visual olhando cada tela no simulador |
+| 09/10 | Capturas do simulador só locais (`docs/capturas/`, no `.gitignore`), com versão no nome; telas internas via argumento `-captura` só em DEBUG | Histórico visual sem pesar o repositório; o `simctl` não toca na tela |
+| 09/10 | Lista da estante agrupada por prateleira; na 2.4 o Claude escreve tudo (sem `[eu escrevo]`) | Espelha a estante física; escolha do Ricardo |
+| 10/10 | Formulário do livro: obrigatórios título, ao menos um autor, editora e ano (revisa "só título"); a exigência fica só no `RascunhoLivro`, não no `Livro` nem no Core Data | Escolha do Ricardo para fichas mais completas. LexML/Google Books/Gemini e livros antigos podem não ter esses dados: o modelo continua aceitando; editar um livro assim pede para completar |
+| 10/10 | Autores no formulário como lista de campos (adicionar, deslizar para apagar, arrastar para reordenar); obrigatórios marcados com asterisco, sem nota de rodapé | Padrão do iOS (Contatos); separa os nomes sem depender do Return. Escolhas do Ricardo |
+| 10/10 | Sugestão de prateleira por regra pura (`SugestaoDePrateleira`): chave normalizada, começa-por antes de contém, até 5; linhas-botão só com o campo em foco | Evita grafias diferentes da mesma etiqueta. `Tokenizador`/BM25F descartados (plural e correção confundem aqui); `Picker`/`Menu` não deixam criar etiqueta nova; `.searchSuggestions` só vale para `.searchable` |
+| 10/10 | "Estilo 0 — fundamentos" antes do estilo tela por tela (complementa a linha de 09/10): referências, tokens semânticos (HIG), tela de catálogo em DEBUG, capturas claro/escuro | Decidir cor, tipo e espaçamento uma vez dá coerência entre as telas e encurta as perguntas de cada captura; modo escuro quase de graça. Escolha do Ricardo |
+| 09/10 | Parada a 5–8% do limite de uso: PLANO atualizado, commit, PR em rascunho; volta só com uso reiniciado ou ordem do Ricardo | Não perder trabalho no meio; o Claude não vê o `/usage`, então o Ricardo avisa |
+| 12/10 | Skills do Matt Pocock (MIT) adaptadas em português, não instaladas: `/decidir`, `revisor-spec`, cheiros de Fowler e regras de teste no `revisor`, `GLOSSARY.md`, `/diagnosticar`, hook de git em Python | O plugin vem em inglês, duplica PLANO, revisor, teacher e fechar-fase, supõe rastreador de issues e jq (ausente no Monterey); adaptar só as peças que faltam mantém um fluxo só |
+| 12/10 | `auditor-testes` no `/fechar-fase` (só os testes alterados na fase); mutação manual (~10 mutações nas regras críticas, numa branch sem commit) a cada fase | O auditor lê o teste e acha esperado recalculado ou fraco; a mutação prova se algum teste percebe o código errado. 1ª rodada: 2 tautológicos e 14 fracos; 13/13 mutações mortas |
+| 12/10 | Paleta por papel: branco `fundo` (60), `#AED3FC` `superficie` (30), petróleo `#1F5F73` único `destaque` (10); no escuro, `#AED3FC` vira destaque e o petróleo, superfície | Escolha do Ricardo a partir das referências; cores do sistema (azul padrão) descartadas por falta de identidade. `#AED3FC` sobre branco dá 1,55:1 e por isso nunca é texto; o petróleo dá 7,1:1 no branco e 2,4:1 no escuro, daí a troca de papéis |
+| 12/10 | Fonte serifada (New York) só em títulos de livros e estantes; SF no resto, tudo Dynamic Type | Dá cara de livro (referência: Apple Books) sem perder a legibilidade dos controles; "só SF" e "serifa também nos títulos de tela" descartadas |
+| 12/10 | "Vidro" (Liquid Glass) imitado no iOS 16 — material translúcido, brilho fino e pressão com mola — só nos elementos flutuantes; o vidro real fica com as barras do sistema no build da CI | `glassEffect`/`.buttonStyle(.glass)` são só iOS 26 e não compilam no Xcode 14.2; com `#if compiler` o efeito existiria só no `.ipa`, sem como ver ou testar. Vidro em tudo perde legibilidade sobre listas |
+| 12/10 | Paleta de categorias = cores do sistema da Apple, sem azul/ciano/teal, em estilo pastel (fundo ~20%, texto padrão); implementada na 2.5 (complementa a linha de 03/10 da paleta fixa) | Tons claro/escuro e "Aumentar contraste" de graça; como texto sobre branco quase todas reprovam (amarelo 1,5:1), como fundo pastel passam (≥ 12,8:1). Pastel do Plotly descartado (hex fixos, sem modo escuro); azuis confundiriam com o destaque |
+| 12/10 | Destaque claro azul vibrante `#0A5FD6` e superfície escura azul-marinho `#12305A` no lugar do petróleo; sobre a `superficie` clara, texto `.primary` e destaque só como ícone ou forma (≥ 3:1, WCAG 1.4.11) | Revisa a linha de 12/10 da paleta por papel: no catálogo o petróleo ficou opaco e "triste". O azul do sistema `#007AFF` reprova como texto no branco (4,0:1) e nenhum azul vibrante passa 4,5:1 sobre o `#AED3FC`, daí a regra da superfície. Escolhido olhando quatro candidatos no catálogo (`#2563EB`, `#0369A1` e o petróleo descartados) |
+| 12/10 | Chip de categoria: etiqueta e contorno na cor viva, fundo pastel e texto no tom escuro do mesmo matiz (claro); alto contraste do sistema no escuro; rosa próprio `#FF2D92` no lugar do `systemPink` | Revisa a linha de 12/10 da paleta de categorias (pastel com texto padrão). Desenho do Ricardo; texto na cor viva reprova no branco (amarelo 1,5:1) e o alto contraste puro perdia a identidade pastel no claro. O fundo pastel e o contorno guardam a identidade, o texto escurecido passa 4,5:1. Fundo branco com texto preto (B) descartado por perder o texto na cor. `systemPink` (349°) se confundia com o vermelho (3°) |
+| 12/10 | Destaque claro `#0579B8` (matiz do `#0369A1`, o mais claro que ainda dá 3:1 sobre o `#AED3FC`); o escuro segue `#AED3FC` | Revisa a linha de 12/10 do `#0A5FD6`: na barra de busca (2.7) os chips de filtro convivem com os de categoria, e o `#0A5FD6` ficava colado no índigo (ΔE 6 em OKLab; o `#0579B8`, 12). Escolhido entre 4 degraus de luz a partir do `#0369A1`; tirar o índigo das categorias foi descartado |
+| 13/10 | Uma foto livre por livro (`fotoMiniatura`, renomeia `fotoCapa`), escolhida pelo usuário: capa, folha de rosto ou outra | Capas lisas não identificam o livro, e a folha de rosto (já pedida na captura, 09/10) sim. Duas fotos (capa + rosto) descartadas: mais dados no export e uma regra para escolher. O nome evita conflito com outras fotos que vão chegar |
+| 13/10 | Tela Estante em lista com miniatura 2:3 em cartões por prateleira (resolve "capas × lombadas") | Títulos jurídicos longos e volumes ("Tomo XLVII") pedem texto horizontal; grade de capas descartada (sem fotos até a Fase 3 e sem autor/ano); lombadas descartadas (texto girado ruim com títulos longos e Dynamic Type) |
+| 13/10 | Miniatura carregada por linha, reduzida com ImageIO e em cache em memória (com o tamanho guardado); no banco só a original | Miniatura gravada à parte descartada (dois campos em sincronia e uma dúvida no export); carregar a estante inteira descartado (200 fotos completas na memória) |
+| 13/10 | Detalhe: cabeçalho centralizado (miniatura, título em serifa, volume e autores só pelos sobrenomes, como na ABNT: até 3, depois "et al.") e cartões por seção, com o cartão Autores listando os nomes completos | Com texto grande, a quebra dentro de um nome no cabeçalho se confundia com outro autor (vista nas capturas com 3 autores); "e mais N" soava traduzido e "+ N" colidiria com o "+ Categoria" da 2.5. List restilizada e cabeçalho lado a lado descartados |
+| 13/10 | ISBN validado no Domínio (`ISBN.normalizar`): 10 ou 13 dígitos (hífens, inclusive Unicode, e espaços ignorados), "X" só no fim do ISBN-10, prefixo 978/979 e dígito verificador; guarda só os 13 dígitos (o ISBN-10 é convertido) | Antes aceitava letras. Livros anteriores a 2007 trazem ISBN-10; um formato só compara com código de barras e catálogos. Validar só quando o usuário muda o ISBN foi descartado: deixaria passar ISBN inválido de outra porta (como o "pede para completar" de 10/10). Sem o prefixo, o EAN de um produto passaria como livro na Fase 3 |
+| 13/10 | Categoria no cartão do livro (2.5): chip fantasma "+ Categoria" só sem categoria, tocar nos chips abre a escolha, e o menu de contexto | Pedido do Ricardo. Um "+" em todo cartão foi descartado: alvo sobreposto ao link, 44 pt engordando cada linha, repetido em todas |
+| 13/10 | Formulário no `Form` nativo com o cinza agrupado e os cartões brancos do sistema (pedido do Ricardo; só texto secundário, espaçamento e fonte vêm dos tokens), não ScrollView com `.cartao()` como no Detalhe (confirmado em 16/10) | O Detalhe é leitura; o formulário precisa de apagar/arrastar autores, foco e fuga do teclado, que o `Form` dá prontos. Refazê-los à mão foi descartado (mais código e risco por um raio de canto) |
+| 13/10 | Foto do livro guardada reduzida (lado maior 1200 px, JPEG 0,8); a de alta qualidade só é usada (na Fase 3, o OCR roda na resolução máxima da câmera in-app) e depois descartada (confirmado em 16/10) | A original (3–10 MB) pesaria banco e export (200 livros ≈ 1 GB); 600 px borraria uma futura vista ampliada. Complementa a linha de 13/10 da miniatura (no banco só uma foto) |
+| 13/10 | Foto ampliada do Detalhe apresentada pelo UIKit (`.overFullScreen` + esmaecer, num `UIViewControllerRepresentable` invisível), não por `fullScreenCover` nem por overlay | No iOS 16 o `fullScreenCover` é opaco (tira o Detalhe, e o fundo esmaecido precisa dele atrás) e o `presentationBackground` é do 16.4; overlay no Detalhe deixa a barra de navegação por cima do escuro, e na raiz do app espalha estado e uma ação pelo ambiente até uma tela funda |
+| 16/10 | Formulário no `Form` nativo e foto guardada a 1200 px confirmados como definitivos | Revisa as duas linhas de 13/10 marcadas "provisório: a confirmar nas capturas": os dois foram vistos e aprovados nas capturas 1.2–2.3; manter o rótulo deixaria a dúvida aberta sem motivo |

@@ -153,19 +153,19 @@ final class BibliotecaRepositorioCoreData: BibliotecaRepositorio {
         }
     }
 
-    func fotoCapa(doLivro livroId: UUID) async throws -> Data? {
+    func fotoMiniatura(doLivro livroId: UUID) async throws -> Data? {
         try await emSegundoPlano { contexto in
             let livroMO: LivroMO? = try self.buscar(LivroMO.nomeEntidade, id: livroId, em: contexto)
-            return livroMO?.fotoCapa
+            return livroMO?.fotoMiniatura
         }
     }
 
-    func salvarFotoCapa(_ foto: Data?, doLivro livroId: UUID) async throws {
+    func salvarFotoMiniatura(_ foto: Data?, doLivro livroId: UUID) async throws {
         try await emSegundoPlano { contexto in
             guard let livroMO: LivroMO = try self.buscar(LivroMO.nomeEntidade, id: livroId, em: contexto) else {
                 throw ErroPersistencia.livroNaoEncontrado(livroId)
             }
-            livroMO.fotoCapa = foto
+            livroMO.fotoMiniatura = foto
             try self.gravar(contexto)
         }
     }

@@ -130,7 +130,8 @@ final class ValidacaoSumarioTests: XCTestCase {
     }
 
     func testIntervaloComparaPeloInicio() {
-        let itens = [item(1, pagina: "245-246"), item(1, pagina: "247")]
+        // Pelo fim (250) a página 247 teria voltado; pelo início (245), não.
+        let itens = [item(1, pagina: "245-250"), item(1, pagina: "247")]
         XCTAssertEqual(ValidacaoSumario.validar(itens).avisos, [])
     }
 

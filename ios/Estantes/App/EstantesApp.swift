@@ -1,13 +1,53 @@
 import SwiftUI
 
-/// Ponto de entrada do app.
-/// Fase 2: `App/Dependencias` monta PersistenceController → BibliotecaRepositorioCoreData → ViewModels,
-/// injetados pelo init (sem `.environment(\.managedObjectContext)` nem `@FetchRequest`; ver docs/PLANO.md).
+/// Ponto de entrada do app: monta as dependências (`Dependencias`) e abre a tela inicial.
+/// Sem `.environment(\.managedObjectContext)` nem `@FetchRequest`: os ViewModels recebem o repositório pelo init.
 @main
 struct EstantesApp: App {
+    /// `Result` em vez de `try!`: se o banco não abrir, o app mostra o erro em vez de fechar sozinho.
+    private let montagem = Result { try Dependencias.producao() }
+
+    init() {
+        Paleta.aplicarNoUIKit()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RaizView(montagem: montagem)
+        }
+    }
+}
+
+/// `@MainActor` no tipo: no SDK do Xcode 14 só o `body` é isolado na fila principal, não as propriedades auxiliares.
+@MainActor
+private struct RaizView: View {
+    let montagem: Result<Dependencias, Error>
+
+    /// O tint pinta de `destaque` os controles nativos (botões, links, seletores) do app inteiro.
+    var body: some View {
+        conteudo.tint(Cor.destaque)
+    }
+
+    @ViewBuilder
+    private var conteudo: some View {
+        #if DEBUG
+        if let captura = Captura.pedida {
+            captura.tela
+        } else {
+            telaDoApp
+        }
+        #else
+        telaDoApp
+        #endif
+    }
+
+    @ViewBuilder
+    private var telaDoApp: some View {
+        switch montagem {
+        case .success(let dependencias):
+            NavegacaoView(dependencias: dependencias)
+        case .failure:
+            MensagemDeErroView(texto: "Não foi possível abrir a biblioteca guardada no aparelho.")
         }
     }
 }

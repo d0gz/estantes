@@ -193,16 +193,16 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         XCTAssertEqual(itens, 1, "os itens antigos não podem sobrar no banco")
     }
 
-    func testSalvarLivroNaoApagaAFotoDaCapa() async throws {
+    func testSalvarLivroNaoApagaAFotoDaMiniatura() async throws {
         let estante = try await novaEstante()
         var livro = Livro(estanteId: estante.id, titulo: "Com capa", adicionadoEm: data)
         try await repositorio.salvar(livro)
-        try await repositorio.salvarFotoCapa(Data([1, 2, 3]), doLivro: livro.id)
+        try await repositorio.salvarFotoMiniatura(Data([1, 2, 3]), doLivro: livro.id)
 
         livro.titulo = "Com capa (2. ed.)"
         try await repositorio.salvar(livro)
 
-        let foto = try await repositorio.fotoCapa(doLivro: livro.id)
+        let foto = try await repositorio.fotoMiniatura(doLivro: livro.id)
         XCTAssertEqual(foto, Data([1, 2, 3]))
     }
 
@@ -322,19 +322,19 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         XCTAssertEqual(prateleiras, ["2ª de cima", "caixa azul"])
     }
 
-    // MARK: Foto da capa
+    // MARK: Foto da miniatura
 
-    func testFotoCapaSalvarLerRemover() async throws {
+    func testFotoMiniaturaSalvarLerRemover() async throws {
         let estante = try await novaEstante()
         let livro = Livro(estanteId: estante.id, titulo: "Com foto")
         try await repositorio.salvar(livro)
 
-        try await repositorio.salvarFotoCapa(Data([0xFF, 0xD8]), doLivro: livro.id)
-        let salva = try await repositorio.fotoCapa(doLivro: livro.id)
+        try await repositorio.salvarFotoMiniatura(Data([0xFF, 0xD8]), doLivro: livro.id)
+        let salva = try await repositorio.fotoMiniatura(doLivro: livro.id)
         XCTAssertEqual(salva, Data([0xFF, 0xD8]))
 
-        try await repositorio.salvarFotoCapa(nil, doLivro: livro.id)
-        let removida = try await repositorio.fotoCapa(doLivro: livro.id)
+        try await repositorio.salvarFotoMiniatura(nil, doLivro: livro.id)
+        let removida = try await repositorio.fotoMiniatura(doLivro: livro.id)
         XCTAssertNil(removida)
     }
 
@@ -427,11 +427,11 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         XCTAssertEqual(quantidade, 0)
         let prateleiras = try await repositorio.prateleiras(naEstante: nenhum)
         XCTAssertEqual(prateleiras, [])
-        let foto = try await repositorio.fotoCapa(doLivro: nenhum)
+        let foto = try await repositorio.fotoMiniatura(doLivro: nenhum)
         XCTAssertNil(foto)
 
         await esperarErro(.livroNaoEncontrado(nenhum)) {
-            try await self.repositorio.salvarFotoCapa(Data([1]), doLivro: nenhum)
+            try await self.repositorio.salvarFotoMiniatura(Data([1]), doLivro: nenhum)
         }
     }
 

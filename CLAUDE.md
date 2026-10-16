@@ -4,6 +4,7 @@
 - `docs/PLANO.md` — arquitetura, decisões já tomadas (com motivo) e checklist de cada fase.
   Não reabra uma decisão registrada ali sem avisar o Ricardo e explicar por quê.
 - `docs/aprendizado/fase-N.md` da fase atual — o que já foi feito e aprendido.
+- `GLOSSARY.md` — termos do domínio (use-os em nomes, testes e textos; evite os sinônimos listados).
 
 ## Objetivo do projeto
 Este projeto existe para **aprender**, não só para entregar um app. O dono do repositório
@@ -44,6 +45,13 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 - Toda regra nova do Domínio nasce com teste XCTest em `EstantesTests/Dominio/`.
 - A busca é **só local** (biblioteca do usuário, offline): índice invertido + BM25F em `Dominio/Busca/`.
 
+## Testes
+<!-- Adaptado de skills/engineering/tdd (Matt Pocock, github.com/mattpocock/skills, licença MIT). -->
+Antes de escrever testes, liste no plano da tarefa as fronteiras (interfaces públicas) a testar, com
+uma linha sobre o que cada uma pega e o que deixa passar, e espere o OK do Ricardo. Nada de teste
+tautológico: o valor esperado vem de fonte independente (literal conhecido, exemplo resolvido, PLANO),
+nunca recalculado como o código calcula. Um teste e uma implementação por vez (vermelho → verde).
+
 ## Estrutura
 - `ios/project.yml` — definição do projeto (XcodeGen)
 - `ios/Estantes/`, `ios/EstantesTests/` — código e testes
@@ -57,8 +65,10 @@ A CI roda **Xcode 26**. Todo código precisa compilar nos dois. Portanto:
 Fase 2 — App. (Atualize esta linha ao abrir uma nova fase.)
 Concluídas: 2.1 (entidades, porta e `ValidacaoSumario`), 2.2 (Core Data e repositório) e 2.3 (motor de busca:
 passos 1–6, 2.3b obras em vários volumes e 2.3i sondas — plural, volume/artigos no índice, correção de digitação,
-OU de reserva, peso do sumário 0,25; 224 testes). PR da branch `fase2/busca` aberto para revisão (merge quando o Ricardo mandar).
-**Próximo: 2.4 — telas principais**, começando só pela explicação. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
+OU de reserva, peso do sumário 0,25; 224 testes; PR #22 mergeado) e 2.4 (telas principais: lógica 2.4a–e e estilo de
+todas as telas; 361 testes; PR #23 da branch `fase2/telas` pronto para revisão, merge quando o Ricardo mandar).
+**Próximo: 2.5 — categorias** (branch nova a partir do `main` depois do merge; começar pelo `/decidir`; "Onde paramos" no
+checklist do PLANO; forma de trabalho em "Forma de trabalho nas telas"). Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que
@@ -73,6 +83,11 @@ OU de reserva, peso do sumário 0,25; 224 testes). PR da branch `fase2/busca` ab
 4. **Ao fim da fase**, Ricardo roda `/fechar-fase`, que gera o guia consolidado em Markdown.
 5. Commits pequenos, com mensagens em português no imperativo ("Adiciona modelo Estante").
 6. Segredos (chaves de API, service role do Supabase) nunca entram no repositório.
+7. Ao iniciar uma tarefa nova do checklist, ou quando surgir uma decisão com alternativas reais no
+   meio de uma tarefa, sugira ao Ricardo rodar /decidir; não decida sozinho.
+8. **Revisão em dois eixos.** Antes de commit relevante, rode `revisor` (padrões) e `revisor-spec`
+   (item do checklist e decisões do PLANO) em paralelo; apresente os relatórios separados, sem
+   misturar nem reordenar os achados (P1… e E1…).
 
 ## Uso de modelos (para economizar)
 | Uso | Modelo |
@@ -82,6 +97,7 @@ OU de reserva, peso do sumário 0,25; 224 testes). PR da branch `fase2/busca` ab
 | `teacher` — registro por tarefa | Sonnet |
 | `teacher-consolidador` — guia de fim de fase | Opus |
 | `revisor` — revisão de código | Sonnet |
+| `revisor-spec` — revisão contra o plano | Sonnet |
 
 Troque o modelo da sessão com `/model` conforme a tarefa.
 

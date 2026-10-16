@@ -82,9 +82,13 @@ final class MotorDeBuscaTests: XCTestCase {
     }
 
     func testNaoCorrigePalavraCurtaNemNumero() {
-        // "civl" tem 4 letras; "1710" tem dígitos.
+        // "civl" tem 4 letras.
         XCTAssertEqual(motor.buscar("civl direito").correcoes, [])
-        XCTAssertEqual(motor.buscar("1710 direito").correcoes, [])
+        // "10407" tem 5 caracteres (palavra desse tamanho aceita 1 erro) e está a 1 de "10406"
+        // (Lei 10.406): só a regra dos dígitos impede a troca.
+        let lei = Livro(estanteId: estante1, titulo: "Lei 10.406 comentada")
+        let motor = MotorDeBusca(livros: [lei, livroC], categorias: [])
+        XCTAssertEqual(motor.buscar("10407 comentada").correcoes, [])
     }
 
     func testCorrigirFalseDesliga() {
@@ -94,6 +98,7 @@ final class MotorDeBuscaTests: XCTestCase {
     }
 
     func testCorrecaoQueRepeteUmTermoContaUmaVez() {
+        XCTAssertEqual(ids(motor.buscar("processo procesos").resultados), [livroB.id])
         XCTAssertEqual(motor.buscar("processo procesos").resultados, motor.buscar("processo").resultados)
     }
 
@@ -185,19 +190,24 @@ final class MotorDeBuscaTests: XCTestCase {
     }
 
     func testPrefixoFicaComAMaiorNotaEntreAsExpansoes() {
+        // "prevencao" também está no livro D, "preventiva" só neste: a mais rara (maior nota) é a segunda
+        // em ordem alfabética, o que separa "a maior" de "a primeira" e de "a menor".
         let livro = Livro(estanteId: estante1, titulo: "Prevenção preventiva")
-        let motor = MotorDeBusca(livros: [livro, livroC], categorias: [])
+        let motor = MotorDeBusca(livros: [livro, livroC, livroD], categorias: [])
 
         let prefixo = nota(de: livro, em: motor.buscar("prev").resultados) ?? 0
         let prevencao = nota(de: livro, em: motor.buscar("prevencao").resultados) ?? 0
         let preventiva = nota(de: livro, em: motor.buscar("preventiva").resultados) ?? 0
 
+        XCTAssertGreaterThan(preventiva, prevencao)
         XCTAssertGreaterThan(prevencao, 0)
-        XCTAssertEqual(prefixo, max(prevencao, preventiva))
-        XCTAssertLessThan(prefixo, prevencao + preventiva)
+        XCTAssertEqual(prefixo, preventiva)
     }
 
     func testTermoRepetidoContaUmaVez() {
+        // Só B tem "penal".
+        XCTAssertEqual(ids(motor.buscar("penal penal").resultados), [livroB.id])
+        XCTAssertEqual(ids(motor.buscar("prisao penal prisao").resultados), [livroB.id])
         XCTAssertEqual(motor.buscar("penal penal").resultados, motor.buscar("penal").resultados)
         XCTAssertEqual(motor.buscar("prisao penal prisao").resultados, motor.buscar("penal prisao").resultados)
     }
@@ -257,6 +267,7 @@ final class MotorDeBuscaTests: XCTestCase {
     func testConsultaSoComPalavraVaziaEFiltroListaPeloFiltro() {
         let filtro = FiltroBusca(estanteIds: [estante2])
 
+        XCTAssertEqual(ids(motor.buscar("de", filtro: filtro).resultados), [livroC.id, livroD.id])
         XCTAssertEqual(motor.buscar("de", filtro: filtro).resultados, motor.buscar("", filtro: filtro).resultados)
     }
 

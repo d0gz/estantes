@@ -68,8 +68,17 @@ final class ConsultasDeReferenciaTests: XCTestCase {
 
     // MARK: - Relatório
 
+    /// Os dois testes abaixo são ferramenta de calibração: só imprimem, sem asserção. Fora do modo
+    /// relatório ficam pulados, para não contarem como aprovados. Para rodá-los:
+    /// `TEST_RUNNER_RELATORIO=1 ./scripts/testar.sh` (o xcodebuild repassa ao teste, sem o prefixo,
+    /// as variáveis que começam por `TEST_RUNNER_`).
+    private func pularForaDoModoRelatorio() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["RELATORIO"] == "1", "só com RELATORIO=1")
+    }
+
     /// Só imprime: uma linha por consulta e os agregados das consultas de ajuste.
-    func testRelatorioDasConsultas() {
+    func testRelatorioDasConsultas() throws {
+        try pularForaDoModoRelatorio()
         let avaliacao = MetricasDeBusca.avaliar(
             ConsultasDeReferencia.todas, motor: motor, ids: BibliotecaDeReferencia.ids
         )
@@ -103,7 +112,8 @@ final class ConsultasDeReferenciaTests: XCTestCase {
     /// Só imprime (`[varredura]`). Escolha: nenhuma troca pode piorar o item certo (restrição); entre as
     /// que respeitam, maior MRR; no empate, maior top 1; ainda empatado, fica o valor atual (só troca com
     /// ganho real). Para numa volta sem nenhuma troca, ou depois de 2 voltas.
-    func testVarreduraDosParametros() {
+    func testVarreduraDosParametros() throws {
+        try pularForaDoModoRelatorio()
         let consultas = ConsultasDeReferencia.todas
         let ids = BibliotecaDeReferencia.ids
         var atual = ParametrosBM25F.padrao

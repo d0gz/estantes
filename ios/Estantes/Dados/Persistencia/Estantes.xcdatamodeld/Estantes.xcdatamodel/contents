@@ -32,7 +32,7 @@
         <attribute name="cddirCaminho" attributeType="String" defaultValueString=""/>
         <attribute name="edicao" optional="YES" attributeType="String"/>
         <attribute name="editora" optional="YES" attributeType="String"/>
-        <attribute name="fotoCapa" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
+        <attribute name="fotoMiniatura" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="isbn13" optional="YES" attributeType="String"/>
         <attribute name="local" optional="YES" attributeType="String"/>

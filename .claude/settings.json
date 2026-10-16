@@ -7,5 +7,18 @@
       "Read(./data/cache_urn/**)",
       "Read(./ios/Estantes.xcodeproj/**)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/bloquear-git-perigoso.py\""
+          }
+        ]
+      }
+    ]
   }
 }
