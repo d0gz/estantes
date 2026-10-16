@@ -70,7 +70,9 @@ struct IndiceInvertido {
             .subtitulo: Tokenizador.palavras(livro.subtitulo ?? "") + Tokenizador.palavras(livro.parte ?? "")
                 + Tokenizador.palavras(livro.volumeRotulo ?? "")
                 + [livro.volume, livro.artigosInicio, livro.artigosFim].compactMap { $0.map(String.init) },
-            .autores: livro.autores.flatMap(Tokenizador.palavras),
+            // Colaboradores (prefácio, tradução…) se procuram pelo nome como um autor: mesmo campo e peso.
+            // O papel fica fora: "prefácio" não diz nada sobre o assunto do livro.
+            .autores: (livro.autores + livro.colaboradores.map(\.nome)).flatMap(Tokenizador.palavras),
             .categorias: livro.categoriaIds.compactMap { nomesDasCategorias[$0] }.flatMap(Tokenizador.palavras),
             .cddirCaminho: livro.cddirCaminho.flatMap(Tokenizador.palavras),
             .sumario: palavrasDosItens.flatMap { $0 },

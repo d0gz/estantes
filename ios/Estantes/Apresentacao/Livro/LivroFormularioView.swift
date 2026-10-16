@@ -97,6 +97,26 @@ struct LivroFormularioView: View {
             }
 
             Section {
+                ForEach(viewModel.rascunho.colaboradores.indices, id: \.self) { posicao in
+                    VStack(alignment: .leading) {
+                        TextField("Nome do colaborador", text: colaborador(posicao, \.nome), prompt: Text("Sobrenome, Nome"))
+                            .textContentType(.name)
+                        TextField("Papel", text: colaborador(posicao, \.papel), prompt: Text("ex.: prefácio, tradução"))
+                            .font(.subheadline)
+                    }
+                }
+                .onDelete(perform: viewModel.apagarColaboradores)
+                .onMove(perform: viewModel.moverColaboradores)
+                Button {
+                    viewModel.adicionarColaborador()
+                } label: {
+                    Label("Adicionar colaborador", systemImage: "plus.circle.fill")
+                }
+            } header: {
+                cabecalho("Colaboradores")
+            }
+
+            Section {
                 campo("Editora *", \.editora, problema: .editora)
                 campo("Local", \.local)
                 campo("Edição", \.edicao, exemplo: "ex.: 3.ª ed.")
@@ -284,6 +304,14 @@ struct LivroFormularioView: View {
         Binding(
             get: { posicao < viewModel.rascunho.autores.count ? viewModel.rascunho.autores[posicao] : "" },
             set: { if posicao < viewModel.rascunho.autores.count { viewModel.rascunho.autores[posicao] = $0 } }
+        )
+    }
+
+    /// Mesmo cuidado do `autor(_:)`, para o nome ou o papel de um colaborador.
+    private func colaborador(_ posicao: Int, _ campo: WritableKeyPath<Colaborador, String>) -> Binding<String> {
+        Binding(
+            get: { posicao < viewModel.rascunho.colaboradores.count ? viewModel.rascunho.colaboradores[posicao][keyPath: campo] : "" },
+            set: { if posicao < viewModel.rascunho.colaboradores.count { viewModel.rascunho.colaboradores[posicao][keyPath: campo] = $0 } }
         )
     }
 

@@ -29,6 +29,8 @@ struct RascunhoLivro: Equatable {
     var subtitulo = ""
     /// Um nome por campo da tela, na ordem (o primeiro é o autor principal).
     var autores: [String] = [""]
+    /// Uma linha por colaborador, nome e papel como o usuário digitou. Começa vazia: não é obrigatório.
+    var colaboradores: [Colaborador] = []
     var editora = ""
     var local = ""
     var edicao = ""
@@ -54,6 +56,7 @@ struct RascunhoLivro: Equatable {
         titulo = livro.titulo
         subtitulo = livro.subtitulo ?? ""
         autores = livro.autores.isEmpty ? [""] : livro.autores
+        colaboradores = livro.colaboradores
         editora = livro.editora ?? ""
         local = livro.local ?? ""
         edicao = livro.edicao ?? ""
@@ -110,6 +113,7 @@ struct RascunhoLivro: Equatable {
         livro.titulo = titulo
         livro.subtitulo = Self.texto(subtitulo)
         livro.autores = autoresLimpos
+        livro.colaboradores = colaboradoresLimpos
         livro.editora = Self.texto(editora)
         livro.local = Self.texto(local)
         livro.edicao = Self.texto(edicao)
@@ -131,6 +135,13 @@ struct RascunhoLivro: Equatable {
 
     private var autoresLimpos: [String] {
         autores.compactMap(Self.texto)
+    }
+
+    /// Linha sem nome sai (o papel sozinho não diz quem); sem papel fica, com papel vazio.
+    private var colaboradoresLimpos: [Colaborador] {
+        colaboradores.compactMap { linha in
+            Self.texto(linha.nome).map { Colaborador(nome: $0, papel: Self.texto(linha.papel) ?? "") }
+        }
     }
 
     /// Sem espaços nas pontas, e cada sequência de espaços ou quebras de linha no meio vira um espaço só (texto

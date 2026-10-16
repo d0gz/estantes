@@ -107,13 +107,13 @@ final class LivroDetalheViewModel: ObservableObject {
 
     /// Os grupos de campos do detalhe, só com os campos preenchidos; grupo sem nenhum campo some.
     /// Título, subtítulo e volume não entram: estão no `cabecalho(de:)`. Os autores, sim, um por linha (o
-    /// cabeçalho mostra só os sobrenomes).
+    /// cabeçalho mostra só os sobrenomes), seguidos dos colaboradores, que nunca vão para o cabeçalho.
     static func grupos(de livro: Livro) -> [GrupoDeCampos] {
         let autores = autoresPreenchidos(livro)
         let grupos = [
             GrupoDeCampos(
                 titulo: autores.count > 1 ? "Autores" : "Autor",
-                campos: autores.map { CampoDoLivro(rotulo: nil, valor: $0) }
+                campos: autores.map { CampoDoLivro(rotulo: nil, valor: $0) } + camposDosColaboradores(livro)
             ),
             GrupoDeCampos(titulo: "Obra", campos: campos([
                 ("Parte", livro.parte),
@@ -142,6 +142,19 @@ final class LivroDetalheViewModel: ObservableObject {
         pares.compactMap { rotulo, valor in
             preenchido(valor).map { CampoDoLivro(rotulo: rotulo, valor: $0) }
         }
+    }
+
+    /// Depois dos autores, cada colaborador com o papel como rótulo ("Prefácio"); sem papel, "Colaborador".
+    private static func camposDosColaboradores(_ livro: Livro) -> [CampoDoLivro] {
+        livro.colaboradores.compactMap { colaborador in
+            guard let nome = preenchido(colaborador.nome) else { return nil }
+            return CampoDoLivro(rotulo: preenchido(colaborador.papel).map(inicialMaiuscula) ?? "Colaborador", valor: nome)
+        }
+    }
+
+    /// "prefácio" → "Prefácio": o papel vem minúsculo, como impresso no meio da frase da ficha CIP.
+    private static func inicialMaiuscula(_ texto: String) -> String {
+        texto.prefix(1).uppercased() + texto.dropFirst()
     }
 
     /// Os autores sem os vazios ou só de espaços, na ordem do livro.

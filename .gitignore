@@ -24,6 +24,7 @@ data/cache_urn/
 data/fichas_urn.jsonl
 cache_urn/
 avaliacao/fotos/
+avaliacao/json_gemini/
 
 # Capturas do simulador (só locais)
 docs/capturas/

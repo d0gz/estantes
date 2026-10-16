@@ -187,6 +187,25 @@ final class LivroDetalheViewModelTests: XCTestCase {
         ]))
     }
 
+    // Ficha CIP do Lassalle. O colaborador fica no cartão do autor, com o papel como rótulo (inicial maiúscula),
+    // e nunca no cabeçalho: pela ABNT, ali só entra quem escreveu.
+    func testColaboradorNoCartaoDoAutorComOPapelForaDoCabecalho() {
+        let livro = Livro(
+            estanteId: sala.id, titulo: "A essência da constituição", autores: ["Lassale, Ferdinand"],
+            colaboradores: [
+                Colaborador(nome: "Bastos, Aurélio Wander", papel: "prefácio"),
+                Colaborador(nome: "Cordeiro Filho, Antonio", papel: ""),
+            ]
+        )
+
+        XCTAssertEqual(LivroDetalheViewModel.grupos(de: livro).first, GrupoDeCampos(titulo: "Autor", campos: [
+            CampoDoLivro(rotulo: nil, valor: "Lassale, Ferdinand"),
+            CampoDoLivro(rotulo: "Prefácio", valor: "Bastos, Aurélio Wander"),
+            CampoDoLivro(rotulo: "Colaborador", valor: "Cordeiro Filho, Antonio"),
+        ]))
+        XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro).autores, "Lassale, Ferdinand")
+    }
+
     func testVolumeSoComNumeroFicaSoNoCabecalho() {
         let livro = Livro(estanteId: sala.id, titulo: "A", volume: 3)
         XCTAssertEqual(LivroDetalheViewModel.cabecalho(de: livro).volume, "Vol. 3")

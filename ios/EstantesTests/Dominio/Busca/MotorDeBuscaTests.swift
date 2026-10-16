@@ -39,6 +39,17 @@ final class MotorDeBuscaTests: XCTestCase {
         XCTAssertEqual(comTodos(motor.buscar("prisão civil")), [])
     }
 
+    // Ficha CIP do Lassalle: o prefaciador só aparece como colaborador, e a busca pelo nome dele acha o livro.
+    func testNomeDoColaboradorAchaOLivro() {
+        let essencia = Livro(
+            estanteId: estante1, titulo: "A essência da constituição", autores: ["Lassale, Ferdinand"],
+            colaboradores: [Colaborador(nome: "Bastos, Aurélio Wander", papel: "prefácio")]
+        )
+        let motor = MotorDeBusca(livros: [livroA, livroB, livroC, essencia], categorias: [])
+
+        XCTAssertEqual(comTodos(motor.buscar("wander bastos")), [essencia.id])
+    }
+
     func testOrdenaPelaNota() {
         // A tem "prisão" no título (peso 3); B, só no sumário.
         XCTAssertEqual(ids(motor.buscar("prisao").resultados), [livroA.id, livroB.id])

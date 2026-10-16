@@ -166,18 +166,40 @@ final class LivroFormularioViewModel: ObservableObject {
     // os ViewModels ficam só com Foundation, então as duas operações são feitas à mão.
 
     func apagarAutores(em posicoes: IndexSet) {
+        Self.apagar(em: posicoes, de: &rascunho.autores)
+    }
+
+    func moverAutores(de origem: IndexSet, para destino: Int) {
+        Self.mover(de: origem, para: destino, em: &rascunho.autores)
+    }
+
+    // MARK: Colaboradores
+
+    func adicionarColaborador() {
+        rascunho.colaboradores.append(Colaborador(nome: "", papel: ""))
+    }
+
+    func apagarColaboradores(em posicoes: IndexSet) {
+        Self.apagar(em: posicoes, de: &rascunho.colaboradores)
+    }
+
+    func moverColaboradores(de origem: IndexSet, para destino: Int) {
+        Self.mover(de: origem, para: destino, em: &rascunho.colaboradores)
+    }
+
+    private static func apagar<Elemento>(em posicoes: IndexSet, de lista: inout [Elemento]) {
         for posicao in posicoes.sorted(by: >) {
-            rascunho.autores.remove(at: posicao)
+            lista.remove(at: posicao)
         }
     }
 
     /// `destino` segue a convenção do `onMove` da `List`: a posição na lista *antes* de tirar os movidos.
-    func moverAutores(de origem: IndexSet, para destino: Int) {
-        let movidos = origem.map { rascunho.autores[$0] }
-        var restantes = rascunho.autores.enumerated().filter { !origem.contains($0.offset) }.map(\.element)
+    private static func mover<Elemento>(de origem: IndexSet, para destino: Int, em lista: inout [Elemento]) {
+        let movidos = origem.map { lista[$0] }
+        var restantes = lista.enumerated().filter { !origem.contains($0.offset) }.map(\.element)
         let antesDoDestino = origem.filter { $0 < destino }.count
         restantes.insert(contentsOf: movidos, at: destino - antesDoDestino)
-        rascunho.autores = restantes
+        lista = restantes
     }
 
     // MARK: Textos

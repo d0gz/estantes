@@ -30,6 +30,7 @@
         <attribute name="autores" attributeType="String" defaultValueString=""/>
         <attribute name="cddir" optional="YES" attributeType="String"/>
         <attribute name="cddirCaminho" attributeType="String" defaultValueString=""/>
+        <attribute name="colaboradores" attributeType="String" defaultValueString=""/>
         <attribute name="edicao" optional="YES" attributeType="String"/>
         <attribute name="editora" optional="YES" attributeType="String"/>
         <attribute name="fotoMiniatura" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>

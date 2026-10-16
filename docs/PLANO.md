@@ -252,7 +252,7 @@ create index edicoes_obra on edicoes (obra_id);
 | Entidade | Campos | Regras |
 | --- | --- | --- |
 | `Estante` | id (UUID), nome, criadaEm | `livros` com exclusão em cascata; a interface confirma quantos livros serão apagados e oferece movê-los |
-| `Livro` | id (UUID), titulo, subtitulo, autores, editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoMiniatura (foto livre: capa, folha de rosto…; era `fotoCapa`), adicionadoEm; isbn13 sempre com 13 dígitos sem hífens, prefixo 978/979 e verificador válido (regra `ISBN`, 13/10: toda porta de entrada passa por ela); **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
+| `Livro` | id (UUID), titulo, subtitulo, autores, colaboradores (`[Colaborador]`: nome + papel em texto livre, 2.5b), editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoMiniatura (foto livre: capa, folha de rosto…; era `fotoCapa`), adicionadoEm; isbn13 sempre com 13 dígitos sem hífens, prefixo 978/979 e verificador válido (regra `ISBN`, 13/10: toda porta de entrada passa por ela); **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
 | `ItemSumario` | id (UUID), ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3", "Art. 1.710", "§ 5.108"), titulo, pagina (opcional, **texto** desde a 2.3b: "245", "XI"), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
 | `Categoria` | id (UUID), nome (único, sem diferenciar maiúsculas/acentos), cor (identificador da paleta) | muitos-para-muitos com `Livro`; apagar a categoria = **nullify** (os livros só perdem a etiqueta) |
 
@@ -277,8 +277,9 @@ create index edicoes_obra on edicoes (obra_id);
   item a item (numeração, título, página, recuo ↑↓); colar texto fica para a Fase 3, com o parser.
 - **Obras em vários volumes** (achado das fotos reais, 09/10): tratados e comentários vêm em tomos, cada
   um com folha de rosto própria ("Tomo XLVIII", "Arts. 1.710-1.779"). `volume` é o número (ordena e
-  desempata no LexML); `volumeRotulo` é o texto impresso; `parte` e `subtitulo` são o texto médio da folha de
-  rosto (entram na busca); `serie` vem da ficha CIP; `artigosInicio/Fim` são opcionais. `edicao` continua texto
+  desempata no LexML); `volumeRotulo` é o texto impresso; `parte` é a divisão da obra, entre o título e o volume
+  ("Parte Especial"), e `subtitulo` guarda a matéria impressa abaixo do volume ("Direito das Obrigações: …", 2.5b);
+  os dois entram na busca; `serie` vem da ficha CIP; `artigosInicio/Fim` são opcionais. `edicao` continua texto
   e guarda também a reimpressão ("3.ª ed., 2.ª reimpr.").
 - **Âncoras jurídicas no sumário**: "Art. 1.710" e "§ 5.108" vão em `numeracao` (sem campo `rotulo` à parte:
   cada item tem um só prefixo impresso). Os subitens numerados de um § viram filhos (nível + 1) com a mesma página.
@@ -612,6 +613,21 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   **Risco técnico (passo 6):** na Estante, os chips são um botão dentro do botão da linha (`NavigationLink`). Conferido à
   mão pelo Ricardo no **iOS 16** (chips abrem a escolha, o resto da linha abre o Detalhe, segurar mostra "Categorias…");
   no **iOS 26** ainda não (sem aparelho nem simulador 26 no Mac): conferir quando houver.
+- [x] 2.5b (urgente, antes da 2.6) Conferência do modelo com o OCR do Gemini (livros 01 e 03), pelo `/decidir`:
+  - A. Convenção: matéria no `subtitulo`, `parte` = divisão da obra (GLOSSARY: Parte, Subtítulo, Colaborador;
+    comentários do `Livro`; dados do `RascunhoLivroTests`); `avaliacao/json_gemini/` no `.gitignore`.
+  - B. `Livro.colaboradores: [Colaborador]`: `Colaborador.swift`; atributo no `.xcdatamodel` e `Conversao` (uma linha
+    por colaborador, "papel⇥nome", separadores do texto viram espaço); nome no campo `.autores` do `IndiceInvertido`;
+    `RascunhoLivro` (linha sem nome sai); seção no `LivroFormularioView`/VM (apagar e mover genéricos); cartão Autor
+    no Detalhe com o papel como rótulo; exemplo do Lassalle e capturas.
+  - C. PLANO: modelo, folha de rosto, `ParserFichaCIP`, gabarito (`colaboradores`, `cdu`), "Contrato de campos",
+    Histórico; CLAUDE.md.
+  Notas da revisão (recusados): uma linha só com papel some sem aviso no formulário (decisão testada, sem `Problema`
+  novo); `ForEach` das listas do formulário identifica a linha pela posição (mesmo padrão dos autores) — dívida:
+  id estável por linha se a perda de foco ao apagar/mover aparecer.
+  **Onde paramos (16/10, branch `fase2/conferencia-modelo`, 408 testes):** 2.5b concluída (capturas
+  `LivroDetalheColaborador_1.0`, `FormularioColaborador_1.0`, `LivroDetalhe_1.3`). **Próximo: 2.6**, numa branch nova
+  depois do merge.
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
@@ -651,14 +667,15 @@ Os parsers ficam no Domínio e recebem `[LinhaOCR]`: struct só com Foundation (
 altura normalizados 0–1, confiança), montada em `Dados/Visao` a partir do Vision. Nada de `CGRect` ou
 `VNRecognizedTextObservation` no Domínio; os testes usam o OCR gravado em JSON (ver Avaliação).
 
-- **`ParserFichaCIP`**: cabeçalho "Sobrenome, Nome, datas"; "Título / responsabilidade"; "— Local: Editora,
+- **`ParserFichaCIP`**: cabeçalho "Sobrenome, Nome, datas"; "Título / responsabilidade" (depois do ";" vêm os
+  colaboradores: "prefácio de Aurélio Wander Bastos"); "— Local: Editora,
   Ano"; série entre parênteses; assuntos numerados ("1. Direito civil"); CDD/CDU; ISBN. A coluna da esquerda
   (número de chamada, controle) é separada pela coordenada x.
 - **`ParserFolhaDeRosto`** por geometria (altura da caixa ≈ tamanho da fonte; posição vertical):
   - título = as maiores linhas; autor = linha curta no topo ou depois de "por";
   - volume = (TOMO|VOLUME) + romano/arábico; edição = "N.ª EDIÇÃO" (+ REIMPRESSÃO);
   - ano = 4 dígitos no terço inferior; editora = Editor/Editora/Livraria/Ltda/S.A.; local = lista de cidades;
-  - subtítulo/parte = texto de tamanho médio entre o título e o volume (entra na busca).
+  - parte = texto de tamanho médio entre o título e o volume; subtítulo = matéria abaixo do volume (2.5b); entram na busca.
 - **Capa**: maior texto (altura da caixa) = candidato a título.
 - ISBN: reaproveitar `ISBN.normalizar` (`Dominio/Regras/ISBN.swift`, 13/10: dígito verificador, ISBN-10 → 13,
   prefixo 978/979, que já descarta o EAN de produto no código de barras); falta só achar o ISBN no texto (regex).
@@ -717,13 +734,54 @@ do parser e do Gemini.
 - **Gabarito** em `avaliacao/gabarito/livro-0N.json`, no Git:
   ```
   { "id", "fonte_identificacao",
-    "livro": { "titulo", "subtitulo", "autores", "editora", "local", "ano", "edicao", "reimpressao",
-               "volume", "volume_rotulo", "parte", "serie", "isbn", "cdd", "assuntos" },
+    "livro": { "titulo", "subtitulo", "autores", "colaboradores": [ { "nome", "papel" } ], "editora", "local",
+               "ano", "edicao", "reimpressao", "volume", "volume_rotulo", "parte", "serie", "isbn", "cdd", "cdu",
+               "assuntos" },
     "sumario": [ { "ordem", "nivel", "rotulo", "titulo", "pagina" } ],
     "notas" }
   ```
   No gabarito, `rotulo` corresponde à `numeracao` do app; `reimpressao` fica separada para medir, mas no app
-  vai junto em `edicao`; `cdd` e `assuntos` não têm campo no `Livro`.
+  vai junto em `edicao`; `cdd`, `cdu` e `assuntos` não têm campo no `Livro` (CDD e CDU com todos os códigos:
+  "CDU 342 / 32" → `["342", "32"]`). Nos tomos, `subtitulo` é a matéria abaixo do volume.
+
+### Contrato de campos (ficha CIP, folha de rosto, capa e sumário)
+
+Conferido em 16/10 (2.5b) com o OCR do Gemini do livro 03 (tomo XLVIII) e do livro 01 (Lassalle, com ficha CIP),
+contra as fotos. É a referência do que extrair, para o parser (Fase 3) e para o prompt do Gemini (Fase 4): o JSON
+pedido usa estes nomes, e campo sem lugar aqui é lacuna do modelo, não do OCR.
+
+| Impresso | Campo | Exemplo real |
+| --- | --- | --- |
+| Título | `titulo` | "Tratado de direito privado" |
+| Matéria abaixo do volume, ou subtítulo | `subtitulo` | "Direito das Obrigações: Contrato coletivo do trabalho. …" |
+| Autor(es) | `autores`, "Sobrenome, Nome" | "Miranda, Pontes de" |
+| Prefácio, tradução, organização, coordenação | `colaboradores` (nome + papel) | `{nome: "Bastos, Aurélio Wander", papel: "prefácio"}` |
+| Divisão da obra | `parte` | "Parte Especial" |
+| Tomo/volume | `volume` + `volumeRotulo` | 48 + "Tomo XLVIII" |
+| Artigos comentados | `artigosInicio/Fim` | 1710, 1779 |
+| Coleção | `serie` | "Coleção estudos políticos constitucionais" |
+| Edição e reimpressão | `edicao` | "3.ª ed., reimpr." |
+| Editora, sem "Editor"/"Editora"/"Ltda." | `editora` | "Borsoi", "Liber Juris" |
+| Cidade | `local` | "Rio de Janeiro" |
+| Ano da edição (não o do copyright) | `ano` | 1972 |
+| ISBN | `isbn13` (regra `ISBN`) | — |
+| CDD, CDU, assuntos da ficha | `FichaExtraida` (fora do `Livro`) | CDD "320"; CDU "342", "32"; "Direito constitucional", "Ciência política" |
+| Item do sumário | `ItemSumario`: `nivel`, `numeracao`, `titulo`, `pagina` (texto) | nível 3, "§ 5.108", "Conceito e natureza…", "3" |
+
+Regras contra omissão:
+- Texto inteiro, nunca cortado com "…".
+- Página como texto, exatamente como impressa ("XI", "245"), nunca convertida em número.
+- CDD e CDU com todos os códigos impressos ("CDU 342 / 32" → "342" e "32"), e todos os assuntos numerados da ficha.
+- Editora sem a palavra de função ("Editor", "Editora", "Livraria") nem a razão social ("Ltda.", "S.A."):
+  "EDITOR BORSOI" → "Borsoi"; "Editora Liber Juris Ltda." → "Liber Juris". É a única normalização; o resto vai como impresso.
+- Subitens numerados de um § ("1. Conceito. 2. Figurantes coletivos.") viram filhos (nível + 1) com a mesma página.
+- Divisões sem página (Parte, Capítulo) são itens com `pagina` vazia. Elementos pré-textuais (Nota explicativa,
+  Prefácio, Introdução) são itens de nível 1 com a página impressa ("ix").
+- Autor de um item do sumário fica no `titulo`, como impresso ("Prefácio [Aurélio Wander Bastos]").
+- Fontes divergentes (CIP "Lassale" × capa "Lassalle"): transcrever a de maior confiança (ordem de 09/10) e
+  devolver a outra como divergência, para a tela de confirmação (Fase 3).
+- Fora, de propósito: cabeçalho corrido ("Tábua sistemática das matérias"), fólio, texto do verso, créditos
+  (produção, capa), endereço da editora, ano do copyright, datas de vida do autor, números de controle e de chamada.
 
 ### Checklists
 
@@ -857,3 +915,6 @@ do parser e do Gemini.
 | 16/10 | Paleta de categorias com 10 casos: vermelho, laranja, amarelo, verde, menta, índigo, roxo, rosa, marrom, cinza (saem azul e turquesa do enum de 03/10) | O enum ainda tinha azul e turquesa, vetados na linha de 12/10 (colidem com o destaque); as 9 vêm do protótipo aprovado (captura `EstiloCategorias_1.5`) e o cinza dá uma etiqueta neutra. O valor bruto vai para o Core Data e para o JSON v1, por isso muda agora, antes da 2.8. Só as 9, sem cinza, foi descartado |
 | 16/10 | Apresentador da foto ampliada dentro do conteúdo rolável (no botão da miniatura) e como `UIViewRepresentable` que apresenta pelo topo da janela; revisa o detalhe de implementação da linha de 13/10 (continua UIKit com `.overFullScreen`) | No Detalhe, a barra de navegação não ganhava fundo ao rolar e o texto passava por baixo do "voltar". Causa (diagnosticada com captura rolada): uma vista do UIKit em volta da `ScrollView` (o `.background` na tela inteira) impede a barra de reconhecer a rolagem. Trocar só o `UIViewControllerRepresentable` por uma `UIView` não resolveu; o que resolveu foi a posição. Sem teste de regressão (sem XCUITest) |
 | 16/10 | Tons das categorias congelados em hex (viva, texto claro, alto contraste escuro), lidos do iOS 16 em que foram aprovados, em vez de derivar das cores do sistema em tempo de execução | O `PaletaTests` roda no iOS 16 do Mac, mas o `.ipa` roda no iOS 26, cujas cores do sistema podem mudar: derivar deixaria o teste medindo outra cor que a da tela. Hex fixo aparece na revisão, como nos outros tokens |
+| 16/10 | Nos tomos, a matéria impressa abaixo do volume ("Direito das Obrigações: …") vai no `subtitulo`; `parte` é a divisão da obra ("Parte Especial") | O OCR do Gemini (tomo XLVIII) e a folha do tomo I mostram três textos médios e o modelo não dizia onde ia a matéria (os testes divergiam). Campo novo descartado: mesmo papel na busca (já somam no `subtitulo`, linha de 09/10) e mais esquema antes do JSON v1. Juntar tudo em `parte` descartado: mistura dois dados. Refina a linha de 09/10 sobre `parte`/`subtitulo` |
+| 16/10 | `Livro.colaboradores: [Colaborador]` (nome + papel em texto livre: prefácio, tradução, organização, coordenação); na busca, soma no campo de autores | A ficha CIP do Lassalle traz "prefácio de Aurélio Wander Bastos" e o modelo não tinha onde guardá-lo; em livro jurídico, coordenador e tradutor são procurados pelo nome. Juntar em `autores` descartado: o cabeçalho ABNT mostraria um prefaciador como autor. Enum de papéis descartado: o valor bruto ficaria congelado no JSON v1. `[String]` livre descartado: mistura nome e papel. Entra antes do JSON v1 (2.8), sem migração |
+| 16/10 | CDU fica fora do `Livro`, ao lado da CDD, na `FichaExtraida` e no gabarito, com todos os códigos | O Gemini guardou só o "342" de "CDU 342 / 32". Estende a linha de 09/10 (CDD e assuntos fora do `Livro`), não a reverte |

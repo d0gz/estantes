@@ -35,6 +35,19 @@ final class IndiceInvertidoTests: XCTestCase {
         XCTAssertEqual(indice.ocorrencias(de: "inexistente"), [:])
     }
 
+    // Ficha CIP do Lassalle: "prefácio de Aurélio Wander Bastos". O nome se procura como o de um autor
+    // (PLANO, 16/10); o papel não é assunto do livro e fica fora.
+    func testColaboradorEntraNoCampoDosAutoresSemOPapel() {
+        var indice = IndiceInvertido()
+        var essencia = livro(titulo: "A essência da constituição", autores: ["Lassale, Ferdinand"])
+        essencia.colaboradores = [Colaborador(nome: "Bastos, Aurélio Wander", papel: "prefácio")]
+        indice.adicionar(essencia, nomesDasCategorias: [:])
+
+        XCTAssertEqual(indice.ocorrencias(de: "aurelio"), [essencia.id: [.autores: 1]])
+        XCTAssertEqual(indice.ocorrencias(de: "wander"), [essencia.id: [.autores: 1]])
+        XCTAssertEqual(indice.ocorrencias(de: "prefacio"), [:])
+    }
+
     func testTermoEmDoisCamposContaUmLivroNoDf() {
         var indice = IndiceInvertido()
         let penal = livro(titulo: "Processo penal", sumario: ["Processo cautelar", "Recursos"])
