@@ -66,7 +66,6 @@ struct LivroDetalheView: View {
                 EscolhaDeCategoriasView(viewModel: escolha(viewModel.livroId), formulario: formularioDeCategoria)
             }
             .task { await viewModel.carregar() }
-            .fotoAmpliada($fotoAberta)
             .aoVoltar { await viewModel.carregar() }
             .alertaDeErro($viewModel.mensagemDeErro)
     }
@@ -135,6 +134,9 @@ struct LivroDetalheView: View {
                     .sombraSuave()
             }
             .buttonStyle(EstiloFoto())
+            // Dentro do conteúdo, e não em volta da `ScrollView`: uma vista do UIKit envolvendo a tela inteira impedia a
+            // barra de navegação de reconhecer a rolagem (sem fundo, o texto passava por baixo do "voltar" e do "Editar").
+            .fotoAmpliada($fotoAberta)
             .allowsHitTesting(temFoto)
             .accessibilityHidden(!temFoto)
             .accessibilityLabel("Ampliar foto")
