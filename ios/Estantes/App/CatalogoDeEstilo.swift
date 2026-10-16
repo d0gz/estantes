@@ -114,8 +114,7 @@ struct CatalogoDeEstiloView: View {
     @ViewBuilder
     private var categorias: some View {
         secao("Categorias — as 10 cores e o fantasma") {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: Espaco.pequeno, alignment: .leading)],
-                      alignment: .leading, spacing: Espaco.pequeno) {
+            FluxoDeChips {
                 ForEach(Self.exemplos) { ChipDeCategoria($0) }
                 ChipDeCategoria.fantasma
             }
