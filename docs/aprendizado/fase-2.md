@@ -2818,3 +2818,82 @@ Com `<=`, cada cor empatada com o mínimo substituiria a anterior, e o resultado
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.5b — Conferência do modelo contra livros reais (2026-10-16)
+
+### O que foi feito
+Antes de construir a tela do sumário (2.6) e o export JSON v1 (2.8), o modelo `Livro`/`ItemSumario` foi conferido contra as **fotos** de dois livros do conjunto de avaliação (Pontes de Miranda, tomo XLVIII; Lassalle). O Gemini (chat web) fez o OCR em JSON só como ponto de partida. A conferência achou duas lacunas reais: a *matéria* do tomo (`Direito das Obrigações: Contrato coletivo…`) e o *prefaciador*. Resultado: `Colaborador` (`Dominio/Entidades/Colaborador.swift`), `Livro.colaboradores`, persistência em `Conversao.swift`, índice em `IndiceInvertido.swift`, `RascunhoLivro`, formulário e Detalhe; mais a subseção "Contrato de campos" no `docs/PLANO.md`. Testes: 400 → 408.
+
+### Conceitos envolvidos
+
+**1. Conferir o modelo contra a fonte primária.** A pergunta é "o que está impresso que não tem onde morar no meu modelo?". A fonte de verdade é a foto. A saída de outra ferramenta (o JSON do Gemini) é só uma segunda opinião falível: se você conferisse o modelo só contra o JSON, herdaria as omissões dele (e o Gemini perdeu a palavra "Tomo", o "32" da CDU, os assuntos e cortou títulos de § com "…"). Método: tabela *impresso × extrator × nosso campo × situação*.
+
+**2. Lacuna do modelo × omissão do extrator.** São problemas diferentes, com remédios diferentes:
+- *Lacuna do modelo*: a informação está na foto e não há campo. Qualquer extrator, perfeito que seja, não consegue entregá-la. Remédio: mudar o esquema (matéria, prefaciador).
+- *Omissão do extrator*: há campo, mas o extrator não preencheu. Remédio: prompt e regras (Fase 4), validação (Fase 3). Exemplos: títulos de § cortados, subitens numerados ("1. Conceito. 2. Figurantes…") ausentes (o PLANO já mandava virarem filhos, nível+1, com a mesma página).
+Misturar os dois leva a corrigir o lugar errado: mudar o esquema por causa de um bug de OCR, ou "melhorar o prompt" para algo que o esquema nem comporta.
+
+**3. Lista plana com `nivel` × árvore.** O Gemini aninhou em 3 níveis fixos (Parte, Capítulo, §). Nossa lista plana ordenada com `nivel` representa qualquer profundidade (pré-textuais com página romana no nível 1, subitens no nível 4…). A árvore é reconstruível da lista (uma pilha basta, O(n)); o contrário exige travessia. É mais geral e mais simples de persistir e editar.
+
+**4. Serializar uma lista de registros numa única `String` e o separador dentro do dado.** O Core Data aqui guarda `colaboradores` como uma String: uma linha por colaborador, `papel⇥nome`. O problema clássico é o separador aparecer dentro do dado (o OCR pode trazer uma tabulação ou quebra de linha). Há duas saídas:
+- *Escaping*: marcar o separador legítimo (`\t` → `\\t`, como CSV com aspas). Preserva o dado exato, mas exige um parser que entenda o escape e é fácil errar.
+- *Saneamento*: proibir/trocar o separador no dado antes de gravar. Perde a distinção, mas é trivial e seguro.
+Escolheu-se saneamento (`semSeparadores`: tabulação e quebra viram espaço), porque num nome ou papel essa diferença não tem valor. Escaping valeria se o texto pudesse ter significado nesses caracteres (código, parágrafos). Sem uma das duas saídas, o dado volta partido: o colaborador viraria dois, ou o papel entraria no nome. Foi o P1 da revisão, com teste vermelho → verde.
+Mais uma armadilha igual à dos autores: `"".components(separatedBy: "\n")` devolve `[""]`, não `[]`. Por isso `lista(_:separador:)` testa `texto.isEmpty` antes. Note também que `colaborador(_:)` corta na **primeira** tabulação, e uma linha sem tabulação vira nome sem papel em vez de sumir (degradação graciosa).
+Alternativa estruturada (relação Core Data com entidade própria, ou JSON em campo `Binary`) fica mais "correta", mas custa modelo, migração e mais código para uma lista curta que nunca é consultada por si só.
+
+**5. Texto livre × enum quando o valor bruto é contrato.** `papel` é `String`. Um enum Swift com `rawValue` ("prefacio", "traducao") iria para o JSON v1 e ficaria congelado: renomear ou remover um caso quebraria arquivos exportados antigos, e um papel que não está na lista ("apresentação", "notas de atualização") não teria onde ir. Texto livre guarda "como vem impresso". O preço: sem normalização (o mesmo papel escrito de duas formas) e sem filtro por papel; aceitável porque ninguém filtra por papel aqui. Enum compensa quando o conjunto é fechado e a lógica ramifica no valor.
+
+**6. Teste que não depende de regra alheia ao alvo.** O teste do índice buscava "bastos" e falhou: o índice guarda a forma singular ("basto") por causa da regra `Singular`. A consulta passa pela mesma regra, então a busca real funciona; o teste que inspecionava o índice diretamente é que estava acoplado a um detalhe que não era seu alvo (o alvo é "o nome do colaborador entra no campo `.autores`"). Passou a conferir "aurelio", palavra sem plural. Regra geral: escolha dados de teste que isolem o comportamento testado de regras vizinhas. Já o teste ponta a ponta no `MotorDeBusca` ("wander bastos") cobre o caminho completo, onde a normalização é aplicada nos dois lados.
+
+**7. Genéricos com `inout`.** `apagar<Elemento>` / `mover<Elemento>` recebem `inout [Elemento]`, e servem a autores (`[String]`) e colaboradores (`[Colaborador]`). Evita duplicar a lógica de índices; a limitação é que o helper não sabe nada do elemento (ótimo aqui).
+
+### Por que assim
+- **Matéria no `subtitulo`, `parte` = divisão da obra (Q1):** na busca o papel é o mesmo (campo `.subtitulo`, que já inclui `parte`); um campo novo custaria esquema antes de congelar o JSON v1. Juntar em `parte` misturaria dois dados distintos ("Parte Especial" e "Direito das Obrigações").
+- **`Colaborador {nome, papel}` separado de `autores` (Q6/Q10):** o cabeçalho ABNT mostra só quem escreveu; um prefaciador ali pareceria coautor.
+- **Nome soma no campo `.autores` do BM25F (peso 0,5), papel fora (Q11):** o usuário procura a pessoa como procura um autor; "prefácio" não informa o assunto.
+- **Copyright, datas do autor e créditos fora do `Livro`; CDU ao lado da CDD na `FichaExtraida` (Q7):** o modelo não deve virar um espelho de tudo que está impresso, só do que o app usa; mas a ficha guarda todos os códigos CDD/CDU.
+- **Autor de item do sumário fica no `titulo` (Q8):** campo a menos, nada se perde.
+- **Fontes divergentes (CIP "Lassale" × capa "Lassalle"): transcrever a de maior confiança e devolver a outra como divergência na Fase 3 (Q9):** o Gemini escolheu a grafia da capa **sem avisar**, o que esconde um conflito que o usuário poderia resolver.
+- **Contrato de campos no PLANO:** tabela campo × exemplo real + regras contra omissão (página como texto porque pode ser "ix"; CDD/CDU completos; normalização da editora). Vira a base do prompt/esquema da Fase 4.
+- **Sem migração do Core Data:** atributo novo editado direto no `.xcdatamodel`, porque não há dados em aparelho; no dia em que houver, isso muda (migração leve com atributo opcional/default).
+- **`avaliacao/json_gemini/` fora do Git (Q3):** são dados de avaliação, com possíveis trechos de obras protegidas.
+
+### Alternativas descartadas
+- Campo novo `materia`: mesmo papel na busca, mais esquema.
+- Juntar colaboradores em `autores`: contamina o cabeçalho ABNT.
+- Enum de papéis: rawValue congelado no JSON v1; `[String]` livre: mistura nome e papel numa string.
+- Escaping do separador: parser mais complexo para ganho zero aqui.
+- Relação Core Data própria para colaboradores: mais custo que o valor.
+- Papel sem nome (P3): recusado, ele some sem aviso ao salvar. Isso é uma decisão consciente de que o papel sozinho não identifica ninguém, mas vale saber que há perda silenciosa. `ForEach` por índice (P4) fica como dívida anotada.
+
+### Padrões e boas práticas
+- **Conferir esquema contra fonte primária antes de congelar um contrato externo** (JSON v1). Mudar depois custa compatibilidade.
+- **Regra explícita contra omissão** no contrato do extrator: dizer ao modelo de IA o que *não* pode cortar ("…", subitens).
+- **Degradação graciosa** ao ler formato persistido (linha sem tabulação não some).
+- **Normalizar na escrita, ler tolerante** (princípio de Postel, com limites).
+- NÃO use string delimitada quando precisar consultar ou filtrar pelo conteúdo no banco, ou quando o dado puder conter o delimitador de forma significativa.
+
+### Armadilhas
+- `"".components(separatedBy:)` → `[""]`.
+- Separador dentro do dado: o bug só aparece com dado real (OCR), nunca com os exemplos de teste digitados à mão.
+- Teste de índice que inspeciona tokens depende de stemming/singularização; prefira palavras neutras ou o teste via motor.
+- Confiar na saída do extrator para validar o modelo: herda as omissões dele.
+- Rótulo vazio no Detalhe: caiu em "Colaborador" (padrão); convém ter teste para o caso vazio.
+
+### Para ir além
+- Martin Kleppmann, *Designing Data-Intensive Applications*, cap. 4 (codificação e evolução de esquemas): compatibilidade para frente e para trás, que é o que o JSON v1 vai exigir.
+- RFC 4180 (CSV) para ver o escaping por aspas na prática.
+- Documentação Apple, "Core Data Model Versioning and Data Migration".
+
+### Perguntas
+1. Com suas palavras: qual a diferença entre uma *lacuna do modelo* e uma *omissão do extrator*? Classifique: (a) o prefaciador do livro de Lassalle não ter campo; (b) o "32" da CDU ter sumido do JSON; (c) os títulos de § cortados com "…".
+2. Aplicação: suponha que um papel de colaborador possa conter uma tabulação legítima e que não se possa perder o caractere. Como mudaria o formato de persistência? Descreva o que a gravação e a leitura passariam a fazer.
+3. Raciocínio: por que o teste de "bastos" falhou, apesar de a busca funcionar? Diga o que há de errado no teste (não no código) e por que "aurelio" resolve. Que risco continua existindo se só houver o teste de índice, sem o do `MotorDeBusca`?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
