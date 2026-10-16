@@ -26,6 +26,8 @@ enum DadosDeExemplo {
     /// Três autores e dois de nome longo, para o Detalhe: sobrenomes no cabeçalho, nomes inteiros no cartão "Autores".
     static let teoriaGeralDoProcesso = UUID(uuidString: "B0000000-0000-0000-0000-000000000003")!
     static let cursoMendesBranco = UUID(uuidString: "B0000000-0000-0000-0000-000000000002")!
+    /// Com colaborador (prefácio), como na ficha CIP real.
+    static let essenciaDaConstituicao = UUID(uuidString: "B0000000-0000-0000-0000-000000000004")!
 
     // Categorias: cores variadas, uma sem livros ("Ler depois") e livros com zero, uma e duas categorias.
     static let constitucional = Categoria(nome: "Constitucional", cor: .vermelho)
@@ -55,6 +57,7 @@ enum DadosDeExemplo {
                   autores: ["Diniz, Maria Helena"], editora: "Saraiva", ano: 2012, prateleira: "2ª de cima",
                   categoriaIds: [civil.id]),
             Livro(id: tratadoTomo48, estanteId: escritorio.id, titulo: "Tratado de direito privado",
+                  subtitulo: "Direito das obrigações: Contrato coletivo do trabalho. Contratos especiais de trabalho",
                   autores: ["Miranda, Pontes de"], editora: "Borsoi", local: "Rio de Janeiro", edicao: "2.ª ed.",
                   volume: 48, volumeRotulo: "Tomo XLVIII", parte: "Parte especial", ano: 1965, prateleira: "caixa azul",
                   categoriaIds: [civil.id]),
@@ -71,6 +74,11 @@ enum DadosDeExemplo {
             Livro(id: cursoMendesBranco, estanteId: sala.id, titulo: "Curso de direito constitucional",
                   autores: ["Mendes, Gilmar Ferreira", "Branco, Paulo Gustavo Gonet"],
                   editora: "Saraiva", local: "São Paulo", edicao: "7.ª ed.", ano: 2012, categoriaIds: [constitucional.id]),
+            Livro(id: essenciaDaConstituicao, estanteId: sala.id, titulo: "A essência da constituição",
+                  autores: ["Lassale, Ferdinand"],
+                  colaboradores: [Colaborador(nome: "Bastos, Aurélio Wander", papel: "prefácio")],
+                  editora: "Liber Juris", local: "Rio de Janeiro", edicao: "2.ª ed.",
+                  serie: "Coleção estudos políticos constitucionais", ano: 1988, categoriaIds: [constitucional.id]),
         ]
         for livro in livros {
             try await repositorio.salvar(livro)
@@ -159,11 +167,13 @@ enum Captura: String {
     case livroDetalhe = "LivroDetalhe"
     case livroDetalheTresAutores = "LivroDetalheTresAutores"
     case livroDetalheDoisAutores = "LivroDetalheDoisAutores"
+    case livroDetalheColaborador = "LivroDetalheColaborador"
     case apagarLivro = "ApagarLivro"
     case livroDetalheSemCategoria = "LivroDetalheSemCategoria"
     case escolhaDeCategorias = "EscolhaDeCategorias"
     case formularioNovo = "FormularioNovo"
     case formularioEditar = "FormularioEditar"
+    case formularioColaborador = "FormularioColaborador"
     case categorias = "Categorias"
     case categoriasVazia = "CategoriasVazia"
     case categoriaNova = "CategoriaNova"
@@ -207,6 +217,10 @@ enum Captura: String {
             ComExemplos {
                 NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.sala, livro: DadosDeExemplo.cursoMendesBranco))
             }
+        case .livroDetalheColaborador:
+            ComExemplos {
+                NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.sala, livro: DadosDeExemplo.essenciaDaConstituicao))
+            }
         case .livroDetalheSemCategoria:
             ComExemplos {
                 NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo47))
@@ -243,6 +257,14 @@ enum Captura: String {
                     dependencias: $0,
                     caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48),
                     folhaInicial: FolhaPendente(.formulario, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo48))
+                )
+            }
+        case .formularioColaborador:
+            ComExemplos {
+                NavegacaoView(
+                    dependencias: $0,
+                    caminhoInicial: Self.caminho(DadosDeExemplo.sala, livro: DadosDeExemplo.essenciaDaConstituicao),
+                    folhaInicial: FolhaPendente(.formulario, em: RotaDoLivro(livroId: DadosDeExemplo.essenciaDaConstituicao))
                 )
             }
         case .categorias:

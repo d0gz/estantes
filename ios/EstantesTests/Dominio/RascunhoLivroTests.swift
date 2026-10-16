@@ -19,7 +19,9 @@ final class RascunhoLivroTests: XCTestCase {
     private func livroCompleto() -> Livro {
         Livro(
             estanteId: escritorio, titulo: "Tratado de direito privado", subtitulo: "Direito de família",
-            autores: ["Miranda, Pontes de", "Nery Jr., Nelson"], editora: "Borsoi", local: "Rio de Janeiro",
+            autores: ["Miranda, Pontes de", "Nery Jr., Nelson"],
+            colaboradores: [Colaborador(nome: "Bastos, Aurélio Wander", papel: "prefácio")],
+            editora: "Borsoi", local: "Rio de Janeiro",
             edicao: "2.ª ed.", volume: 48, volumeRotulo: "Tomo XLVIII", parte: "Parte especial",
             serie: "Coleção Tratado", artigosInicio: 1710, artigosFim: 1779, ano: 1965, isbn13: "9788520300008",
             paginas: 512, cddir: "341.1", cddirCaminho: ["Direito civil", "Família"], urn: "urn:lex:br:1965",
@@ -35,6 +37,8 @@ final class RascunhoLivroTests: XCTestCase {
         let rascunho = RascunhoLivro(estanteId: escritorio)
         XCTAssertEqual(rascunho.autores, [""])
         XCTAssertEqual(rascunho.estanteId, escritorio)
+        // Colaborador não é obrigatório: nenhuma linha vazia esperando.
+        XCTAssertEqual(rascunho.colaboradores, [])
     }
 
     func testMontaLivroNovoManualComOsObrigatorios() throws {
@@ -92,6 +96,22 @@ final class RascunhoLivroTests: XCTestCase {
         let livro = try XCTUnwrap(rascunho.montar(sobre: nil))
 
         XCTAssertEqual(livro.autores, ["Nery Jr., Nelson", "Miranda, Pontes de"])
+    }
+
+    func testColaboradorSemNomeSaiOsOutrosFicamAparadosENaOrdem() throws {
+        var rascunho = rascunhoMinimo()
+        rascunho.colaboradores = [
+            Colaborador(nome: "  Bastos,  Aurélio Wander ", papel: " prefácio "),
+            Colaborador(nome: "   ", papel: "tradução"),
+            Colaborador(nome: "Cordeiro Filho, Antonio", papel: "  "),
+        ]
+
+        let livro = try XCTUnwrap(rascunho.montar(sobre: nil))
+
+        XCTAssertEqual(livro.colaboradores, [
+            Colaborador(nome: "Bastos, Aurélio Wander", papel: "prefácio"),
+            Colaborador(nome: "Cordeiro Filho, Antonio", papel: ""),
+        ])
     }
 
     func testSemNenhumAutorPreenchidoEhObrigatorio() {

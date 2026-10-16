@@ -107,13 +107,13 @@ final class LivroDetalheViewModel: ObservableObject {
 
     /// Os grupos de campos do detalhe, só com os campos preenchidos; grupo sem nenhum campo some.
     /// Título, subtítulo e volume não entram: estão no `cabecalho(de:)`. Os autores, sim, um por linha (o
-    /// cabeçalho mostra só os sobrenomes).
+    /// cabeçalho mostra só os sobrenomes), seguidos dos colaboradores, que nunca vão para o cabeçalho.
     static func grupos(de livro: Livro) -> [GrupoDeCampos] {
         let autores = autoresPreenchidos(livro)
         let grupos = [
             GrupoDeCampos(
                 titulo: autores.count > 1 ? "Autores" : "Autor",
-                campos: autores.map { CampoDoLivro(rotulo: nil, valor: $0) }
+                campos: autores.map { CampoDoLivro(rotulo: nil, valor: $0) } + camposDosColaboradores(livro)
             ),
             GrupoDeCampos(titulo: "Obra", campos: campos([
                 ("Parte", livro.parte),
@@ -141,6 +141,16 @@ final class LivroDetalheViewModel: ObservableObject {
     private static func campos(_ pares: [(String, String?)]) -> [CampoDoLivro] {
         pares.compactMap { rotulo, valor in
             preenchido(valor).map { CampoDoLivro(rotulo: rotulo, valor: $0) }
+        }
+    }
+
+    /// Depois dos autores, cada colaborador com o papel como rótulo ("Prefácio"); sem papel, "Colaborador".
+    private static func camposDosColaboradores(_ livro: Livro) -> [CampoDoLivro] {
+        livro.colaboradores.compactMap { colaborador in
+            preenchido(colaborador.nome).map { nome in
+                let papel = preenchido(colaborador.papel).map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                return CampoDoLivro(rotulo: papel ?? "Colaborador", valor: nome)
+            }
         }
     }
 
