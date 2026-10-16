@@ -8,7 +8,6 @@ enum Espaco {
     static let medio: CGFloat = 12
     static let padrao: CGFloat = 16
     static let grande: CGFloat = 24
-    static let enorme: CGFloat = 32
 }
 
 /// Raios dos cantos: `pequeno` em chips, campos e capas; `medio` em botões; `grande` em cartões.
