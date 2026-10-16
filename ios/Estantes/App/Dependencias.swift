@@ -52,4 +52,19 @@ struct Dependencias {
             miniaturas.esquecer(livroId)
         })
     }
+
+    @MainActor
+    func fazerCategoriasViewModel() -> CategoriasViewModel {
+        CategoriasViewModel(repositorio: repositorio)
+    }
+
+    @MainActor
+    func fazerCategoriaFormularioViewModel(modo: CategoriaFormularioViewModel.Modo) -> CategoriaFormularioViewModel {
+        CategoriaFormularioViewModel(modo: modo, repositorio: repositorio)
+    }
+
+    @MainActor
+    func fazerEscolhaDeCategoriasViewModel(livroId: UUID) -> EscolhaDeCategoriasViewModel {
+        EscolhaDeCategoriasViewModel(livroId: livroId, repositorio: repositorio)
+    }
 }

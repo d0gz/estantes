@@ -21,22 +21,33 @@ struct LivroDetalheView: View {
     private let tetoDaMiniatura: CGFloat = 180
     /// Cria o ViewModel do formulário; vem da montagem para a tela não precisar conhecer `Dependencias`.
     private let formulario: @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel
+    /// A folha de escolher categorias e a de criar uma nova (dentro dela); também vêm da montagem.
+    private let escolha: @MainActor (UUID) -> EscolhaDeCategoriasViewModel
+    private let formularioDeCategoria: @MainActor (CategoriaFormularioViewModel.Modo) -> CategoriaFormularioViewModel
+    @State private var escolhendoCategorias: Bool
 
     /// - Parameters:
     ///   - abrirConfirmacao: abre a confirmação de apagar logo de início (só as capturas usam).
     ///   - abrirFormulario: abre a edição logo de início (só as capturas usam).
+    ///   - abrirCategorias: abre a escolha de categorias logo de início (só as capturas usam).
     init(
         viewModel: @autoclosure @escaping () -> LivroDetalheViewModel,
         miniaturas: CarregadorDeMiniaturas,
         formulario: @escaping @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel,
+        escolha: @escaping @MainActor (UUID) -> EscolhaDeCategoriasViewModel,
+        formularioDeCategoria: @escaping @MainActor (CategoriaFormularioViewModel.Modo) -> CategoriaFormularioViewModel,
         abrirConfirmacao: Bool = false,
-        abrirFormulario: Bool = false
+        abrirFormulario: Bool = false,
+        abrirCategorias: Bool = false
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
         self.miniaturas = miniaturas
         self.formulario = formulario
+        self.escolha = escolha
+        self.formularioDeCategoria = formularioDeCategoria
         _confirmandoExclusao = State(initialValue: abrirConfirmacao)
         _editando = State(initialValue: abrirFormulario)
+        _escolhendoCategorias = State(initialValue: abrirCategorias)
     }
 
     var body: some View {
@@ -51,8 +62,10 @@ struct LivroDetalheView: View {
             .sheet(isPresented: $editando, onDismiss: { Task { await viewModel.carregar() } }) {
                 LivroFormularioView(viewModel: formulario(.edicao(livroId: viewModel.livroId)))
             }
+            .sheet(isPresented: $escolhendoCategorias, onDismiss: { Task { await viewModel.carregar() } }) {
+                EscolhaDeCategoriasView(viewModel: escolha(viewModel.livroId), formulario: formularioDeCategoria)
+            }
             .task { await viewModel.carregar() }
-            .fotoAmpliada($fotoAberta)
             .aoVoltar { await viewModel.carregar() }
             .alertaDeErro($viewModel.mensagemDeErro)
     }
@@ -120,7 +133,10 @@ struct LivroDetalheView: View {
                 MiniaturaDoLivro(livroId: livro.id, carregador: miniaturas, largura: larguraDaMiniatura)
                     .sombraSuave()
             }
-            .buttonStyle(EstiloFoto())
+            .buttonStyle(EstiloPressao())
+            // Dentro do conteúdo, e não em volta da `ScrollView`: uma vista do UIKit envolvendo a tela inteira impedia a
+            // barra de navegação de reconhecer a rolagem (sem fundo, o texto passava por baixo do "voltar" e do "Editar").
+            .fotoAmpliada($fotoAberta)
             .allowsHitTesting(temFoto)
             .accessibilityHidden(!temFoto)
             .accessibilityLabel("Ampliar foto")
@@ -147,9 +163,29 @@ struct LivroDetalheView: View {
                 }
             }
             .multilineTextAlignment(.center)
+            chipsDeCategoria
         }
         .frame(maxWidth: .infinity)
         .padding(.top, Espaco.pequeno)
+    }
+
+    /// As categorias do livro; tocar abre a escolha. Sem nenhuma, o chip fantasma "+ Categoria" convida a escolher.
+    private var chipsDeCategoria: some View {
+        let categorias = viewModel.categoriasDoLivro
+        return Button {
+            escolhendoCategorias = true
+        } label: {
+            FluxoDeChips(centralizado: true) {
+                if categorias.isEmpty {
+                    ChipDeCategoria.fantasma
+                } else {
+                    ForEach(categorias) { ChipDeCategoria($0) }
+                }
+            }
+        }
+        .buttonStyle(EstiloPressao())
+        .accessibilityLabel(categorias.isEmpty ? "Adicionar categoria" : "Categorias: " + categorias.map(\.nome).joined(separator: ", "))
+        .accessibilityHint("Toque para escolher as categorias do livro.")
     }
 
     /// Título do grupo fora do cartão (como na Estante) e os campos dentro, separados por uma linha.
@@ -215,13 +251,4 @@ struct LivroDetalheView: View {
 private struct PedidoDaFoto: Equatable {
     let livroId: UUID
     let trocas: Int
-}
-
-/// A foto encolhe com a mola ao tocar e escurece de leve (o sinal parado, com "Reduzir movimento").
-private struct EstiloFoto: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .pressao(configuration.isPressed)
-            .opacity(configuration.isPressed ? 0.85 : 1)
-    }
 }

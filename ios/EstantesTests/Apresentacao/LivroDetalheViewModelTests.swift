@@ -25,6 +25,35 @@ final class LivroDetalheViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.estado, .pronto(livro))
     }
 
+    /// Só as do livro (Filosofia existe mas fica de fora), na ordem alfabética do repositório.
+    func testCategoriasDoLivroSaoSoAsDeleEmOrdemAlfabetica() async {
+        let processo = Categoria(nome: "Processo", cor: .verde)
+        let civil = Categoria(nome: "Civil", cor: .laranja)
+        let filosofia = Categoria(nome: "Filosofia", cor: .marrom)
+        var livro = livroCompleto()
+        livro.categoriaIds = [processo.id, civil.id]
+        let viewModel = LivroDetalheViewModel(
+            livroId: livro.id,
+            repositorio: BibliotecaRepositorioEmMemoria(estantes: [sala], livros: [livro], categorias: [processo, civil, filosofia])
+        )
+
+        await viewModel.carregar()
+
+        XCTAssertEqual(viewModel.categoriasDoLivro, [civil, processo])
+    }
+
+    func testLivroSemCategoriaNaoTemChips() async {
+        let livro = livroCompleto()
+        let viewModel = LivroDetalheViewModel(
+            livroId: livro.id,
+            repositorio: BibliotecaRepositorioEmMemoria(estantes: [sala], livros: [livro], categorias: [Categoria(nome: "Civil", cor: .laranja)])
+        )
+
+        await viewModel.carregar()
+
+        XCTAssertEqual(viewModel.categoriasDoLivro, [])
+    }
+
     func testIdInexistenteFicaNaoEncontrado() async {
         let viewModel = LivroDetalheViewModel(livroId: UUID(), repositorio: BibliotecaRepositorioEmMemoria())
         await viewModel.carregar()

@@ -20,10 +20,19 @@ enum DadosDeExemplo {
         criadaEm: Date(timeIntervalSinceReferenceDate: 3)
     )
     static let tratadoTomo48 = UUID(uuidString: "B0000000-0000-0000-0000-000000000048")!
+    /// Sem categoria: o chip fantasma no Detalhe e na Estante.
+    static let tratadoTomo47 = UUID(uuidString: "B0000000-0000-0000-0000-000000000047")!
     static let cursoConstitucional = UUID(uuidString: "B0000000-0000-0000-0000-000000000001")!
     /// Três autores e dois de nome longo, para o Detalhe: sobrenomes no cabeçalho, nomes inteiros no cartão "Autores".
     static let teoriaGeralDoProcesso = UUID(uuidString: "B0000000-0000-0000-0000-000000000003")!
     static let cursoMendesBranco = UUID(uuidString: "B0000000-0000-0000-0000-000000000002")!
+
+    // Categorias: cores variadas, uma sem livros ("Ler depois") e livros com zero, uma e duas categorias.
+    static let constitucional = Categoria(nome: "Constitucional", cor: .vermelho)
+    static let processo = Categoria(nome: "Processo", cor: .verde)
+    static let civil = Categoria(nome: "Civil", cor: .laranja)
+    static let filosofia = Categoria(nome: "Filosofia", cor: .marrom)
+    static let lerDepois = Categoria(nome: "Ler depois", cor: .cinza)
 
     /// Biblioteca pequena, com livros reais de direito, para as telas terem conteúdo plausível:
     /// duas prateleiras numeradas, dois tomos da mesma obra, um livro sem prateleira e uma estante vazia.
@@ -31,30 +40,37 @@ enum DadosDeExemplo {
         for estante in [escritorio, sala, quarto] {
             try await repositorio.salvar(estante)
         }
+        for categoria in [constitucional, processo, civil, filosofia, lerDepois] {
+            try await repositorio.salvar(categoria)
+        }
 
         let livros = [
             Livro(id: cursoConstitucional, estanteId: escritorio.id, titulo: "Curso de direito constitucional positivo",
-                  autores: ["Silva, José Afonso da"], editora: "Malheiros", ano: 2014, prateleira: "1ª de cima"),
+                  autores: ["Silva, José Afonso da"], editora: "Malheiros", ano: 2014, prateleira: "1ª de cima",
+                  categoriaIds: [constitucional.id]),
             Livro(estanteId: escritorio.id, titulo: "Direitos fundamentais e processo penal",
-                  autores: ["Fernandes, Antonio Scarance"], ano: 2010, prateleira: "1ª de cima"),
+                  autores: ["Fernandes, Antonio Scarance"], ano: 2010, prateleira: "1ª de cima",
+                  categoriaIds: [constitucional.id, processo.id]),
             Livro(estanteId: escritorio.id, titulo: "Curso de direito civil brasileiro",
-                  autores: ["Diniz, Maria Helena"], editora: "Saraiva", ano: 2012, prateleira: "2ª de cima"),
+                  autores: ["Diniz, Maria Helena"], editora: "Saraiva", ano: 2012, prateleira: "2ª de cima",
+                  categoriaIds: [civil.id]),
             Livro(id: tratadoTomo48, estanteId: escritorio.id, titulo: "Tratado de direito privado",
                   autores: ["Miranda, Pontes de"], editora: "Borsoi", local: "Rio de Janeiro", edicao: "2.ª ed.",
-                  volume: 48, volumeRotulo: "Tomo XLVIII", parte: "Parte especial", ano: 1965, prateleira: "caixa azul"),
-            Livro(estanteId: escritorio.id, titulo: "Tratado de direito privado",
+                  volume: 48, volumeRotulo: "Tomo XLVIII", parte: "Parte especial", ano: 1965, prateleira: "caixa azul",
+                  categoriaIds: [civil.id]),
+            Livro(id: tratadoTomo47, estanteId: escritorio.id, titulo: "Tratado de direito privado",
                   autores: ["Miranda, Pontes de"], editora: "Borsoi", local: "Rio de Janeiro",
                   volume: 47, volumeRotulo: "Tomo XLVII", parte: "Parte especial", ano: 1965, prateleira: "caixa azul"),
             Livro(estanteId: escritorio.id, titulo: "Lições preliminares de direito",
                   autores: ["Reale, Miguel"], editora: "Saraiva", ano: 2002),
             Livro(estanteId: sala.id, titulo: "Teoria pura do direito",
-                  autores: ["Kelsen, Hans"], editora: "Martins Fontes", ano: 1998),
+                  autores: ["Kelsen, Hans"], editora: "Martins Fontes", ano: 1998, categoriaIds: [filosofia.id]),
             Livro(id: teoriaGeralDoProcesso, estanteId: sala.id, titulo: "Teoria geral do processo",
                   autores: ["Cintra, Antonio Carlos de Araújo", "Grinover, Ada Pellegrini", "Dinamarco, Cândido Rangel"],
-                  editora: "Malheiros", local: "São Paulo", edicao: "26.ª ed.", ano: 2010),
+                  editora: "Malheiros", local: "São Paulo", edicao: "26.ª ed.", ano: 2010, categoriaIds: [processo.id]),
             Livro(id: cursoMendesBranco, estanteId: sala.id, titulo: "Curso de direito constitucional",
                   autores: ["Mendes, Gilmar Ferreira", "Branco, Paulo Gustavo Gonet"],
-                  editora: "Saraiva", local: "São Paulo", edicao: "7.ª ed.", ano: 2012),
+                  editora: "Saraiva", local: "São Paulo", edicao: "7.ª ed.", ano: 2012, categoriaIds: [constitucional.id]),
         ]
         for livro in livros {
             try await repositorio.salvar(livro)
@@ -144,8 +160,15 @@ enum Captura: String {
     case livroDetalheTresAutores = "LivroDetalheTresAutores"
     case livroDetalheDoisAutores = "LivroDetalheDoisAutores"
     case apagarLivro = "ApagarLivro"
+    case livroDetalheSemCategoria = "LivroDetalheSemCategoria"
+    case escolhaDeCategorias = "EscolhaDeCategorias"
     case formularioNovo = "FormularioNovo"
     case formularioEditar = "FormularioEditar"
+    case categorias = "Categorias"
+    case categoriasVazia = "CategoriasVazia"
+    case categoriaNova = "CategoriaNova"
+    case categoriaEditar = "CategoriaEditar"
+    case apagarCategoria = "ApagarCategoria"
     case estilo = "Estilo"
     case estiloTelas = "EstiloTelas"
     case estiloCategorias = "EstiloCategorias"
@@ -184,6 +207,18 @@ enum Captura: String {
             ComExemplos {
                 NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.sala, livro: DadosDeExemplo.cursoMendesBranco))
             }
+        case .livroDetalheSemCategoria:
+            ComExemplos {
+                NavegacaoView(dependencias: $0, caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo47))
+            }
+        case .escolhaDeCategorias:
+            ComExemplos {
+                NavegacaoView(
+                    dependencias: $0,
+                    caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48),
+                    folhaInicial: FolhaPendente(.categorias, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo48))
+                )
+            }
         case .apagarLivro:
             ComExemplos {
                 NavegacaoView(
@@ -210,6 +245,26 @@ enum Captura: String {
                     folhaInicial: FolhaPendente(.formulario, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo48))
                 )
             }
+        case .categorias:
+            ComExemplos { NavegacaoView(dependencias: $0, caminhoInicial: Self.caminhoDasCategorias) }
+        case .categoriasVazia:
+            ComExemplos(vazio: true) { NavegacaoView(dependencias: $0, caminhoInicial: Self.caminhoDasCategorias) }
+        case .categoriaNova:
+            ComExemplos { NavegacaoView(dependencias: $0, acaoNasCategorias: .nova, caminhoInicial: Self.caminhoDasCategorias) }
+        case .categoriaEditar:
+            ComExemplos {
+                NavegacaoView(
+                    dependencias: $0, acaoNasCategorias: .editar(nomeDaCategoria: "Constitucional"),
+                    caminhoInicial: Self.caminhoDasCategorias
+                )
+            }
+        case .apagarCategoria:
+            ComExemplos {
+                NavegacaoView(
+                    dependencias: $0, acaoNasCategorias: .apagar(nomeDaCategoria: "Constitucional"),
+                    caminhoInicial: Self.caminhoDasCategorias
+                )
+            }
         case .estilo:
             CatalogoDeEstiloView(pagina: .fundamentos)
         case .estiloTelas:
@@ -217,6 +272,12 @@ enum Captura: String {
         case .estiloCategorias:
             CatalogoDeEstiloView(pagina: .categorias)
         }
+    }
+
+    private static var caminhoDasCategorias: NavigationPath {
+        var caminho = NavigationPath()
+        caminho.append(RotaDasCategorias())
+        return caminho
     }
 
     private static func caminho(_ estante: Estante, livro: UUID? = nil) -> NavigationPath {

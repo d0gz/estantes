@@ -2,7 +2,7 @@ import XCTest
 @testable import Estantes
 
 final class NomeDeCategoriaTests: XCTestCase {
-    private let tributario = Categoria(nome: "Direito Tributário", cor: .azul)
+    private let tributario = Categoria(nome: "Direito Tributário", cor: .vermelho)
     private let penal = Categoria(nome: "Penal", cor: .vermelho)
 
     func testNomeNovoEhValido() {

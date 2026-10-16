@@ -7,6 +7,7 @@ import SwiftUI
 struct NavegacaoView: View {
     let dependencias: Dependencias
     private let acaoInicial: InicioView.AcaoInicial?
+    private let acaoNasCategorias: CategoriasView.AcaoInicial?
     /// Em `@State` para sobreviver quando quem monta esta view a recria (o pedido já usado não volta).
     @State private var folhaPendente: FolhaPendente?
     @State private var caminho: NavigationPath
@@ -15,23 +16,38 @@ struct NavegacaoView: View {
     init(
         dependencias: Dependencias,
         acaoInicial: InicioView.AcaoInicial? = nil,
+        acaoNasCategorias: CategoriasView.AcaoInicial? = nil,
         caminhoInicial: NavigationPath = NavigationPath(),
         folhaInicial: FolhaPendente? = nil
     ) {
         self.dependencias = dependencias
         self.acaoInicial = acaoInicial
+        self.acaoNasCategorias = acaoNasCategorias
         _folhaPendente = State(initialValue: folhaInicial)
         _caminho = State(initialValue: caminhoInicial)
     }
 
     var body: some View {
         NavigationStack(path: $caminho) {
-            InicioView(viewModel: dependencias.fazerInicioViewModel(), acaoInicial: acaoInicial)
+            InicioView(
+                viewModel: dependencias.fazerInicioViewModel(),
+                abrirCategorias: { caminho.append(RotaDasCategorias()) },
+                acaoInicial: acaoInicial
+            )
+                .navigationDestination(for: RotaDasCategorias.self) { _ in
+                    CategoriasView(
+                        viewModel: dependencias.fazerCategoriasViewModel(),
+                        formulario: dependencias.fazerCategoriaFormularioViewModel,
+                        acaoInicial: acaoNasCategorias
+                    )
+                }
                 .navigationDestination(for: Estante.self) { estante in
                     EstanteView(
                         viewModel: dependencias.fazerEstanteViewModel(estante: estante),
                         miniaturas: dependencias.miniaturas,
                         formulario: dependencias.fazerLivroFormularioViewModel,
+                        escolha: dependencias.fazerEscolhaDeCategoriasViewModel,
+                        formularioDeCategoria: dependencias.fazerCategoriaFormularioViewModel,
                         abrirFormulario: folhaPendente?.folha(em: estante) == .formulario
                     )
                     .onAppear { folhaPendente?.esquecer(se: estante) }
@@ -42,8 +58,11 @@ struct NavegacaoView: View {
                         viewModel: dependencias.fazerLivroDetalheViewModel(livroId: rota.livroId),
                         miniaturas: dependencias.miniaturas,
                         formulario: dependencias.fazerLivroFormularioViewModel,
+                        escolha: dependencias.fazerEscolhaDeCategoriasViewModel,
+                        formularioDeCategoria: dependencias.fazerCategoriaFormularioViewModel,
                         abrirConfirmacao: folha == .confirmacaoDeApagar,
-                        abrirFormulario: folha == .formulario
+                        abrirFormulario: folha == .formulario,
+                        abrirCategorias: folha == .categorias
                     )
                     .onAppear { folhaPendente?.esquecer(se: rota) }
                 }
@@ -64,6 +83,7 @@ final class FolhaPendente {
     enum Folha {
         case formulario
         case confirmacaoDeApagar
+        case categorias
     }
 
     private var pedido: (folha: Folha, alvo: AnyHashable)?

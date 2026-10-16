@@ -12,18 +12,27 @@ extension View {
     }
 }
 
-/// Um controlador invisível no fundo da tela, só para ter de onde apresentar.
-private struct ApresentadorDaFotoAmpliada: UIViewControllerRepresentable {
+/// Uma `UIView` invisível, só para chegar à janela e apresentar a partir do controlador que estiver no topo (sem
+/// embutir um `UIViewController` filho na tela). Use dentro do conteúdo rolável, nunca em volta da `ScrollView`: uma
+/// vista do UIKit envolvendo a tela inteira impede a barra de navegação de reconhecer a rolagem (ver `LivroDetalheView`).
+private struct ApresentadorDaFotoAmpliada: UIViewRepresentable {
     @Binding var imagem: UIImage?
 
-    func makeUIViewController(context: Context) -> UIViewController {
-        UIViewController()
+    func makeUIView(context: Context) -> UIView {
+        let vista = UIView()
+        vista.isUserInteractionEnabled = false
+        return vista
     }
 
-    func updateUIViewController(_ anfitriao: UIViewController, context: Context) {
-        guard let imagem = imagem, anfitriao.presentedViewController == nil else { return }
+    func updateUIView(_ vista: UIView, context: Context) {
+        guard let imagem = imagem, var topo = vista.window?.rootViewController else { return }
+        while let apresentado = topo.presentedViewController {
+            topo = apresentado
+        }
+        // Já aberta (o SwiftUI pode chamar o update de novo enquanto ela está na tela).
+        guard !(topo is FotoAmpliadaController) else { return }
         let fechar = { [binding = $imagem] in binding.wrappedValue = nil }
-        anfitriao.present(FotoAmpliadaController(imagem: imagem, aoFechar: fechar), animated: true)
+        topo.present(FotoAmpliadaController(imagem: imagem, aoFechar: fechar), animated: true)
     }
 }
 

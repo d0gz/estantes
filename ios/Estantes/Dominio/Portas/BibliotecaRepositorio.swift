@@ -46,4 +46,6 @@ protocol BibliotecaRepositorio {
     func salvar(_ categoria: Categoria) async throws
     /// Os livros só perdem a etiqueta (nullify).
     func apagarCategoria(id: UUID) async throws
+    /// Quantos livros têm cada categoria. Toda categoria aparece, com 0 se não estiver em nenhum livro.
+    func quantidadeDeLivrosPorCategoria() async throws -> [UUID: Int]
 }

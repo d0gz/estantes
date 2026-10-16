@@ -12,6 +12,8 @@ final class EstanteViewModel: ObservableObject {
 
     let estante: Estante
     @Published private(set) var estado: Estado = .carregando
+    /// Todas as categorias, em ordem alfabética: os livros guardam só os ids, e os chips precisam de nome e cor.
+    @Published private(set) var todasAsCategorias: [Categoria] = []
 
     private let repositorio: BibliotecaRepositorio
 
@@ -23,10 +25,16 @@ final class EstanteViewModel: ObservableObject {
     func carregar() async {
         do {
             let livros = try await repositorio.livros(naEstante: estante.id)
+            todasAsCategorias = try await repositorio.categorias()
             estado = livros.isEmpty ? .vazia : .pronta(AgrupamentoPorPrateleira.agrupar(livros))
         } catch {
             estado = .erro("Não foi possível carregar os livros.")
         }
+    }
+
+    /// As categorias do livro, na ordem alfabética (chips da linha).
+    func categorias(de livro: Livro) -> [Categoria] {
+        todasAsCategorias.comIds(livro.categoriaIds)
     }
 
     /// Linha de baixo do livro na lista: autores e ano ("Silva, José Afonso da · 2014").

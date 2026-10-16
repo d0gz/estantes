@@ -464,7 +464,7 @@ final class MotorDeBuscaTests: XCTestCase {
 
     func testApagarUmaDeDuasCategoriasMantemAOutra() {
         let penal = Categoria(nome: "Criminal", cor: .vermelho)
-        let processo = Categoria(nome: "Processual", cor: .azul)
+        let processo = Categoria(nome: "Processual", cor: .vermelho)
         var livro = livroB
         livro.categoriaIds = [penal.id, processo.id]
         var motor = MotorDeBusca(livros: [livro, livroC], categorias: [penal, processo])

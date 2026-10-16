@@ -207,6 +207,15 @@ final class BibliotecaRepositorioCoreData: BibliotecaRepositorio {
         }
     }
 
+    /// Conta a relação `livros` de cada categoria: carrega só os ids dos livros, não os livros. São poucas
+    /// categorias; uma consulta agregada (`NSExpression` com `count:`) só valeria com centenas delas.
+    func quantidadeDeLivrosPorCategoria() async throws -> [UUID: Int] {
+        try await emSegundoPlano { contexto in
+            let pedido = NSFetchRequest<CategoriaMO>(entityName: CategoriaMO.nomeEntidade)
+            return try contexto.fetch(pedido).reduce(into: [:]) { $0[$1.id] = $1.livros.count }
+        }
+    }
+
     // MARK: Auxiliares
 
     /// Roda `trabalho` na fila de um contexto de fundo novo e devolve o resultado com `await`.

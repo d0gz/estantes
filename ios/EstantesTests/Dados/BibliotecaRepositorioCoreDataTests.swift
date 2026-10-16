@@ -68,9 +68,27 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         XCTAssertEqual(lidas, [categoria])
     }
 
+    /// Uma cor gravada que o enum não conhece mais (o "azul" da paleta de 03/10, ou um banco de versão mais nova)
+    /// vira cinza na leitura, em vez de derrubar a lista. Aceito na 2.5: ainda não havia dados reais gravados.
+    func testCorDesconhecidaNoBancoViraCinza() async throws {
+        let id = UUID()
+        let contexto = persistencia.container.newBackgroundContext()
+        try await contexto.perform {
+            let antiga = CategoriaMO(context: contexto)
+            antiga.id = id
+            antiga.nome = "Antiga"
+            antiga.cor = "azul"
+            try contexto.save()
+        }
+
+        let lidas = try await repositorio.categorias()
+
+        XCTAssertEqual(lidas, [Categoria(id: id, nome: "Antiga", cor: .cinza)])
+    }
+
     func testLivroCompletoIdaEVolta() async throws {
         let estante = try await novaEstante()
-        let categoria = Categoria(nome: "Contratos", cor: .azul)
+        let categoria = Categoria(nome: "Contratos", cor: .vermelho)
         try await repositorio.salvar(categoria)
 
         let livro = Livro(
@@ -264,7 +282,7 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
 
     func testApagarCategoriaSoTiraAEtiqueta() async throws {
         let estante = try await novaEstante()
-        let fica = Categoria(nome: "Fica", cor: .azul)
+        let fica = Categoria(nome: "Fica", cor: .vermelho)
         let sai = Categoria(nome: "Sai", cor: .vermelho)
         try await repositorio.salvar(fica)
         try await repositorio.salvar(sai)
@@ -277,6 +295,48 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         XCTAssertEqual(lido?.categoriaIds, [fica.id])
         let categorias = try await repositorio.categorias()
         XCTAssertEqual(categorias, [fica])
+    }
+
+    /// "Ambas" está nos dois primeiros livros, "Só uma" num deles: conta livros por categoria, e o livro com as duas
+    /// conta uma vez em cada.
+    func testQuantidadeDeLivrosPorCategoria() async throws {
+        let estante = try await novaEstante()
+        let ambas = Categoria(nome: "Ambas", cor: .vermelho)
+        let soUma = Categoria(nome: "Só uma", cor: .verde)
+        try await repositorio.salvar(ambas)
+        try await repositorio.salvar(soUma)
+        try await repositorio.salvar(Livro(estanteId: estante.id, titulo: "Com as duas", categoriaIds: [ambas.id, soUma.id]))
+        try await repositorio.salvar(Livro(estanteId: estante.id, titulo: "Com uma", categoriaIds: [ambas.id]))
+        try await repositorio.salvar(Livro(estanteId: estante.id, titulo: "Sem nenhuma"))
+
+        let quantidades = try await repositorio.quantidadeDeLivrosPorCategoria()
+
+        XCTAssertEqual(quantidades, [ambas.id: 2, soUma.id: 1])
+    }
+
+    /// Contrato da porta: toda categoria aparece, e a sem livros vem com 0 (não fica de fora).
+    func testCategoriaSemLivrosApareceComZero() async throws {
+        let vazia = Categoria(nome: "Vazia", cor: .cinza)
+        try await repositorio.salvar(vazia)
+
+        let quantidades = try await repositorio.quantidadeDeLivrosPorCategoria()
+
+        XCTAssertEqual(quantidades, [vazia.id: 0])
+    }
+
+    func testApagarLivroDiminuiAQuantidadeDaCategoria() async throws {
+        let estante = try await novaEstante()
+        let penal = Categoria(nome: "Penal", cor: .amarelo)
+        try await repositorio.salvar(penal)
+        let fica = Livro(estanteId: estante.id, titulo: "Fica", categoriaIds: [penal.id])
+        let sai = Livro(estanteId: estante.id, titulo: "Sai", categoriaIds: [penal.id])
+        try await repositorio.salvar(fica)
+        try await repositorio.salvar(sai)
+
+        try await repositorio.apagarLivro(id: sai.id)
+
+        let quantidades = try await repositorio.quantidadeDeLivrosPorCategoria()
+        XCTAssertEqual(quantidades, [penal.id: 1])
     }
 
     func testApagarLivroApagaOSumario() async throws {
