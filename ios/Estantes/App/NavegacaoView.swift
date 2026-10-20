@@ -60,9 +60,11 @@ struct NavegacaoView: View {
                         formulario: dependencias.fazerLivroFormularioViewModel,
                         escolha: dependencias.fazerEscolhaDeCategoriasViewModel,
                         formularioDeCategoria: dependencias.fazerCategoriaFormularioViewModel,
+                        edicaoDoSumario: dependencias.fazerEditarSumarioViewModel,
                         abrirConfirmacao: folha == .confirmacaoDeApagar,
                         abrirFormulario: folha == .formulario,
-                        abrirCategorias: folha == .categorias
+                        abrirCategorias: folha == .categorias,
+                        abrirSumario: folha == .sumario
                     )
                     .onAppear { folhaPendente?.esquecer(se: rota) }
                 }
@@ -84,6 +86,7 @@ final class FolhaPendente {
         case formulario
         case confirmacaoDeApagar
         case categorias
+        case sumario
     }
 
     private var pedido: (folha: Folha, alvo: AnyHashable)?

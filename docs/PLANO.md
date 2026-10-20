@@ -274,7 +274,8 @@ create index edicoes_obra on edicoes (obra_id);
   com a numeração impressa em `numeracao`, separada do `titulo` (que fica limpo para a busca). A regra
   `ValidacaoSumario` (Domínio) vale para todas: nível ≥ 1; o nível sobe no máximo 1 em relação ao item
   anterior; título não vazio; página menor que a anterior gera aviso, não erro. A entrada manual é
-  item a item (numeração, título, página, recuo ↑↓); colar texto fica para a Fase 3, com o parser.
+  item a item (2.6: tela de item com numeração, título, página e `Stepper` de nível; na lista, deslizar muda o nível e
+  arrastar reordena; ver "Sumário" na seção Interface); colar texto fica para a Fase 3, com o parser.
 - **Obras em vários volumes** (achado das fotos reais, 09/10): tratados e comentários vêm em tomos, cada
   um com folha de rosto própria ("Tomo XLVIII", "Arts. 1.710-1.779"). `volume` é o número (ordena e
   desempata no LexML); `volumeRotulo` é o texto impresso; `parte` é a divisão da obra, entre o título e o volume
@@ -492,6 +493,27 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     miniatura e ocupam a largura da linha ("Constitucional" quebrava no meio da palavra). O Formulário continua sem
     categorias.
 
+- **Sumário (2.6, decidido em 20/10 via `/decidir`; estilo aprovado sem mudanças sobre as capturas `Sumario/*_0.1`):**
+  - `ItemDoSumarioView` (`Apresentacao/Sumario/`), o mesmo no Detalhe, no sumário completo e na folha: recuo de 16 pt
+    por nível (`@ScaledMetric`, para no 5º nível), numeração em negrito antes do título, página à direita em
+    `textoSecundario` com algarismos de largura fixa; o VoiceOver lê "Nível 3. § 5.108 Conceito…. Página 3."; item
+    ainda sem título aparece como "Sem título" em itálico e `textoSecundario` (só na folha, antes de salvar).
+  - Detalhe: cartão "Sumário" depois dos grupos e antes de "Apagar livro", com os 10 primeiros itens
+    (`previaDoSumario`), "Ver sumário completo (N)" (empurra a `SumarioCompletoView`, só leitura) e "Editar sumário";
+    sem sumário, "Com o sumário, a busca acha os temas dentro do livro." e "Adicionar sumário". Ações no `destaque`.
+  - Folha "Editar sumário" (título na barra: "Sumário", o conteúdo; "Editar sumário" é o botão do Detalhe; `List`
+    agrupada nativa, como o Formulário): itens como botões com a seta desenhada (ver
+    Histórico de 20/10), deslizar à direita "Diminuir/Aumentar nível" (só os que mudam algo), à esquerda "Apagar",
+    arrastar para reordenar, menu de contexto "Inserir abaixo"/"Apagar" (não brigou com o arrastar no iOS 16); erro
+    do item em `Cor.perigo` só depois de tentar salvar, com a contagem no topo; aviso de página sempre, em
+    `textoSecundario` com triângulo. Com mudanças, arrastar para fechar fica bloqueado e "Cancelar" pergunta
+    ("Descartar as alterações do sumário?", revisão P9: um sumário digitado à mão dá trabalho para refazer).
+  - Tela de item (`EdicaoDoItemView`, `Form`): Numeração, Título (quebra linha; o Return passa à Página), Página
+    (teclado `.numbersAndPunctuation`; o Return faz "Próximo item"), `Stepper` "Nível N" (até o anterior + 1, ou o nível
+    atual se o item já passou disso: nada é corrigido sozinho) e
+    "Próximo item" (desligado sem título), que troca de item sem navegar e mantém o teclado. Item sem nada escrito
+    sai ao voltar.
+
 ### Forma de trabalho nas telas (2.4 em diante)
 
 - **Primeiro a lógica, depois o estilo.** A 2.4 faz todas as telas funcionarem com componentes nativos do SwiftUI, sem
@@ -628,7 +650,26 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   **Onde paramos (16/10, branch `fase2/conferencia-modelo`, 408 testes):** 2.5b concluída (capturas
   `LivroDetalheColaborador_1.0`, `FormularioColaborador_1.0`, `LivroDetalhe_1.3`). **Próximo: 2.6**, numa branch nova
   depois do merge.
-- [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
+- [x] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
+  **Decidido em 20/10 (`/decidir`, branch `fase2/sumario`):** Detalhe com cartão "Sumário" (depois dos grupos, antes de
+  "Apagar livro") com os ~10 primeiros itens e "Ver sumário completo (N)" → tela empurrada; sem sumário, frase +
+  "Adicionar sumário". Edição numa folha própria "Editar sumário" (Salvar grava o `Livro` inteiro; Cancelar descarta):
+  a lista só mostra os itens; "Adicionar item" (no fim) ou tocar na linha empurra a tela de item (Numeração, Título,
+  Página, `Stepper` de Nível de 1 até o anterior + 1) com "Próximo item" (guarda logo abaixo, limpa, mantém o nível e o
+  foco no Título); deslizar dá "← Nível", "Nível →" e "Apagar"; segurar e arrastar reordena; menu de contexto "Inserir
+  abaixo" e "Apagar" (o "Apagar" entrou na lógica, como atalho; se o menu brigasse com o arrastar no iOS 16, iria para o
+  deslizar: não brigou). Regra pura `RascunhoSumario` no Domínio. Nada é
+  corrigido sozinho: salto de nível é erro na linha e bloqueia o Salvar (mudar o nível não mexe nos filhos); erros só
+  depois de tentar salvar, o aviso de página sempre, discreto. Sem `[eu escrevo]`. Lógica primeiro, estilo depois.
+  Passos: 1 `RascunhoSumario` + testes ✅ (T1–T6, 432 testes; limpeza em `Normalizacao.textoLimpo`) · 2 lógica das telas ✅ (444 testes; roteiro aprovado no simulador em 20/10, inclusive menu de contexto × arrastar) · 3 estilo ✅ (aprovado sem mudanças em 20/10) · 4 fechamento ✅.
+  Achado do passo 2 (20/10): no iOS 16, `navigationDestination(for:)` numa folha aberta de dentro da pilha principal põe
+  o app em laço (CPU a 100%, Detalhe preso no "carregando"), também com um tipo próprio no lugar do `UUID`; a folha usa
+  `navigationDestination(isPresented:)` e itens-botão com a seta desenhada (Histórico de 20/10).
+  Revisão final: aplicados P1 (validação uma vez por mudança, num dicionário por id, em vez de uma por item a cada
+  desenho), P2, P4–P10, P12 e E1–E5, E7; recusados P3 (`.onMove` sem modo de edição: conferido à mão no iOS 16) e P11
+  (`RascunhoSumario.Item` repete o `ItemSumario`, como o `RascunhoLivro`). 449 testes.
+  **Onde paramos (20/10, branch `fase2/sumario`, 449 testes):** 2.6 concluída; PR aberto. **Próximo: 2.7 (busca na
+  interface)**, numa branch nova depois do merge, pelo `/decidir`.
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
   6 conjunto de consultas de referência e ajuste dos pesos ✅, depois da 2.3b · 2.3i sondas: plural, volume/artigos,
@@ -918,3 +959,6 @@ Regras contra omissão:
 | 16/10 | Nos tomos, a matéria impressa abaixo do volume ("Direito das Obrigações: …") vai no `subtitulo`; `parte` é a divisão da obra ("Parte Especial") | O OCR do Gemini (tomo XLVIII) e a folha do tomo I mostram três textos médios e o modelo não dizia onde ia a matéria (os testes divergiam). Campo novo descartado: mesmo papel na busca (já somam no `subtitulo`, linha de 09/10) e mais esquema antes do JSON v1. Juntar tudo em `parte` descartado: mistura dois dados. Refina a linha de 09/10 sobre `parte`/`subtitulo` |
 | 16/10 | `Livro.colaboradores: [Colaborador]` (nome + papel em texto livre: prefácio, tradução, organização, coordenação); na busca, soma no campo de autores | A ficha CIP do Lassalle traz "prefácio de Aurélio Wander Bastos" e o modelo não tinha onde guardá-lo; em livro jurídico, coordenador e tradutor são procurados pelo nome. Juntar em `autores` descartado: o cabeçalho ABNT mostraria um prefaciador como autor. Enum de papéis descartado: o valor bruto ficaria congelado no JSON v1. `[String]` livre descartado: mistura nome e papel. Entra antes do JSON v1 (2.8), sem migração |
 | 16/10 | CDU fica fora do `Livro`, ao lado da CDD, na `FichaExtraida` e no gabarito, com todos os códigos | O Gemini guardou só o "342" de "CDU 342 / 32". Estende a linha de 09/10 (CDD e assuntos fora do `Livro`), não a reverte |
+| 20/10 | Sumário editado numa folha própria aberta pelo Detalhe, gravando o `Livro` inteiro no "Salvar"; não no formulário do livro nem gravando a cada mudança | O formulário ficaria enorme com centenas de itens e misturaria ficha e sumário; gravar a cada mudança tiraria o "Cancelar". Repete o fluxo da escolha de categorias (mesma limitação conhecida) |
+| 20/10 | Editar um item do sumário preserva a `origem`; só o item novo é `manual` | O JSON v1 (2.8) congela o significado. Virar `manual` a cada correção apagaria o rastro de foto/LexML/Gemini que a avaliação do parser (Fase 3) usa |
+| 20/10 | Na folha "Editar sumário", a tela de item é empurrada por `navigationDestination(isPresented:)`, com itens-botão e a seta desenhada; não por `navigationDestination(for:)` com caminho | No iOS 16, o destino por tipo numa folha aberta de dentro da pilha principal põe o app em laço (CPU a 100%, Detalhe preso no "carregando"), também com um tipo próprio no lugar do `UUID`. `NavigationLink(value:)` depende do destino por tipo; uma folha sobre a folha contrariaria a tela empurrada decidida para o item |

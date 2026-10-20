@@ -14,4 +14,12 @@ final class NormalizacaoTests: XCTestCase {
     func testSoEspacosViraVazio() {
         XCTAssertEqual(Normalizacao.chave("   "), "")
     }
+
+    func testTextoLimpoJuntaEspacosEQuebrasMasMantemMaiusculasEAcentos() {
+        XCTAssertEqual(Normalizacao.textoLimpo("  Capítulo \n  II "), "Capítulo II")
+    }
+
+    func testTextoLimpoSoDeEspacosViraNil() {
+        XCTAssertNil(Normalizacao.textoLimpo(" \n\t "))
+    }
 }

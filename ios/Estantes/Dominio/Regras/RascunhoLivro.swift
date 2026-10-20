@@ -75,9 +75,9 @@ struct RascunhoLivro: Equatable {
     /// Os problemas de cada campo; vazio quando o rascunho pode virar um `Livro`.
     func problemas() -> [Campo: Problema] {
         var problemas: [Campo: Problema] = [:]
-        if Self.texto(titulo) == nil { problemas[.titulo] = .obrigatorio }
+        if Normalizacao.textoLimpo(titulo) == nil { problemas[.titulo] = .obrigatorio }
         if autoresLimpos.isEmpty { problemas[.autores] = .obrigatorio }
-        if Self.texto(editora) == nil { problemas[.editora] = .obrigatorio }
+        if Normalizacao.textoLimpo(editora) == nil { problemas[.editora] = .obrigatorio }
 
         let numeros: [(Campo, String, Bool)] = [
             (.ano, ano, true), (.paginas, paginas, false), (.volume, volume, false),
@@ -91,7 +91,7 @@ struct RascunhoLivro: Equatable {
             }
         }
 
-        if Self.texto(isbn13) != nil, ISBN.normalizar(isbn13) == nil {
+        if Normalizacao.textoLimpo(isbn13) != nil, ISBN.normalizar(isbn13) == nil {
             problemas[.isbn] = .isbnInvalido
         }
 
@@ -106,49 +106,44 @@ struct RascunhoLivro: Equatable {
     /// Na edição (`base` presente), mantém o que o formulário não mostra: id, data de entrada, origem,
     /// sumário, categorias, CDDir e URN. Sem `base`, nasce um livro novo com origem `.manual`.
     func montar(sobre base: Livro?) -> Livro? {
-        guard problemas().isEmpty, let titulo = Self.texto(titulo) else { return nil }
+        guard problemas().isEmpty, let titulo = Normalizacao.textoLimpo(titulo) else { return nil }
 
         var livro = base ?? Livro(estanteId: estanteId, titulo: titulo, origem: .manual)
         livro.estanteId = estanteId
         livro.titulo = titulo
-        livro.subtitulo = Self.texto(subtitulo)
+        livro.subtitulo = Normalizacao.textoLimpo(subtitulo)
         livro.autores = autoresLimpos
         livro.colaboradores = colaboradoresLimpos
-        livro.editora = Self.texto(editora)
-        livro.local = Self.texto(local)
-        livro.edicao = Self.texto(edicao)
+        livro.editora = Normalizacao.textoLimpo(editora)
+        livro.local = Normalizacao.textoLimpo(local)
+        livro.edicao = Normalizacao.textoLimpo(edicao)
         livro.ano = Self.numero(ano).valor
         livro.paginas = Self.numero(paginas).valor
         // Já validado em `problemas()`: aqui só vira os 13 dígitos (o ISBN-10 é convertido).
-        livro.isbn13 = Self.texto(isbn13).flatMap(ISBN.normalizar)
+        livro.isbn13 = Normalizacao.textoLimpo(isbn13).flatMap(ISBN.normalizar)
         livro.volume = Self.numero(volume).valor
-        livro.volumeRotulo = Self.texto(volumeRotulo)
-        livro.parte = Self.texto(parte)
-        livro.serie = Self.texto(serie)
+        livro.volumeRotulo = Normalizacao.textoLimpo(volumeRotulo)
+        livro.parte = Normalizacao.textoLimpo(parte)
+        livro.serie = Normalizacao.textoLimpo(serie)
         livro.artigosInicio = Self.numero(artigosInicio).valor
         livro.artigosFim = Self.numero(artigosFim).valor
-        livro.prateleira = Self.texto(prateleira)
+        livro.prateleira = Normalizacao.textoLimpo(prateleira)
         return livro
     }
 
     // MARK: Conversões
 
     private var autoresLimpos: [String] {
-        autores.compactMap(Self.texto)
+        autores.compactMap(Normalizacao.textoLimpo)
     }
 
     /// Linha sem nome sai (o papel sozinho não diz quem); sem papel fica, com papel vazio.
     private var colaboradoresLimpos: [Colaborador] {
         colaboradores.compactMap { linha in
-            Self.texto(linha.nome).map { Colaborador(nome: $0, papel: Self.texto(linha.papel) ?? "") }
+            Normalizacao.textoLimpo(linha.nome).map {
+                Colaborador(nome: $0, papel: Normalizacao.textoLimpo(linha.papel) ?? "")
+            }
         }
-    }
-
-    /// Sem espaços nas pontas, e cada sequência de espaços ou quebras de linha no meio vira um espaço só (texto
-    /// colado de um PDF); vazio vira `nil` (o `Livro` não guarda texto em branco).
-    private static func texto(_ texto: String) -> String? {
-        let limpo = texto.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        return limpo.isEmpty ? nil : limpo
     }
 
     private enum Numero: Equatable {
@@ -164,7 +159,7 @@ struct RascunhoLivro: Equatable {
 
     /// Inteiro maior que zero. Aceita o ponto de milhar entre dígitos ("1.710"), como os artigos vêm impressos.
     private static func numero(_ texto: String) -> Numero {
-        guard let limpo = Self.texto(texto) else { return .vazio }
+        guard let limpo = Normalizacao.textoLimpo(texto) else { return .vazio }
         let partes = limpo.split(separator: ".", omittingEmptySubsequences: false)
         guard partes.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isASCIIDigit) }),
               let numero = Int(partes.joined()), numero > 0

@@ -236,4 +236,39 @@ final class LivroDetalheViewModelTests: XCTestCase {
         XCTAssertEqual(LivroDetalheViewModel.textoDosArtigos(inicio: nil, fim: 1779), "Até o art. 1779")
         XCTAssertNil(LivroDetalheViewModel.textoDosArtigos(inicio: nil, fim: nil))
     }
+
+    // MARK: T7 — prévia do sumário
+
+    /// Itens numerados "Item 1", "Item 2"…, todos de nível 1.
+    private func sumario(_ quantidade: Int) -> [ItemSumario] {
+        (0..<quantidade).map { ItemSumario(nivel: 1, titulo: "Item \($0 + 1)") }
+    }
+
+    func testPreviaDeSumarioLongoMostraOs10PrimeirosEOTotal() {
+        let itens = sumario(12)
+
+        let previa = LivroDetalheViewModel.previaDoSumario(itens)
+
+        XCTAssertEqual(previa.itens.map(\.titulo), [
+            "Item 1", "Item 2", "Item 3", "Item 4", "Item 5", "Item 6", "Item 7", "Item 8", "Item 9", "Item 10",
+        ])
+        XCTAssertEqual(previa.total, 12)
+        XCTAssertTrue(previa.temMais)
+    }
+
+    func testPreviaDeSumarioCurtoMostraTudoSemVerMais() {
+        let previa = LivroDetalheViewModel.previaDoSumario(sumario(10))
+
+        XCTAssertEqual(previa.itens.count, 10)
+        XCTAssertEqual(previa.total, 10)
+        XCTAssertFalse(previa.temMais)
+    }
+
+    func testPreviaDeSumarioVazio() {
+        let previa = LivroDetalheViewModel.previaDoSumario([])
+
+        XCTAssertEqual(previa.itens, [])
+        XCTAssertEqual(previa.total, 0)
+        XCTAssertFalse(previa.temMais)
+    }
 }

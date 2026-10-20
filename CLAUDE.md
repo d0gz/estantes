@@ -69,8 +69,9 @@ OU de reserva, peso do sumário 0,25; 224 testes; PR #22 mergeado), 2.4 (telas p
 todas as telas; 361 testes; PR #23 mergeado em 16/10), 2.5 (categorias: paleta de 10 com hex congelados, chip e
 fluxo de chips, tela de gerenciar, escolha no Detalhe e na Estante; 400 testes; PR #24 mergeado) e 2.5b (conferência
 do modelo com o OCR do Gemini: matéria no `subtitulo`, `Livro.colaboradores`, CDU na `FichaExtraida`, "Contrato de
-campos" no PLANO; 408 testes; branch `fase2/conferencia-modelo`).
-**Próximo: 2.6 — sumário manual** (branch nova depois do merge da 2.5b; começar pelo `/decidir`; "Onde paramos" no
+campos" no PLANO; 408 testes; PR #25 mergeado) e 2.6 (sumário manual: `RascunhoSumario` no Domínio, cartão no
+Detalhe, folha "Editar sumário" e tela de item com "Próximo item"; 449 testes; branch `fase2/sumario`).
+**Próximo: 2.7 — busca na interface** (branch nova depois do merge da 2.6; começar pelo `/decidir`; "Onde paramos" no
 checklist do PLANO; forma de trabalho em "Forma de trabalho nas telas"). Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 
 ## Regras de trabalho
