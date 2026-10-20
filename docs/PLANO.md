@@ -638,7 +638,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   abaixo" (se brigar com o arrastar no iOS 16, vai para o deslizar). Regra pura `RascunhoSumario` no Domínio. Nada é
   corrigido sozinho: salto de nível é erro na linha e bloqueia o Salvar (mudar o nível não mexe nos filhos); erros só
   depois de tentar salvar, o aviso de página sempre, discreto. Sem `[eu escrevo]`. Lógica primeiro, estilo depois.
-  Passos: 1 `RascunhoSumario` + testes ✅ (T1–T6, 432 testes; limpeza em `Normalizacao.textoLimpo`) · 2 lógica das telas (código pronto, 444 testes; falta a aprovação no simulador) · 3 estilo · 4 fechamento.
+  Passos: 1 `RascunhoSumario` + testes ✅ (T1–T6, 432 testes; limpeza em `Normalizacao.textoLimpo`) · 2 lógica das telas ✅ (444 testes; roteiro aprovado no simulador em 20/10, inclusive menu de contexto × arrastar) · 3 estilo · 4 fechamento.
   Achado do passo 2 (20/10): no iOS 16, `navigationDestination(for:)` numa folha aberta de dentro da pilha principal põe
   o app em laço (CPU a 100%, Detalhe preso no "carregando"), também com um tipo próprio no lugar do `UUID`; a folha usa
   `navigationDestination(isPresented:)` e linhas-botão com a seta desenhada. Candidata ao Histórico no fechamento.
