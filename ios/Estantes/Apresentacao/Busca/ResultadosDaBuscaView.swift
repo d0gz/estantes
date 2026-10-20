@@ -2,21 +2,30 @@ import SwiftUI
 
 /// O que o Inicio mostra com a busca ativa: a linha de chips de filtro, os avisos (correção e OU de
 /// reserva) e os livros achados. A busca roda a cada mudança da `chave` (texto, filtros, "exatamente").
-struct ResultadosDaBuscaView: View {
+struct ResultadosDaBuscaView<Cabecalho: View>: View {
     @ObservedObject var busca: BuscaViewModel
     let miniaturas: CarregadorDeMiniaturas
-    /// Abre a folha "Filtros". A folha mora em quem monta esta tela (o Inicio), e não aqui: esta vista some
-    /// quando a busca perde o foco, e a folha sumiria junto (tocar num campo dela tirava o foco da busca).
+    /// Empurra a tela "Filtros"; quem monta esta vista (a `BuscaView`) é quem empurra.
     let abrirFiltros: () -> Void
+    /// O campo de busca, que vai no cabeçalho fixo junto com os chips.
+    @ViewBuilder let cabecalho: () -> Cabecalho
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Espaco.padrao) {
-                barraDeFiltros
-                conteudo
+            conteudo
+                .padding(Espaco.padrao)
+        }
+        // Campo e chips fixos sobre os resultados, em "vidro" (o elemento flutuante do Estilo 0): os filtros ficam
+        // sempre a um toque, e a lista rola por baixo.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: Espaco.pequeno) {
+                cabecalho()
                     .padding(.horizontal, Espaco.padrao)
+                barraDeFiltros
             }
-            .padding(.vertical, Espaco.padrao)
+            .padding(.vertical, Espaco.pequeno)
+            .background(.ultraThinMaterial)
+            .overlay(alignment: .bottom) { Divider() }
         }
         .task { await busca.carregarOpcoes() }
         // Mudou a chave: o SwiftUI cancela a busca anterior e começa esta.
@@ -37,7 +46,9 @@ struct ResultadosDaBuscaView: View {
                 Button(action: abrirFiltros) {
                     let quantidade = busca.quantidadeNaFolha
                     Label(quantidade > 0 ? "Filtros (\(quantidade))" : "Filtros",
-                          systemImage: "line.3.horizontal.decrease.circle")
+                          systemImage: quantidade > 0
+                              ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                        .chipDeFiltro(marcado: quantidade > 0)
                 }
                 menuDeCategorias
                 // Com uma estante só, filtrar por ela não muda nada.
@@ -49,7 +60,7 @@ struct ResultadosDaBuscaView: View {
                     }
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(EstiloPressao())
             .padding(.horizontal, Espaco.padrao)
         }
     }
@@ -72,18 +83,24 @@ struct ResultadosDaBuscaView: View {
             } label: {
                 Label(busca.categoriaEscolhida?.nome ?? "Categoria", systemImage: "chevron.down")
                     .labelStyle(RotuloComIconeDepois())
+                    .chipDeFiltro(marcado: busca.categoriaEscolhida != nil)
             }
+            // Sem isso o menu pinta o rótulo com o tint (destaque): o chip segue a regra da `superficie`.
+            .tint(.primary)
             .accessibilityLabel("Categoria: \(busca.categoriaEscolhida?.nome ?? "todas")")
         }
     }
 
     private func chip(_ nome: String, marcado: Bool, alternar: @escaping () -> Void) -> some View {
         Button(action: alternar) {
-            if marcado {
-                Label(nome, systemImage: "checkmark")
-            } else {
-                Text(nome)
+            Group {
+                if marcado {
+                    Label(nome, systemImage: "checkmark")
+                } else {
+                    Text(nome)
+                }
             }
+            .chipDeFiltro(marcado: marcado)
         }
         .accessibilityAddTraits(marcado ? .isSelected : [])
     }
@@ -125,20 +142,31 @@ struct ResultadosDaBuscaView: View {
     @ViewBuilder
     private func avisos(_ resposta: RespostaBusca) -> some View {
         if !resposta.correcoes.isEmpty {
-            VStack(alignment: .leading, spacing: Espaco.minimo) {
-                Text("Mostrando resultados para ")
-                    + Text(resposta.correcoes.map(\.usado).joined(separator: ", ")).bold()
-                    + Text(".")
-                Button("Buscar exatamente \"\(resposta.correcoes.map(\.digitado).joined(separator: ", "))\"") {
-                    busca.buscarExatamente()
+            // Faixa com ícone, sem cartão: um cartão chamaria mais atenção que o próprio resultado.
+            Label {
+                VStack(alignment: .leading, spacing: Espaco.minimo) {
+                    Text("Mostrando resultados para ")
+                        + Text(resposta.correcoes.map(\.usado).joined(separator: ", ")).bold()
+                        + Text(".")
+                    Button("Buscar exatamente \"\(resposta.correcoes.map(\.digitado).joined(separator: ", "))\"") {
+                        busca.buscarExatamente()
+                    }
+                    .foregroundColor(Cor.destaque)
                 }
+            } icon: {
+                Image(systemName: "wand.and.stars")
+                    .foregroundColor(Cor.textoSecundario)
             }
             .font(.subheadline)
         }
         if resposta.modo == .parteDosTermos {
-            Text("Nenhum livro tem todas as palavras. Mostrando os que têm parte delas.")
-                .font(.subheadline)
-                .foregroundColor(Cor.textoSecundario)
+            Label {
+                Text("Nenhum livro tem todas as palavras. Mostrando os que têm parte delas.")
+            } icon: {
+                Image(systemName: "text.magnifyingglass")
+            }
+            .font(.subheadline)
+            .foregroundColor(Cor.textoSecundario)
         }
     }
 
@@ -159,16 +187,12 @@ struct ResultadosDaBuscaView: View {
         .cartao()
     }
 
-    /// Onde está o assunto e o livro ("§ 5.108 Conceito, p. 3 · Escritório · 2ª de cima") e, no OU, o que faltou.
+    /// Os chips do livro, o item do sumário (o motivo da busca, em destaque) e, mais discreto, onde o livro está;
+    /// no OU, o que faltou.
     @ViewBuilder
     private func rodape(_ resultado: ResultadoBusca) -> some View {
-        let local = LinhaDoResultado.local(
-            item: resultado.itemDoSumario,
-            estante: busca.nomeDaEstante(resultado.livro.estanteId),
-            prateleira: resultado.livro.prateleira
-        )
         let categorias = busca.categorias(de: resultado.livro)
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Espaco.minimo) {
             // Só mostram: o toque abre o Detalhe, como o resto da linha. Sem o fantasma "+ Categoria":
             // na busca o assunto é achar o livro, não catalogá-lo.
             if !categorias.isEmpty {
@@ -177,10 +201,17 @@ struct ResultadosDaBuscaView: View {
                 }
                 .padding(.bottom, Espaco.pequeno)
             }
-            if !local.isEmpty {
-                Text(local)
+            if let item = LinhaDoResultado.item(resultado.itemDoSumario) {
+                Label(item, systemImage: "list.bullet.indent")
                     .font(.subheadline)
                     .foregroundColor(.primary)
+            }
+            if let lugar = LinhaDoResultado.lugar(
+                estante: busca.nomeDaEstante(resultado.livro.estanteId), prateleira: resultado.livro.prateleira
+            ) {
+                Label(lugar, systemImage: "books.vertical")
+                    .font(.subheadline)
+                    .foregroundColor(Cor.textoSecundario)
             }
             if let ausentes = LinhaDoResultado.ausentes(resultado.palavrasAusentes) {
                 Text(ausentes)
@@ -188,6 +219,20 @@ struct ResultadosDaBuscaView: View {
                     .foregroundColor(Cor.textoSecundario)
             }
         }
+        .symbolRenderingMode(.hierarchical)
+    }
+}
+
+private extension View {
+    /// Chip de filtro (E1): cápsula cinza do sistema quando desmarcado; na `superficie` quando marcado, com texto em
+    /// `.primary` (o destaque sobre a `superficie` só como forma, regra do Estilo 0). A marca vem do ✓ ou do `.fill`.
+    func chipDeFiltro(marcado: Bool) -> some View {
+        font(.subheadline)
+            .foregroundColor(.primary)
+            .padding(.horizontal, Espaco.medio)
+            .padding(.vertical, Espaco.pequeno)
+            .background(Capsule().fill(marcado ? Cor.superficie : Color(uiColor: .tertiarySystemFill)))
+            .contentShape(Capsule())
     }
 }
 

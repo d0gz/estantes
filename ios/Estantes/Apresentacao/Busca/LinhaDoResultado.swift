@@ -1,12 +1,17 @@
 import Foundation
 
-/// Os textos que a linha de um resultado da busca acrescenta à linha do livro: onde está o assunto
-/// (item do sumário e página) e onde está o livro (estante e prateleira).
+/// Os textos que a linha de um resultado da busca acrescenta à linha do livro, em duas partes: onde está o assunto
+/// (item do sumário e página, o motivo da busca) e onde está o livro (estante e prateleira, mais discreto).
 enum LinhaDoResultado {
-    /// "§ 5.108 Conceito, p. 12 · Escritório · 2ª de cima".
-    static func local(item: ItemSumario?, estante: String?, prateleira: String?) -> String {
-        // Cada parte ausente sai junto com o seu separador: nada de "· ·" nem "·" no fim.
-        [item.map(textoDoItem), preenchido(estante), preenchido(prateleira)].compactMap { $0 }.joined(separator: " · ")
+    /// "§ 5.108 Conceito, p. 12"; `nil` sem item (o livro casou pelo título, autor...).
+    static func item(_ item: ItemSumario?) -> String? {
+        item.map(textoDoItem)
+    }
+
+    /// "Escritório · 2ª de cima"; parte ausente sai junto com o separador, e sem nenhuma, `nil`.
+    static func lugar(estante: String?, prateleira: String?) -> String? {
+        let partes = [preenchido(estante), preenchido(prateleira)].compactMap { $0 }
+        return partes.isEmpty ? nil : partes.joined(separator: " · ")
     }
 
     /// No OU de reserva, as palavras da consulta que o livro não tem ("sem: stf, cpc"); `nil` se tem todas.

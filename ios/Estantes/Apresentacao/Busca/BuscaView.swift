@@ -32,11 +32,8 @@ struct BuscaView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        ResultadosDaBuscaView(busca: busca, miniaturas: miniaturas, abrirFiltros: { mostrandoFiltros = true }) {
             campo
-                .padding(.horizontal, Espaco.padrao)
-                .padding(.vertical, Espaco.pequeno)
-            ResultadosDaBuscaView(busca: busca, miniaturas: miniaturas, abrirFiltros: { mostrandoFiltros = true })
         }
         .navigationTitle("Busca")
         .navigationBarTitleDisplayMode(.inline)

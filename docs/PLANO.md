@@ -515,6 +515,19 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     "Próximo item" (desligado sem título), que troca de item sem navegar e mantém o teclado. Item sem nada escrito
     sai ao voltar.
 
+- **Busca (2.7, decidido em 20/10 via `/decidir`; estilo E1–E4 sobre as capturas `Busca/*_1.0–1.1`, a aprovar no uso):**
+  - Inicio: botão com a aparência da barra (lupa, "Título, autor ou assunto", `tertiarySystemFill`) numa pilha acima da
+    lista (Q29), que empurra a tela "Busca" (título pequeno, "Cancelar" à direita, voltar escondido).
+  - Cabeçalho fixo sobre os resultados (`safeAreaInset` + `.ultraThinMaterial` + fio embaixo): campo próprio e a
+    linha horizontal de chips [Filtros (n)] [Categoria ▾] [estantes…]. Chip de filtro (E1): cápsula `tertiarySystemFill`
+    desmarcado; `superficie` marcado, texto `.primary`, ✓ nas estantes e ícone `.fill` em "Filtros (n)".
+  - Resultado: a `LinhaDoLivro` da Estante + chips de categoria (só leitura) + duas linhas (E3): item do sumário e
+    página em `.primary` com `list.bullet.indent` (o motivo da busca) e estante · prateleira em `textoSecundario` com
+    `books.vertical`; no OU, "sem: …" em `.caption`.
+  - Avisos (E4): faixa com ícone, sem cartão — `wand.and.stars` na correção (com "Buscar exatamente" no `destaque`) e
+    `text.magnifyingglass` no OU, em `textoSecundario`.
+  - Tela Filtros: `Form` nativo empurrado (como o Formulário), anos com regra e erro em `Cor.perigo` no rodapé.
+
 ### Forma de trabalho nas telas (2.4 em diante)
 
 - **Primeiro a lógica, depois o estilo.** A 2.4 faz todas as telas funcionarem com componentes nativos do SwiftUI, sem

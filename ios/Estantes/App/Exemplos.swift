@@ -206,6 +206,7 @@ enum Captura: String {
     case buscaOU = "BuscaOU"
     case buscaDica = "BuscaDica"
     case buscaFiltros = "BuscaFiltros"
+    case buscaMarcada = "BuscaMarcada"
     case estilo = "Estilo"
     case estiloTelas = "EstiloTelas"
     case estiloCategorias = "EstiloCategorias"
@@ -338,6 +339,13 @@ enum Captura: String {
             ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "constitucional stf") }
         case .buscaDica:
             ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "") }
+        case .buscaMarcada:
+            ComExemplos {
+                BuscaDeExemplo(
+                    dependencias: $0, texto: "direito",
+                    filtro: FiltroBusca(estanteIds: [DadosDeExemplo.escritorio.id], categoriaIds: [DadosDeExemplo.civil.id])
+                )
+            }
         case .buscaFiltros:
             ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "direito", mostrarFiltros: true) }
         case .estilo:
@@ -370,6 +378,7 @@ enum Captura: String {
 private struct BuscaDeExemplo: View {
     let dependencias: Dependencias
     let texto: String
+    var filtro = FiltroBusca()
     var mostrarFiltros = false
 
     var body: some View {
@@ -385,6 +394,7 @@ private struct BuscaDeExemplo: View {
 
     private func comTexto(_ busca: BuscaViewModel) -> BuscaViewModel {
         busca.texto = texto
+        busca.filtro = filtro
         return busca
     }
 }
