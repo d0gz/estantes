@@ -2987,3 +2987,139 @@ flowchart TD
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+(sem respostas)
+
+## Tarefa 2.7 — Busca na interface: Decorador + actor, tela própria e duas caças a defeitos do SwiftUI (2026-10-20)
+
+### O que foi feito
+Ligamos o motor de busca (2.3) à interface. No Domínio, `BibliotecaIndexada` (`Dominio/CasosDeUso/BibliotecaIndexada.swift`) envolve o repositório e mantém o índice em dia. Em `Apresentacao/Busca/` ficaram a tela Busca (campo próprio, chips, resultados), as telas Filtros e Categorias da busca e o `BuscaViewModel`; `LinhaDoLivro` foi extraída da Estante para ser reusada nos resultados. No caminho, corrigimos um defeito de rolagem que vinha da 2.4/2.5 (Estante e Categorias). Os testes foram de 449 para 490.
+
+### Conceitos envolvidos
+
+**1. Padrão Decorador.** Um Decorador implementa a mesma interface do objeto que envolve, repassa as chamadas e acrescenta comportamento. `BibliotecaIndexada` é um `BibliotecaRepositorio` que contém outro `BibliotecaRepositorio` (a `base`, o Core Data). Para o resto do app ele é indistinguível do repositório comum; só a montagem em `App/Dependencias` sabe da diferença.
+
+```mermaid
+flowchart LR
+    VM[ViewModels] -->|BibliotecaRepositorio| BI[BibliotecaIndexada]
+    BI -->|1. repassa e grava| B[Repositorio Core Data]
+    BI -->|2. so se gravou: atualiza| M[MotorDeBusca]
+    BV[BuscaViewModel] -->|buscar| BI
+```
+
+A ordem importa: grava primeiro, atualiza o índice depois. Se a gravação lançar erro, o `try` aborta antes de tocar o índice, e o índice nunca mostra algo que o banco não tem. O teste 9 prova isso (mutação: atualizar o índice antes de gravar no `apagarLivro` fez o teste falhar).
+
+**2. `actor` e reentrância (o conceito mais traiçoeiro da tarefa).** Um `actor` garante que só um trecho de código mexe no estado dele por vez. Mas essa exclusão só vale *entre* pontos de suspensão: em cada `await`, o actor está livre e outra chamada pode entrar no meio do método (reentrância). Logo, um actor protege a *memória*, não faz uma fila de "métodos inteiros". Consequência concreta aqui:
+
+- `salvar(livro)` faz `await base.salvar` e depois `await atualizarIndice`. Entre os dois, outra chamada pode rodar. O actor não serializa "gravar no banco + atualizar índice" (a P3 da revisão corrigiu um comentário que afirmava o contrário). Hoje isso é seguro porque as telas gravam uma coisa de cada vez; o comentário no código registra o risco.
+- A montagem do índice é cara (lê todos os livros e categorias). Se duas buscas chegassem durante ela, cada uma começaria a sua. Solução: a montagem é uma `Task` guardada em `montagem`; quem chega espera a *mesma* (`tarefa.value`).
+- Problema novo que isso cria (P1 da revisão): A começa a montagem; um `descartarIndice()` acontece no meio (por exemplo, a releitura de categorias falhou); a montagem antiga termina e grava `motor = montado`, desfazendo o descarte com dados velhos. Correção: um contador `geracao` que sobe a cada montagem e a cada descarte. Quem termina de esperar compara com a geração que viu ao entrar e só grava se for a mesma. É a mesma ideia de *versionamento otimista*: antes de aplicar um resultado atrasado, confirme que o mundo não mudou.
+
+**3. Copy-on-write (COW) e a linha `motor = nil`.** Arrays e dicionários do Swift são tipos-valor com cópia preguiçosa: a cópia só acontece quando alguém *escreve* e há mais de uma referência ao buffer. Em `atualizarIndice`, `guard var atualizado = motor` cria um segundo dono do mesmo buffer. Se mutássemos `atualizado` com `motor` ainda apontando para ele, a primeira escrita copiaria o dicionário do índice inteiro (O(n) por livro salvo). Zerar `motor` antes de mutar deixa um dono só e a mutação ocorre no lugar, em O(1) amortizado por entrada. Troque `n` por 22 fichas e ninguém nota; troque por milhares de livros e passa a importar. O custo é raciocinar sobre uma janela em que `motor == nil` — que só é seguro porque não há `await` entre `motor = nil` e `motor = atualizado` (sem suspensão, ninguém entra).
+
+**4. Casos delicados de consistência.**
+
+| Operação | O que o índice faz | Por quê |
+|---|---|---|
+| Apagar estante sem destino | lê os livros da estante *antes* e remove cada um do índice | a cascata do banco apaga os livros; depois não há mais como saber quem estava lá |
+| Apagar estante com destino | usa as cópias lidas antes, com `estanteId = destino`, e chama `atualizar` | reler depois poderia falhar e acusaria erro numa exclusão que já deu certo |
+| Criar, renomear ou apagar categoria | relê a lista de categorias inteira e passa ao motor | o motor precisa da lista completa (nome da categoria é texto buscável) |
+| Releitura de categorias falha | descarta o índice (`descartarIndice`) | a gravação deu certo e não vira erro; o índice é que ficou duvidoso, e a próxima busca remonta |
+| Índice ainda não montado | nada | a montagem vai ler o banco já gravado |
+| Montagem em andamento | espera e aplica por cima | ela pode ter lido o banco antes da gravação; `atualizar`/`remover` repetidos dão o mesmo índice (idempotência) |
+
+A palavra-chave é *idempotência*: aplicar a mesma mudança duas vezes dá o mesmo resultado que uma. É o que torna seguro "aplicar por cima" de uma montagem que talvez já contenha a mudança.
+
+**5. Testes: mutação como prova.** Dos 11 testes da `BibliotecaIndexada`, os que nasceram verdes foram conferidos sabotando o código:
+
+| Mutação | Teste que falhou |
+|---|---|
+| remover a atualização no `apagarCategoria` | 8 |
+| atualizar o índice antes de gravar no `apagarLivro` | 9 |
+| não zerar a montagem que falhou | 11 |
+| não descartar o índice na releitura de categorias que falha | teste novo da revisão |
+| tirar o `formIntersection` de `carregarOpcoes` | 10b |
+
+Um teste proposto, "preparar duas vezes não duplica", foi trocado: o motor guarda os livros por id, então duplicar é impossível e o teste nunca poderia falhar. Teste que não consegue falhar é decoração (mesma lição da 2.6). Dívida assumida: a reentrância (geração, montagem compartilhada) não tem teste, porque exigiria um repositório falso que *pause* a leitura no meio, controlado pelo teste.
+
+**6. Diagnóstico com log: o `.searchable` no iOS 16.** O primeiro desenho usava `.searchable`, a barra de busca nativa. Sintoma: ao empurrar uma tela (Filtros, Detalhe) e voltar, a barra voltava inativa, sem "Cancelar". Em vez de supor, instrumentamos com `os.Logger` e lemos com `log stream --predicate 'subsystem == "com.ricardo.estantes"'`. A evidência: `isSearching = false` aparecia no *mesmo segundo* do empurrão de Filtros (19:39:51, "filtros abertos = true" e "isSearching = false"), e também ao abrir o Detalhe. Conclusão: no iOS 16, empurrar uma tela desliga o `.searchable` da tela raiz.
+
+A sequência de tentativas é uma aula de quando parar:
+1. folha Filtros: fechava ao tocar num campo;
+2. folha movida para o Inicio: não fechava, mas o OK voltava à grade;
+3. tela empurrada: voltava à grade;
+4. estado próprio de sessão para lembrar a busca: falhou (barra vazia, e no Detalhe);
+5. solução: tela "Busca" própria, com `TextField` + `@FocusState` e botão "Cancelar".
+
+Lição: **remendos sobre um estado do sistema que não controlamos não fecham**. Cada correção mexia nos sintomas de um componente cujo ciclo de vida é decidido pela Apple. Quando a mesma classe de defeito reaparece três vezes, mude a estrutura para não depender dele. Custo: perdemos o visual nativo da barra; ganhamos controle total do estado.
+
+**7. Diagnóstico da rolagem com a skill `/diagnosticar`.** Sintoma: na *primeira* entrada na Estante, rolar não encolhia o título grande e a barra ficava sem fundo; depois de ir ao Detalhe e voltar, funcionava. Um defeito que depende de "primeira vez" costuma ser de *ordem de eventos*, não de lógica.
+
+Primeiro, construir o laço que reproduz: uma captura em DEBUG que empurra a tela 1 s depois de abrir e rola a `UIScrollView` por código 1,5 s depois (o `simctl` não sabe rolar). Um bom laço precisa *distinguir* o vermelho do verde; o controle (com ida e volta ao Detalhe) provou isso:
+
+| Situação | Resultado |
+|---|---|
+| Estante, 1ª entrada (branch e `main`) | vermelho (título e voltar sobre os livros) |
+| Estante com ida e volta ao Detalhe (controle) | verde (prova que o laço distingue) |
+| Estante com a correção | verde já na 1ª entrada |
+| Categorias, 1ª entrada | vermelho, depois corrigida (verde) |
+| Detalhe e Inicio | verdes |
+
+Hipóteses listadas antes de mexer: (1) a lista chega tarde na hierarquia; (2) a troca animada de estado atrapalha; (3) a tarefa de carga roda durante a transição. A 1 foi a confirmada. Causa: o iOS decide *qual rolagem a barra de navegação acompanha* quando a tela aparece, procurando a `UIScrollView` na hierarquia naquele momento. A `ScrollView` da Estante só surgia depois do estado "carregando", então no primeiro quadro não havia nada para acompanhar. Correção: a Estante passa a ter uma `ScrollView` desde o primeiro quadro, com os estados dentro (um `GeometryReader` + `minHeight` para o aviso de vazio ocupar a tela); a Categorias mantém a `List` sempre presente e põe carregando/vazio/erro em `.overlay`.
+
+Dois fatos de método: o defeito vinha da 2.4/2.5 (vermelho também no `main`), então não era regressão desta tarefa; e uma tentativa intermediária (trocar por `VStack` no Inicio) foi revertida porque o Ricardo viu o defeito em outras telas, que era este defeito antigo, não a mudança. Depois da correção, a `VStack` voltou (Q29) e funcionou. Aprender: ao reverter, confirme se a mudança era mesmo a causa; senão você joga fora uma ideia boa por culpa de outro bug. Não há teste de regressão, porque só um teste de interface (XCUITest) alcança o comportamento da barra de navegação.
+
+**8. Concorrência na tela: cancelamento cooperativo.** `.task(id: chave)` cancela a tarefa anterior quando a chave muda (digitou mais uma letra). Cancelar em Swift é *cooperativo*: só marca a tarefa; quem está rodando precisa olhar. Pontos concretos:
+- `guard !Task.isCancelled` depois do `await` da busca: o actor termina o que começou, então a resposta velha chega mesmo assim, e sem o guard ela sobrescreveria a nova (corrida clássica de "resposta atrasada").
+- P5: `try? await Task.sleep` (o atraso de digitação, *debounce*) engolia o `CancellationError`, e a busca seguia como se nada tivesse acontecido. Trocado por `do/catch` que sai.
+- P12: o `aoVoltar` chamava `buscar()` em paralelo com a `.task(id:)`. Duas buscas ao mesmo tempo, sem ordem garantida. Agora `pedirNovaBusca()` só sobe uma `versao` que faz parte da chave, e existe um único caminho que dispara a busca.
+- P8: `.nadaEncontrado(texto:)` guarda o texto *buscado*, não o que está no campo agora; senão a mensagem "Nada encontrado para X" mudaria enquanto você digita, antes de haver outro resultado.
+
+**9. Interface.** Botão no Inicio com aparência de barra, numa `VStack` acima da lista (com `safeAreaInset` o título grande passava por cima). Tela Busca com cabeçalho fixo em `.ultraThinMaterial` (campo + chips). Chips de filtro: desmarcado `Cor.campo` (`tertiarySystemFill`), marcado `superficie`. Filtros: anos só com 4 dígitos, via `BuscaViewModel.ano(deTexto:)` (função pura, testável); faixa invertida (2020–2010) esconde o botão de voltar até corrigir. Categorias: várias ao mesmo tempo, com semântica OU; usamos uma tela empurrada, não um `Menu`, porque o `Menu` do iOS 16 fecha a cada toque e `menuActionDismissBehavior` é do 16.4, que o Xcode 14.2 não compila (a regra dos dois Xcodes de novo). A `LinhaDoLivro` foi extraída da Estante e as capturas antes e depois foram comparadas pixel a pixel com PIL: idênticas, o que prova que a extração foi só refatoração. `LinhaDoResultado.item`/`.lugar` mostram item e lugar em duas linhas.
+
+### Por que assim
+- **Decorador em vez de cada ViewModel avisar o índice:** são 6+ lugares que gravam; esquecer um deixa o índice mentindo, e o erro só aparece como "busca não acha o livro novo". Centralizar na borda do repositório torna a invariante "índice = banco" responsabilidade de um só arquivo.
+- **`actor` em vez de classe `@MainActor`:** a montagem e a busca (tokenizar, BM25F) são trabalho de CPU que não deve travar a interface; um `@MainActor` rodaria tudo na thread principal.
+- **Tela Busca própria em vez de `.searchable`:** ver conceito 6; controle do estado vale mais que o visual nativo.
+- **Editora fora da barra de busca:** ruído. "Livraria Freitas Bastos" casaria com o prefaciador Bastos do Lassalle, e não temos medida para o peso certo (só 4 de 22 fichas têm editora). Sem dado, não se calibra; melhor não incluir.
+- **Apagar estante lê os livros antes:** ver tabela do conceito 4.
+- **Várias categorias com OU:** quem marca "Civil" e "Penal" quer ver livros de qualquer uma; E daria quase sempre lista vazia.
+
+### Alternativas descartadas
+- Cada ViewModel avisar o índice: 6+ lugares, fácil esquecer.
+- Remontar o índice a cada busca: custo O(todos os livros) por tecla.
+- Classe `@MainActor`: bloqueia a interface durante montagem/busca.
+- Porta própria só para a busca (P4, recusado): haveria um único uso; abstrair com um implementador só é custo sem benefício.
+- Esconder o botão voltar com faixa inválida (P11, recusado pela revisão): foi pedido do Ricardo, então fica; a revisão apontou que esconder o voltar é fora do padrão da plataforma.
+- `Menu` para categorias: fecha a cada toque no iOS 16.
+- `.searchable` com remendos: cinco tentativas, nenhuma fechou.
+
+### Padrões e boas práticas
+- **Decorador:** acrescenta comportamento sem alterar quem usa nem o decorado. NÃO use quando o comportamento novo precisa de uma interface diferente (aí é um serviço à parte) ou quando há um único chamador (um método direto basta).
+- **Invalidar por geração/versão:** serve para qualquer resultado assíncrono que possa chegar atrasado.
+- **Um único caminho para disparar a busca** (a `chave` da `.task(id:)`): reduz as formas de entrar em estado inconsistente.
+- **Diagnóstico: laço antes de hipótese de correção.** Primeiro um jeito de reproduzir e distinguir; depois mudanças, uma por vez.
+- **Refatoração provada por captura idêntica** (extração da `LinhaDoLivro`).
+- **Dívida declarada:** P10 (`LinhaDoLivro` acoplada a funções estáticas de ViewModels) e os testes de reentrância ficaram anotados, não escondidos.
+
+### Armadilhas
+- Achar que `actor` serializa métodos inteiros. Só serializa trechos sem `await`.
+- Dois donos de um dicionário grande (COW) fazem uma mutação virar cópia completa; olhe para isso quando uma operação "simples" ficar lenta.
+- `try?` em torno de `Task.sleep` ou de qualquer `await` cancelável: some o cancelamento.
+- Aplicar a resposta de uma tarefa cancelada: confira `Task.isCancelled` depois do `await`.
+- A tela só "funciona na segunda vez": desconfie de ordem de criação da hierarquia (`ScrollView` que aparece tarde), não de lógica.
+- Remendar um componente do sistema repetidamente: se a terceira correção não fecha, mude a estrutura.
+- `menuActionDismissBehavior` e outras APIs 16.4+: compilam na CI (Xcode 26), mas quebram o Xcode 14.2 local.
+- Testes que não conseguem falhar (o "preparar duas vezes").
+
+### Para ir além
+- Swift Evolution SE-0306 (Actors), seção sobre reentrância, e *The Swift Programming Language*, capítulo "Concurrency".
+- Gamma, Helm, Johnson, Vlissides, *Design Patterns* (Decorator).
+- Documentação Apple: `Task.isCancelled`, `Task.checkCancellation()` e "Cooperative cancellation" no capítulo de concorrência.
+
+### Perguntas
+1. Com suas palavras: o que a reentrância de um `actor` significa, e por que ela obrigou a montagem do índice a ser uma `Task` guardada e a ter um contador `geracao`? Descreva a sequência de eventos que o contador impede.
+2. Aplicação: hoje a `BibliotecaIndexada.apagarEstante` com destino reaproveita as cópias lidas antes. Se o app passasse a permitir que o usuário edite um livro *enquanto* a estante é apagada, que problema novo poderia aparecer no índice? O que você faria?
+3. Raciocínio: no diagnóstico da rolagem, o controle "ida e volta ao Detalhe" deu verde. Por que um controle assim é indispensável antes de aceitar que a correção funcionou? E por que, na tela Busca, o `guard !Task.isCancelled` é necessário mesmo com `.task(id:)` cancelando a tarefa anterior?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
