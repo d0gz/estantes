@@ -385,7 +385,10 @@ private struct BuscaDeExemplo: View {
         NavigationStack {
             ResultadosDaBuscaView(busca: busca, miniaturas: dependencias.miniaturas, abrirFiltros: { mostrandoFiltros = true })
                 .navigationTitle("Minhas estantes")
-                .searchable(text: $busca.texto, prompt: "Título, autor ou assunto")
+                // `.always`: a barra fica sempre à vista; no padrão ela só aparecia puxando a lista para baixo.
+                .searchable(
+                    text: $busca.texto, placement: .navigationBarDrawer(displayMode: .always), prompt: "Título, autor ou assunto"
+                )
                 .navigationDestination(isPresented: $mostrandoFiltros) {
                     FiltrosDaBuscaView(busca: busca)
                 }

@@ -66,7 +66,10 @@ struct InicioView: View {
         ) { conteudo }
             .navigationTitle("Minhas estantes")
             // Sempre visível, também sem estantes (aí só a dica): esconder a barra a faria pular na tela.
-            .searchable(text: $busca.texto, prompt: "Título, autor ou assunto")
+            // `.always`: a barra fica sempre à vista; no padrão ela só aparecia puxando a lista para baixo.
+            .searchable(
+                text: $busca.texto, placement: .navigationBarDrawer(displayMode: .always), prompt: "Título, autor ou assunto"
+            )
             .navigationDestination(isPresented: $mostrandoFiltros) {
                 FiltrosDaBuscaView(busca: busca)
             }
