@@ -60,8 +60,17 @@ struct EstanteView: View {
     }
 
     /// Troca de estado (carregando → lista ou vazio) com a mola `suave`, como no Inicio.
+    /// Uma `ScrollView` só, presente desde o primeiro quadro, com os estados dentro: o iOS escolhe a rolagem que a
+    /// barra acompanha quando a tela aparece. Com a lista surgindo só depois do "carregando", não havia nenhuma, e na
+    /// primeira entrada o título grande não encolhia (a barra ficava sem fundo sobre os livros).
     private var conteudo: some View {
-        estadoAtual.animacaoSuave(valor: viewModel.estado)
+        GeometryReader { tela in
+            ScrollView {
+                estadoAtual
+                    .frame(maxWidth: .infinity, minHeight: tela.size.height)
+                    .animacaoSuave(valor: viewModel.estado)
+            }
+        }
     }
 
     private var entrada: AnyTransition {
@@ -95,14 +104,14 @@ struct EstanteView: View {
             .padding(Espaco.padrao)
             .transition(entrada)
         case .pronta(let grupos):
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: Espaco.grande) {
-                    ForEach(grupos, id: \.prateleira) { grupo in
-                        prateleira(grupo)
-                    }
+            LazyVStack(alignment: .leading, spacing: Espaco.grande) {
+                ForEach(grupos, id: \.prateleira) { grupo in
+                    prateleira(grupo)
                 }
-                .padding(Espaco.padrao)
             }
+            .padding(Espaco.padrao)
+            // Em cima, e não centralizada no espaço de "ao menos a altura da tela".
+            .frame(maxHeight: .infinity, alignment: .top)
             .transition(entrada)
         case .erro(let texto):
             MensagemDeErroView(texto: texto) {

@@ -74,33 +74,12 @@ struct CategoriasView: View {
             }
     }
 
-    @ViewBuilder
+    /// A `List` fica na tela desde o primeiro quadro, só com as linhas no `.pronto`; carregando, vazio e erro vêm
+    /// por cima. O iOS escolhe a rolagem que a barra acompanha quando a tela aparece: com a lista surgindo só depois
+    /// do "carregando", não havia nenhuma, e na primeira entrada o título grande não encolhia sobre as linhas.
     private var estadoAtual: some View {
-        switch viewModel.estado {
-        case .carregando:
-            ProgressView()
-        case .vazio:
-            VStack(spacing: Espaco.grande) {
-                Image(systemName: "tag")
-                    .font(.system(size: 56))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundColor(Cor.destaque)
-                    .accessibilityHidden(true)
-                VStack(spacing: Espaco.pequeno) {
-                    Text("Nenhuma categoria ainda")
-                        .font(.title3.weight(.semibold))
-                    Text("Categorias são etiquetas de assunto. Um livro pode ter várias.")
-                        .font(.subheadline)
-                        .foregroundColor(Cor.textoSecundario)
-                        .multilineTextAlignment(.center)
-                }
-                Button("Criar a primeira categoria") { folha = .nova }
-                    .buttonStyle(EstiloPrincipal())
-            }
-            .padding(Espaco.padrao)
-            .transition(.entrada(reduzirMovimento: reduzirMovimento))
-        case .pronto(let resumos):
-            List {
+        List {
+            if case .pronto(let resumos) = viewModel.estado {
                 ForEach(resumos) { resumo in
                     Button {
                         folha = .edicao(resumo.categoria)
@@ -136,12 +115,42 @@ struct CategoriasView: View {
                     }
                 }
             }
-            // A sombra do Estilo 0 no cartão da lista, sobre o cinza agrupado: o fundo sai da `List` e volta por fora
-            // da sombra, que assim só nasce das partes opacas (o cartão branco).
-            .scrollContentBackground(.hidden)
-            .sombraSuave()
-            .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+        }
+        // A sombra do Estilo 0 no cartão da lista, sobre o cinza agrupado: o fundo sai da `List` e volta por fora
+        // da sombra, que assim só nasce das partes opacas (o cartão branco). Fora do `.pronto`, o fundo de antes.
+        .scrollContentBackground(.hidden)
+        .sombraSuave()
+        .background((temCategorias ? Color(uiColor: .systemGroupedBackground) : Cor.fundo).ignoresSafeArea())
+        .overlay { sobreposicao }
+    }
+
+    @ViewBuilder
+    private var sobreposicao: some View {
+        switch viewModel.estado {
+        case .carregando:
+            ProgressView()
+        case .vazio:
+            VStack(spacing: Espaco.grande) {
+                Image(systemName: "tag")
+                    .font(.system(size: 56))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundColor(Cor.destaque)
+                    .accessibilityHidden(true)
+                VStack(spacing: Espaco.pequeno) {
+                    Text("Nenhuma categoria ainda")
+                        .font(.title3.weight(.semibold))
+                    Text("Categorias são etiquetas de assunto. Um livro pode ter várias.")
+                        .font(.subheadline)
+                        .foregroundColor(Cor.textoSecundario)
+                        .multilineTextAlignment(.center)
+                }
+                Button("Criar a primeira categoria") { folha = .nova }
+                    .buttonStyle(EstiloPrincipal())
+            }
+            .padding(Espaco.padrao)
             .transition(.entrada(reduzirMovimento: reduzirMovimento))
+        case .pronto:
+            EmptyView()
         case .erro(let texto):
             MensagemDeErroView(texto: texto) {
                 Task { await viewModel.carregar() }
