@@ -466,7 +466,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     tons de texto do claro (fonte: as capturas). Cor gravada desconhecida (o "azul" antigo) vira cinza na leitura.
   - Componentes: `ChipDeCategoria` (com a variante fantasma "+ Categoria": `plus`, contorno tracejado em
     `textoSecundario`, sem véu) e o `FluxoDeChips` (`Layout`, iOS 16; conta das linhas pura e testada; alinhamento à
-    esquerda ou centralizado) que quebra os chips em linhas; todos visíveis, sem "+N" (serve também à 2.7). Com texto
+    esquerda ou centralizado) que quebra os chips em linhas; todos visíveis, sem "+N" (na busca da 2.7, os chips vão numa linha com rolagem horizontal: lá os resultados importam mais que os filtros; decidido em 20/10). Com texto
     grande os nomes não cortam letra a letra (captura `EstiloCategorias_1.7-textogrande`). `EstiloPressao` (encolhe e
     escurece ao tocar) em `Componentes/`, para a foto e os chips.
   - Gerenciar: menu ⋯ do Inicio (`ellipsis.circle`, à direita do "+"; por ora só "Categorias", visível também sem
@@ -678,7 +678,24 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   artigosInicio/Fim); `pagina` como texto + regra de conversão romano/arábico (`NumeroDePagina`); `ValidacaoSumario`
   comparando por sequência (escrita pelo Claude, a pedido do Ricardo); Core Data + `Conversao.swift`; `numeracao`
   e `parte` no índice; hífen no `Tokenizador`; 171 testes
-- [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
+- [ ] Busca (título, autor, assunto) com filtros; ~~exclusão com confirmação~~ (já feita na 2.4: "Apagar livro" no Detalhe)
+  **Decidido em 20/10 (`/decidir`, branch `fase2/busca-interface`):** índice mantido pela `BibliotecaIndexada`
+  (`actor`, decorador do `BibliotecaRepositorio` em `Dominio/CasosDeUso/`; ver Histórico de 20/10): repassa cada
+  chamada e, só depois de gravar com sucesso, atualiza o `MotorDeBusca` (`salvar(livro)` → atualizar; `apagarLivro` →
+  remover; `apagarEstante` sem destino → remove os livros, com os ids lidos antes; com destino → relê os movidos;
+  criar/renomear/apagar categoria → `atualizar(categorias:)` com a lista relida; renomear estante e foto → nada).
+  `preparar()` idempotente, disparado ao abrir o app; `buscar` espera a montagem; falha → "Não foi possível preparar a
+  busca." e nova tentativa na próxima busca. Tela: `.searchable` no Inicio, `ResultadosDaBuscaView` no lugar da grade
+  com a busca ativa, `BuscaViewModel` próprio; busca a cada tecla com `.task(id:)` (cancela a anterior), sem espera.
+  Linha: a da Estante + `LinhaDoResultado` ("§ 5.108 Conceito, p. 12 · Escritório · 2ª de cima", partes ausentes
+  omitidas; "sem: stf" no OU); toque → Detalhe. Filtros: linha horizontal de chips [Filtros (n)] [estantes…]
+  [categorias…]; folha "Filtros" com autor, editora e anos; **CDDir sem interface** até haver dado (Fases 4/5).
+  Vazio sem filtro: chips + "Busque por título, autor ou assunto"; só filtro: todos que passam. Avisos: "Mostrando
+  resultados para **lassale**." + "Buscar exatamente "lassalle"" (`corrigir: false` até o texto mudar) e, no OU,
+  "Nenhum livro tem todas as palavras. Mostrando os que têm parte delas." "Último livro escaneado" fica para a Fase 3.
+  Sem `[eu escrevo]`. Lógica primeiro, estilo depois.
+  Passos: 1 `BibliotecaIndexada` + testes + montagem · 2 `LinhaDoResultado` + testes · 3 `BuscaViewModel` + testes e
+  telas (captura `-captura Busca`) · 4 estilo · 5 fechamento.
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
 - [ ] Simulador iOS 16 e CI verde (Sideloadly no iPhone adiado até haver aparelho)
 
@@ -962,3 +979,4 @@ Regras contra omissão:
 | 20/10 | Sumário editado numa folha própria aberta pelo Detalhe, gravando o `Livro` inteiro no "Salvar"; não no formulário do livro nem gravando a cada mudança | O formulário ficaria enorme com centenas de itens e misturaria ficha e sumário; gravar a cada mudança tiraria o "Cancelar". Repete o fluxo da escolha de categorias (mesma limitação conhecida) |
 | 20/10 | Editar um item do sumário preserva a `origem`; só o item novo é `manual` | O JSON v1 (2.8) congela o significado. Virar `manual` a cada correção apagaria o rastro de foto/LexML/Gemini que a avaliação do parser (Fase 3) usa |
 | 20/10 | Na folha "Editar sumário", a tela de item é empurrada por `navigationDestination(isPresented:)`, com itens-botão e a seta desenhada; não por `navigationDestination(for:)` com caminho | No iOS 16, o destino por tipo numa folha aberta de dentro da pilha principal põe o app em laço (CPU a 100%, Detalhe preso no "carregando"), também com um tipo próprio no lugar do `UUID`. `NavigationLink(value:)` depende do destino por tipo; uma folha sobre a folha contrariaria a tela empurrada decidida para o item |
+| 20/10 | Índice da busca mantido por um decorador `actor` do `BibliotecaRepositorio` (`BibliotecaIndexada`, no Domínio), que atualiza o `MotorDeBusca` só depois de cada gravação bem-sucedida; montado ao abrir o app | Um lugar só sabe o que muda o índice e se testa com o repositório em memória. Descartados: cada ViewModel avisar o índice (6+ lugares, fácil esquecer um), remontar a cada busca (relê o banco a cada tecla, contraria o PLANO) e classe `@MainActor` (busca na thread da interface e Domínio preso a ela) |
