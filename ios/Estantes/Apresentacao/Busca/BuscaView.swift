@@ -11,20 +11,24 @@ struct BuscaView: View {
     private let miniaturas: CarregadorDeMiniaturas
     private let focarAoAbrir: Bool
     private let abrirFiltrosAoAbrir: Bool
+    private let abrirCategoriasAoAbrir: Bool
 
     @State private var mostrandoFiltros = false
+    @State private var mostrandoCategorias = false
     /// O foco só vai sozinho ao campo na primeira vez: na volta de Filtros ou do Detalhe, o teclado cobriria a lista.
     @State private var jaApareceu = false
     @FocusState private var campoFocado: Bool
     @Environment(\.dismiss) private var voltar
 
-    /// `focarAoAbrir` e `abrirFiltrosAoAbrir` só servem às capturas (sem teclado na frente; Filtros já aberta).
+    /// `focarAoAbrir` e os `abrir…AoAbrir` só servem às capturas (sem teclado na frente; Filtros já aberta).
     init(
         viewModel: @autoclosure @escaping () -> BuscaViewModel,
         miniaturas: CarregadorDeMiniaturas,
         focarAoAbrir: Bool = true,
-        abrirFiltrosAoAbrir: Bool = false
+        abrirFiltrosAoAbrir: Bool = false,
+        abrirCategoriasAoAbrir: Bool = false
     ) {
+        self.abrirCategoriasAoAbrir = abrirCategoriasAoAbrir
         _busca = StateObject(wrappedValue: viewModel())
         self.miniaturas = miniaturas
         self.focarAoAbrir = focarAoAbrir
@@ -32,7 +36,10 @@ struct BuscaView: View {
     }
 
     var body: some View {
-        ResultadosDaBuscaView(busca: busca, miniaturas: miniaturas, abrirFiltros: { mostrandoFiltros = true }) {
+        ResultadosDaBuscaView(
+            busca: busca, miniaturas: miniaturas,
+            abrirFiltros: { mostrandoFiltros = true }, abrirCategorias: { mostrandoCategorias = true }
+        ) {
             campo
         }
         .navigationTitle("Busca")
@@ -46,6 +53,9 @@ struct BuscaView: View {
         .navigationDestination(isPresented: $mostrandoFiltros) {
             FiltrosDaBuscaView(busca: busca)
         }
+        .navigationDestination(isPresented: $mostrandoCategorias) {
+            CategoriasDaBuscaView(busca: busca)
+        }
         .task {
             guard !jaApareceu else { return }
             jaApareceu = true
@@ -53,6 +63,7 @@ struct BuscaView: View {
             try? await Task.sleep(nanoseconds: 400_000_000)
             if focarAoAbrir { campoFocado = true }
             if abrirFiltrosAoAbrir { mostrandoFiltros = true }
+            if abrirCategoriasAoAbrir { mostrandoCategorias = true }
         }
     }
 

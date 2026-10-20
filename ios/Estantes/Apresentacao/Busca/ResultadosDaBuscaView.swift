@@ -7,6 +7,8 @@ struct ResultadosDaBuscaView<Cabecalho: View>: View {
     let miniaturas: CarregadorDeMiniaturas
     /// Empurra a tela "Filtros"; quem monta esta vista (a `BuscaView`) é quem empurra.
     let abrirFiltros: () -> Void
+    /// Empurra a tela Categorias (várias de uma vez).
+    let abrirCategorias: () -> Void
     /// O campo de busca, que vai no cabeçalho fixo junto com os chips.
     @ViewBuilder let cabecalho: () -> Cabecalho
 
@@ -65,29 +67,18 @@ struct ResultadosDaBuscaView<Cabecalho: View>: View {
         }
     }
 
-    /// Uma categoria só por vez, escolhida num menu: com muitas categorias, um chip para cada empurraria as
-    /// estantes para fora da linha. Sem categorias, o menu não aparece.
+    /// Empurra a tela Categorias, em que se marcam várias de uma vez: o `Menu` do iOS 16 fecha a cada toque (mantê-lo
+    /// aberto é do 16.4, que o Xcode 14.2 não compila). Sem categorias, o chip não aparece.
     @ViewBuilder
     private var menuDeCategorias: some View {
         if !busca.categorias.isEmpty {
-            Menu {
-                Picker("Categoria", selection: Binding(
-                    get: { busca.categoriaEscolhida?.id },
-                    set: { busca.escolher(categoria: $0) }
-                )) {
-                    Text("Todas as categorias").tag(UUID?.none)
-                    ForEach(busca.categorias) { categoria in
-                        Text(categoria.nome).tag(UUID?.some(categoria.id))
-                    }
-                }
-            } label: {
-                Label(busca.categoriaEscolhida?.nome ?? "Categoria", systemImage: "chevron.down")
+            let marcadas = !busca.filtro.categoriaIds.isEmpty
+            Button(action: abrirCategorias) {
+                Label(busca.rotuloDasCategorias, systemImage: "chevron.down")
                     .labelStyle(RotuloComIconeDepois())
-                    .chipDeFiltro(marcado: busca.categoriaEscolhida != nil)
+                    .chipDeFiltro(marcado: marcadas)
             }
-            // Sem isso o menu pinta o rótulo com o tint (destaque): o chip segue a regra da `superficie`.
-            .tint(.primary)
-            .accessibilityLabel("Categoria: \(busca.categoriaEscolhida?.nome ?? "todas")")
+            .accessibilityAddTraits(marcadas ? .isSelected : [])
         }
     }
 

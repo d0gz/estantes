@@ -519,7 +519,10 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   - Inicio: botão com a aparência da barra (lupa, "Título, autor ou assunto", `tertiarySystemFill`) numa pilha acima da
     lista (Q29), que empurra a tela "Busca" (título pequeno, "Cancelar" à direita, voltar escondido).
   - Cabeçalho fixo sobre os resultados (`safeAreaInset` + `.ultraThinMaterial` + fio embaixo): campo próprio e a
-    linha horizontal de chips [Filtros (n)] [Categoria ▾] [estantes…]. Chip de filtro (E1): cápsula `tertiarySystemFill`
+    linha horizontal de chips [Filtros (n)] [Categorias ▾] [estantes…]. **Categorias com escolha múltipla (Q30–Q32,
+    revisa a Q18 de escolha única):** o chip empurra a tela "Categorias" (`CategoriasDaBuscaView`: chips coloridos, ✓,
+    "Desmarcar todas"), porque o `Menu` do iOS 16 fecha a cada toque; vale OU ("qualquer uma", como as estantes e a
+    linha de 09/10); rótulo "Categorias", o nome com uma, "Categorias (2)" com mais. Chip de filtro (E1): cápsula `tertiarySystemFill`
     desmarcado; `superficie` marcado, texto `.primary`, ✓ nas estantes e ícone `.fill` em "Filtros (n)".
   - Resultado: a `LinhaDoLivro` da Estante + chips de categoria (só leitura) + duas linhas (E3): item do sumário e
     página em `.primary` com `list.bullet.indent` (o motivo da busca) e estante · prateleira em `textoSecundario` com

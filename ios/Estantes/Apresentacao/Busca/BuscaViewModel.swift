@@ -89,14 +89,20 @@ final class BuscaViewModel: ObservableObject {
         if filtro.estanteIds.remove(id) == nil { filtro.estanteIds.insert(id) }
     }
 
-    /// O menu "Categoria ▾" escolhe uma só (o `FiltroBusca` aceitaria várias); `nil` é "Todas as categorias".
-    func escolher(categoria id: UUID?) {
-        filtro.categoriaIds = id.map { [$0] } ?? []
+    /// Marca ou desmarca uma categoria na tela Categorias da busca (várias ao mesmo tempo; vale "qualquer destas").
+    func alternar(categoria id: UUID) {
+        if filtro.categoriaIds.remove(id) == nil { filtro.categoriaIds.insert(id) }
     }
 
-    /// A categoria do menu, para o rótulo do chip; `nil` sem nenhuma (ou se ela não está entre as lidas).
-    var categoriaEscolhida: Categoria? {
-        categorias.first { filtro.categoriaIds.contains($0.id) }
+    /// O rótulo do chip: "Categorias" sem nenhuma, o nome com uma, "Categorias (2)" com mais (o chip não cresce
+    /// sem limite). Conta só as categorias lidas.
+    var rotuloDasCategorias: String {
+        let marcadas = categorias.filter { filtro.categoriaIds.contains($0.id) }
+        switch marcadas.count {
+        case 0: return "Categorias"
+        case 1: return marcadas[0].nome
+        default: return "Categorias (\(marcadas.count))"
+        }
     }
 
     /// Os chips da linha do resultado, na ordem da lista (alfabética). Id sem categoria lida fica de fora.

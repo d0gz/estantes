@@ -113,22 +113,32 @@ final class BuscaViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.filtro.estanteIds, [escritorio.id])
     }
 
-    // Categoria é escolha única (menu "Categoria ▾"): escolher outra troca a anterior; `nil` é "Todas".
-    func testEscolherCategoriaTrocaAAnteriorENilDesmarca() async throws {
+    // Várias categorias ao mesmo tempo (tela Categorias da busca): dentro delas vale OU, como nas estantes.
+    func testAlternarCategoriasMarcaVariasEDesmarcaUma() {
+        let civil = Categoria(nome: "Civil", cor: .laranja)
+        let penal = Categoria(nome: "Penal", cor: .amarelo)
+
+        viewModel.alternar(categoria: civil.id)
+        viewModel.alternar(categoria: penal.id)
+        XCTAssertEqual(viewModel.filtro.categoriaIds, [civil.id, penal.id])
+        viewModel.alternar(categoria: civil.id)
+
+        XCTAssertEqual(viewModel.filtro.categoriaIds, [penal.id])
+    }
+
+    func testRotuloDoChipDeCategorias() async throws {
         let civil = Categoria(nome: "Civil", cor: .laranja)
         let penal = Categoria(nome: "Penal", cor: .amarelo)
         try await base.salvar(civil)
         try await base.salvar(penal)
         await viewModel.carregarOpcoes()
+        XCTAssertEqual(viewModel.rotuloDasCategorias, "Categorias")
 
-        viewModel.escolher(categoria: civil.id)
-        viewModel.escolher(categoria: penal.id)
-        XCTAssertEqual(viewModel.filtro.categoriaIds, [penal.id])
-        XCTAssertEqual(viewModel.categoriaEscolhida, penal)
+        viewModel.alternar(categoria: civil.id)
+        XCTAssertEqual(viewModel.rotuloDasCategorias, "Civil")
 
-        viewModel.escolher(categoria: nil)
-        XCTAssertEqual(viewModel.filtro.categoriaIds, [])
-        XCTAssertNil(viewModel.categoriaEscolhida)
+        viewModel.alternar(categoria: penal.id)
+        XCTAssertEqual(viewModel.rotuloDasCategorias, "Categorias (2)")
     }
 
     // Os chips da linha do resultado, na ordem da lista de categorias (alfabética); id sem categoria some.

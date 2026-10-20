@@ -207,6 +207,7 @@ enum Captura: String {
     case buscaDica = "BuscaDica"
     case buscaFiltros = "BuscaFiltros"
     case buscaMarcada = "BuscaMarcada"
+    case buscaCategorias = "BuscaCategorias"
     case estilo = "Estilo"
     case estiloTelas = "EstiloTelas"
     case estiloCategorias = "EstiloCategorias"
@@ -346,6 +347,14 @@ enum Captura: String {
                     filtro: FiltroBusca(estanteIds: [DadosDeExemplo.escritorio.id], categoriaIds: [DadosDeExemplo.civil.id])
                 )
             }
+        case .buscaCategorias:
+            ComExemplos {
+                BuscaDeExemplo(
+                    dependencias: $0, texto: "direito",
+                    filtro: FiltroBusca(categoriaIds: [DadosDeExemplo.civil.id, DadosDeExemplo.constitucional.id]),
+                    mostrarCategorias: true
+                )
+            }
         case .buscaFiltros:
             ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "direito", mostrarFiltros: true) }
         case .estilo:
@@ -380,6 +389,7 @@ private struct BuscaDeExemplo: View {
     let texto: String
     var filtro = FiltroBusca()
     var mostrarFiltros = false
+    var mostrarCategorias = false
 
     var body: some View {
         NavigationStack {
@@ -387,7 +397,8 @@ private struct BuscaDeExemplo: View {
                 viewModel: comTexto(dependencias.fazerBuscaViewModel()),
                 miniaturas: dependencias.miniaturas,
                 focarAoAbrir: false,
-                abrirFiltrosAoAbrir: mostrarFiltros
+                abrirFiltrosAoAbrir: mostrarFiltros,
+                abrirCategoriasAoAbrir: mostrarCategorias
             )
         }
     }
