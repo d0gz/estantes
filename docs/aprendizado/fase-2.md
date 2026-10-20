@@ -2897,3 +2897,93 @@ Alternativa estruturada (relação Core Data com entidade própria, ou JSON em c
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.6 — Sumário manual: RascunhoSumario, folha de edição e o laço do navigationDestination (2026-10-20)
+
+### O que foi feito
+Editar o sumário de um livro à mão. No Domínio, `RascunhoSumario` (`Dominio/Regras/RascunhoSumario.swift`) guarda os itens em edição e implementa ida e volta, inserir, apagar, mover, níveis e validação, tudo puro e testado. Em `Apresentacao/Sumario/` ficaram a prévia de 10 itens no Detalhe, a tela "Sumário completo", a folha "Editar sumário" (`EditarSumarioView` + `EditarSumarioViewModel`) e a tela de um item (`EdicaoDoItemView`). A limpeza de texto saiu do `RascunhoLivro` para `Normalizacao.textoLimpo`. Os testes foram de 408 para 449.
+
+### Conceitos envolvidos
+
+**1. Rascunho (draft) como modelo de edição.** O `Livro` guarda `numeracao: String?`; um `TextField` precisa de `String` não opcional. Em vez de espalhar `?? ""` pela tela, o `RascunhoSumario.Item` usa `String` simples e converte nas duas bordas (init e `paraItens()`). Isso transforma a edição em "copiar, mexer, devolver": o Cancelar é grátis (joga o rascunho fora) e o Salvar grava o `Livro` inteiro de uma vez. É o mesmo padrão do `RascunhoLivro`.
+
+**2. Teste de ida e volta (round trip).** `itens → rascunho → itens` deve devolver o mesmo. O T1 achou um defeito real: numeração vazia voltava `""` e não `nil`. Os dois valores "parecem vazios", mas `Equatable` os distingue e a persistência também (um `nil` e um `""` virariam registros diferentes). A correção foi limpar o texto na volta (vazio vira `nil`).
+
+**3. Mutação para provar que um teste vale.** O T5 (limpeza de texto) nasceu verde, o que é suspeito: um teste que nunca falhou pode não testar nada. Trocamos a limpeza por "só tirar as pontas" e 4 testes ficaram vermelhos, incluindo os dois do T5. Isso é *teste de mutação* feito à mão: sabote o código de propósito e veja se algum teste reclama. Se nenhum reclamar, o teste é decoração.
+
+**4. A semântica de `move(fromOffsets:toOffset:)`.** O `.onMove` do SwiftUI entrega um `IndexSet` de origem e um `destino` que conta posições *antes* da retirada: em `[A,B,C]`, mover A para 3 dá `[B,C,A]`, e A para 2 dá `[B,A,C]`. Implementação: retira os itens de trás para frente (para os índices menores não deslocarem), desconta do destino quantos retirados estavam antes dele e insere o bloco. Complexidade O(n·k) para k itens movidos (cada `remove(at:)` é O(n)); com sumários de centenas de itens e k pequeno, irrelevante. Foi escrito à mão porque o `Array.move` é uma extensão do SwiftUI e o Domínio só importa Foundation (regra de camadas).
+
+**5. "Nada é corrigido sozinho" e o teste que o defende.** Nível de item é limitado pelo anterior + 1 (`nivelMaximo`). Se o pai for apagado, o filho pode ficar acima do limite. Corrigir em silêncio seria mexer em dado do usuário sem ele ver. O teste do T4 cobre: item acima do limite *não* é rebaixado por "Nível →". A implementação ingênua `min(nivel + 1, maximo)` passaria nos demais testes e rebaixaria o item sem avisar, porque `min` devolve o máximo, que é menor que o nível atual. Moral: teste a decisão, não só o caminho feliz.
+
+**6. Complexidade escondida em propriedades calculadas (P1).** A versão inicial tinha `erro(item)`, `aviso(item)` e contagem chamando `rascunho.validacao()` (O(n)) para cada linha desenhada. Resultado: O(n²) por desenho, e a cada tecla. A correção: calcular uma vez por mudança, no `didSet` do `@Published`, e guardar num dicionário por id (consulta O(1)). É *memoização com invalidação por escrita*. Cuidado: `didSet` não roda dentro do `init` do mesmo tipo, então o valor inicial precisa de tratamento à parte.
+
+**7. O laço infinito do `navigationDestination(for:)`.** Com a folha aberta, o Detalhe ficava preso em "carregando". Diagnóstico em ordem:
+
+```mermaid
+flowchart TD
+    A[Detalhe preso em carregando] --> B[Mais espera: nao resolveu, nao e tempo]
+    B --> C[Captura equivalente das categorias funciona: defeito na folha nova]
+    C --> D[ps: app a 100% de CPU: um laco]
+    D --> E[sample: SwiftUI refaz a NavegacaoView sem parar]
+    E --> F[Exp 1: sem navigationDestination for UUID a folha abre: causa localizada]
+    F --> G[Exp 2: tipo proprio no lugar do UUID: continua em laco, hipotese descartada]
+    G --> H[Exp 3: navigationDestination isPresented com State: resolvido, CPU 0%]
+```
+
+`ps` mostra se o processo está ocupado (CPU) ou parado (deadlock/espera); `sample` tira amostras da pilha de chamadas e mostra *onde* o tempo vai. Aqui, dentro de uma `NavigationStack` que já tem destinos por tipo, o destino por `UUID` dentro da folha entrou em ciclo de reavaliação. Não sabemos o mecanismo exato (não investigamos o código do SwiftUI, e não vou inventar uma explicação); sabemos o que o experimento mostrou: a forma `isPresented` com um `@State` não tem o problema neste caso. Por isso as linhas viraram `Button` com a seta desenhada: `NavigationLink(value:)` depende do destino registrado por tipo.
+
+**8. Origem preservada.** `OrigemItemSumario` (foto, LexML, Gemini, manual) é gravada no JSON v1. Editar um item *não* o transforma em `manual`: a origem diz de onde o item veio, não quem o mexeu por último. Se virasse `manual`, a avaliação do parser (que compara o que cada fonte extraiu) perderia o rastro. É o `let origem` do `Item`: o compilador impede que a tela a altere.
+
+### Por que assim
+- **Folha própria que grava o `Livro` inteiro no Salvar (Q2):** dentro do formulário do livro a tela ficaria enorme; gravar a cada mudança destruiria o Cancelar.
+- **Regra pura `RascunhoSumario` no Domínio (Q3):** testável sem simulador, sem SwiftUI; a tela só desenha.
+- **Erros só depois de tentar salvar, aviso de página sempre (Q6):** não gritar com o usuário no meio da digitação; aviso não bloqueia.
+- **Tela de item empurrada com "Próximo item" (Q9):** campos na própria linha ficam apertados com texto grande (Dynamic Type) e agravam a dívida do `ForEach` por posição.
+- **Stepper + deslizar + arrastar (Q10):** três gestos para três necessidades (nível, apagar, ordem).
+- **Critério para entrar no Histórico:** difícil de reverter + surpreendente + alternativas reais. Entraram folha própria e origem preservada; ficaram fora quatro decisões por faltar algum critério. Registrar tudo dilui o que importa.
+- **Interpolação `Text("\(Text(n).bold()) \(corpo)")` (P8):** `Text + Text` está obsoleto no SDK do iOS 26, e a interpolação existe desde o iOS 14, compilando nos dois Xcodes.
+- **Cancelar com mudanças pergunta (P9) e `interactiveDismissDisabled(alterado)`:** descartar trabalho precisa de confirmação; o gesto de arrastar a folha para baixo seria um caminho de perda silenciosa.
+
+### Alternativas descartadas
+- Sumário dentro do formulário do livro: ficaria enorme.
+- Gravar a cada mudança: perderia o Cancelar.
+- Correção automática de níveis: mexe em dados sem o usuário ver.
+- Marcar item editado como `manual`: apaga o rastro para a avaliação.
+- Campos editáveis na própria linha: apertado e agrava o `ForEach` por posição.
+- `.onMove` com edit mode (P3, recusado): o Ricardo conferiu à mão no iOS 16 que funciona sem; fica como risco de plataforma, vale reconferir no iOS 26.
+- Reusar `ItemSumario` no rascunho (P11, recusado): a repetição é deliberada, porque o tipo do rascunho tem `String` não opcional e o do domínio tem `String?`; é o mesmo trade-off do `RascunhoLivro`.
+
+### Padrões e boas práticas
+- **Draft/Memento leve:** edite uma cópia, confirme ou descarte.
+- **Domínio puro, tela burra:** a regra mais difícil (mover, níveis, validação) é a mais testada.
+- **TDD em fronteiras aprovadas antes** (tabela "pega / deixa passar").
+- **Diagnóstico por experimento único:** um experimento muda uma coisa só; do contrário você não sabe o que resolveu.
+- **Refatorar antes de duplicar:** `textoLimpo` foi extraído antes de ser reusado.
+- NÃO use memoização em `didSet` quando a conta é barata ou o conjunto é pequeno; aqui valeu porque era O(n) por item desenhado.
+
+### Armadilhas
+- `nil` × `""` em campos opcionais: iguais para o olho, diferentes para `Equatable` e para o banco.
+- Destino do `onMove` conta antes da retirada: o erro típico é um off-by-one ao mover para baixo.
+- `min(nivel + 1, maximo)` rebaixa quando `nivel > maximo`.
+- Teste que nasce verde: prove com mutação.
+- Tela que "trava": veja a CPU antes de culpar o tempo. 100% é laço; 0% é espera.
+- Duas capturas estranhas eram o Ricardo mexendo no simulador ao mesmo tempo; ao depurar interface, elimine variáveis manuais.
+- `awk` do macOS conta bytes, não caracteres: "ção" infla o comprimento de linha.
+- `didSet` em `@Published` não dispara na inicialização do próprio tipo.
+
+### Para ir além
+- Apple, "Managing model data in your app" e a documentação de `NavigationStack` (`navigationDestination(for:destination:)` e `navigationDestination(isPresented:destination:)`), para conferir o comportamento dos destinos.
+- Michael Feathers, *Working Effectively with Legacy Code* (testes que descrevem comportamento), e o verbete "Mutation testing" para a ideia geral.
+- `man sample` e `man ps` no macOS; Instruments (Time Profiler) é a versão gráfica.
+
+### Perguntas
+1. Com suas palavras: por que o Cancelar da folha "Editar sumário" é trivial com um rascunho, e o que se perderia se cada mudança gravasse direto no `Livro`?
+2. Aplicação: mova o item A de `[A, B, C, D]` para a posição 3 do `.onMove`, e depois o item D para a posição 0. Escreva o resultado de cada um e explique o desconto `destino - (retirados antes do destino)`. O que mudaria se o `IndexSet` tivesse dois itens?
+3. Raciocínio: o Detalhe ficou preso e o experimento 2 (tipo próprio no lugar do `UUID`) continuou em laço. Que hipótese ele eliminou, e por que fazer o experimento 3 junto com o 2 teria estragado a conclusão? Ainda: por que a mutação do T5 (só tirar as pontas) derrubou testes, e o que isso diz sobre um teste que nunca falhou?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
