@@ -69,6 +69,9 @@ struct NavegacaoView: View {
                     .onAppear { folhaPendente?.esquecer(se: rota) }
                 }
         }
+        // O índice da busca começa a ser montado ao abrir o app, sem prender a tela. A falha é ignorada
+        // aqui de propósito: a primeira busca tenta de novo e aí mostra o erro.
+        .task { try? await dependencias.biblioteca.preparar() }
     }
 }
 
