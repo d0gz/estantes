@@ -716,8 +716,14 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   resultados para **lassale**." + "Buscar exatamente "lassalle"" (`corrigir: false` até o texto mudar) e, no OU,
   "Nenhum livro tem todas as palavras. Mostrando os que têm parte delas." "Último livro escaneado" fica para a Fase 3.
   Sem `[eu escrevo]`. Lógica primeiro, estilo depois.
-  Passos: 1 `BibliotecaIndexada` + testes + montagem · 2 `LinhaDoResultado` + testes · 3 `BuscaViewModel` + testes e
-  telas (captura `-captura Busca`) · 4 estilo · 5 fechamento.
+  Passos: 1 `BibliotecaIndexada` + testes + montagem ✅ · 2 `LinhaDoResultado` + testes ✅ · 3 `BuscaViewModel` +
+  testes e telas ✅ (lógica aprovada no simulador em 20/10, depois das revisões Q17–Q29) · 4 estilo · 5 fechamento.
+  **Onde paramos (20/10, branch `fase2/busca-interface`, 484 testes):** lógica aprovada; **próximo: passo 4 (estilo)**,
+  com perguntas a cada captura (`Busca`, `BuscaCorrecao`, `BuscaOU`, `BuscaDica`, `BuscaFiltros`, `Inicio`).
+  No caminho, o diagnóstico da rolagem na primeira entrada (Estante e Categorias; Histórico de 20/10). Q29: o botão de
+  busca do Inicio fica numa pilha acima da lista (não `safeAreaInset`: ali o título grande passava sobre ele).
+  Pendências do fechamento: tirar as capturas `docs/capturas/Diagnostico/` (locais), conferir o aviso de
+  `onChange(of:)` da `FiltrosDaBuscaView` no Xcode 26.
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
 - [ ] Simulador iOS 16 e CI verde (Sideloadly no iPhone adiado até haver aparelho)
 
