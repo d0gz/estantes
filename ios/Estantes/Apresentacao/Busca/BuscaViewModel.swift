@@ -71,6 +71,19 @@ final class BuscaViewModel: ObservableObject {
         ].filter { $0 }.count
     }
 
+    /// O ano de um campo da folha: só com 4 dígitos. Enquanto se digita "1972", o campo passa por "1",
+    /// "19" e "197", e filtrar por eles esvaziaria e encheria a lista a cada tecla.
+    static func ano(deTexto texto: String) -> Int? {
+        guard texto.count == 4, texto.allSatisfy(\.isASCII), texto.allSatisfy(\.isNumber) else { return nil }
+        return Int(texto)
+    }
+
+    /// "De" depois de "Até": nenhum livro passa, e a folha explica por quê em vez de mostrar só a lista vazia.
+    var faixaDeAnosInvertida: Bool {
+        guard let minimo = filtro.anoMinimo, let maximo = filtro.anoMaximo else { return false }
+        return minimo > maximo
+    }
+
     /// Marca ou desmarca o chip da estante (dentro das estantes vale "qualquer destas").
     func alternar(estante id: UUID) {
         if filtro.estanteIds.remove(id) == nil { filtro.estanteIds.insert(id) }

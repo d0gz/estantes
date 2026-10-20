@@ -369,12 +369,13 @@ enum Captura: String {
 /// por código (o `isPresented` é do iOS 17): a captura mostra os resultados direto, com o texto na barra.
 private struct BuscaDeExemplo: View {
     let dependencias: Dependencias
-    @State private var mostrandoFiltros: Bool
+    private let mostrarFiltros: Bool
+    @State private var mostrandoFiltros = false
     @StateObject private var busca: BuscaViewModel
 
     init(dependencias: Dependencias, texto: String, mostrarFiltros: Bool = false) {
         self.dependencias = dependencias
-        _mostrandoFiltros = State(initialValue: mostrarFiltros)
+        self.mostrarFiltros = mostrarFiltros
         let busca = dependencias.fazerBuscaViewModel()
         busca.texto = texto
         _busca = StateObject(wrappedValue: busca)
@@ -385,9 +386,11 @@ private struct BuscaDeExemplo: View {
             ResultadosDaBuscaView(busca: busca, miniaturas: dependencias.miniaturas, abrirFiltros: { mostrandoFiltros = true })
                 .navigationTitle("Minhas estantes")
                 .searchable(text: $busca.texto, prompt: "Título, autor ou assunto")
-                .sheet(isPresented: $mostrandoFiltros) {
-                    FiltrosDaBuscaView(filtro: $busca.filtro)
+                .navigationDestination(isPresented: $mostrandoFiltros) {
+                    FiltrosDaBuscaView(busca: busca)
                 }
+                // Ligado depois de aparecer: no iOS 16, `isPresented` verdadeiro desde o início não empurra a tela.
+                .task { if mostrarFiltros { mostrandoFiltros = true } }
         }
     }
 }

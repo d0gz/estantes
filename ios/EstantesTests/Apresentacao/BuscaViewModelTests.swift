@@ -80,6 +80,28 @@ final class BuscaViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.estado, .erro("Não foi possível preparar a busca."))
     }
 
+    // MARK: - Anos (folha Filtros)
+
+    // Enquanto se digita "1972", o campo passa por "1", "19", "197": nenhum deles pode filtrar.
+    func testAnoSoContaComQuatroDigitos() {
+        XCTAssertEqual(BuscaViewModel.ano(deTexto: "1972"), 1972)
+        XCTAssertNil(BuscaViewModel.ano(deTexto: "197"))
+        XCTAssertNil(BuscaViewModel.ano(deTexto: ""))
+        XCTAssertNil(BuscaViewModel.ano(deTexto: "19720"))
+        XCTAssertNil(BuscaViewModel.ano(deTexto: "19a2"))
+    }
+
+    func testFaixaInvertidaSoComOsDoisAnosEOInicialDepoisDoFinal() {
+        viewModel.filtro = FiltroBusca(anoMinimo: 1980, anoMaximo: 1960)
+        XCTAssertTrue(viewModel.faixaDeAnosInvertida)
+
+        viewModel.filtro = FiltroBusca(anoMinimo: 1960, anoMaximo: 1960)
+        XCTAssertFalse(viewModel.faixaDeAnosInvertida)
+
+        viewModel.filtro = FiltroBusca(anoMinimo: 1980)
+        XCTAssertFalse(viewModel.faixaDeAnosInvertida)
+    }
+
     // MARK: - Filtros
 
     func testAlternarDuasVezesDesmarcaAEstante() {

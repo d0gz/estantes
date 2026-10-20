@@ -18,8 +18,8 @@ struct InicioView: View {
     }
 
     @State private var pedido: PedidoDeNome?
-    /// A folha "Filtros" da busca. Fica aqui, fora da troca estantes ↔ resultados: presa aos resultados, ela
-    /// fechava ao tocar num campo, porque o foco saía da busca e os resultados sumiam.
+    /// A tela "Filtros" da busca, empurrada daqui (fora da troca estantes ↔ resultados). Em folha, tocar num
+    /// campo tirava o foco da busca (`isSearching` falso, visto no log) e, ao fechar, voltavam as estantes.
     @State private var mostrandoFiltros: Bool
     @State private var nomeDigitado = ""
 
@@ -61,14 +61,12 @@ struct InicioView: View {
     }
 
     var body: some View {
-        ConteudoComBusca(
-            busca: busca, miniaturas: miniaturas, filtrosAbertos: mostrandoFiltros, abrirFiltros: { mostrandoFiltros = true }
-        ) { conteudo }
+        ConteudoComBusca(busca: busca, miniaturas: miniaturas, abrirFiltros: { mostrandoFiltros = true }) { conteudo }
             .navigationTitle("Minhas estantes")
             // Sempre visível, também sem estantes (aí só a dica): esconder a barra a faria pular na tela.
             .searchable(text: $busca.texto, prompt: "Título, autor ou assunto")
-            .sheet(isPresented: $mostrandoFiltros) {
-                FiltrosDaBuscaView(filtro: $busca.filtro)
+            .navigationDestination(isPresented: $mostrandoFiltros) {
+                FiltrosDaBuscaView(busca: busca)
             }
             .toolbar {
                 // Só com a lista na tela: no vazio, a ação única é o botão do estado vazio (HIG); carregando, o "+"
@@ -317,22 +315,21 @@ struct InicioView_Previews: PreviewProvider {
 private struct ConteudoComBusca<Estantes: View>: View {
     @ObservedObject var busca: BuscaViewModel
     let miniaturas: CarregadorDeMiniaturas
-    /// Com a folha "Filtros" aberta, os resultados ficam na tela mesmo que a busca perca o foco.
-    let filtrosAbertos: Bool
     let abrirFiltros: () -> Void
     @ViewBuilder let estantes: () -> Estantes
     @Environment(\.isSearching) private var buscando
 
     var body: some View {
         Group {
-            if buscando || filtrosAbertos {
+            if buscando {
                 ResultadosDaBuscaView(busca: busca, miniaturas: miniaturas, abrirFiltros: abrirFiltros)
             } else {
                 estantes()
             }
         }
         #if DEBUG
-        // Diagnóstico da folha que fechava: `log stream --predicate 'subsystem == "com.ricardo.estantes"'`.
+        // Diagnóstico da folha que fechava (a conferir com a tela empurrada; sai no fechamento da 2.7):
+        // `log stream --predicate 'subsystem == "com.ricardo.estantes"'`.
         .onChange(of: buscando) { valor in
             Logger(subsystem: "com.ricardo.estantes", category: "busca").debug("isSearching = \(valor)")
         }

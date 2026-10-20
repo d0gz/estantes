@@ -695,6 +695,13 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   ("Todas as categorias" desmarca; o chip mostra o nome escolhido), logo depois de "Filtros"; cada resultado mostra os
   chips de categoria do livro (só leitura, o toque abre o Detalhe; sem o fantasma "+ Categoria"). A folha "Filtros"
   mora na `InicioView`, fora da troca estantes ↔ resultados: presa aos resultados, fechava ao tocar num campo dela.
+  **Revisto de novo em 20/10 (Q21–Q23):** "Filtros" é **tela empurrada** (`navigationDestination(isPresented:)` na
+  `InicioView`), não folha: o log mostrou `isSearching = false` ao tocar num campo da folha, e no "OK" o Inicio voltava
+  às estantes; empurrar, como o Detalhe, mantém a busca. Anos: só um ano de 4 dígitos filtra (`BuscaViewModel.ano`),
+  para a lista não esvaziar a cada tecla; "De" depois de "Até" mostra "O ano inicial é depois do final." em
+  `Cor.perigo`. **Editora fora da barra de busca** (só no filtro): seria um campo a mais no BM25F, sem algoritmo novo,
+  mas traz ruído ("Livraria Freitas Bastos" casaria com o prefaciador Bastos do Lassalle; "Revista dos Tribunais"
+  com "tribunais") e o peso não teria medida (só 4 das 22 fichas de referência têm editora).
   Vazio sem filtro: chips + "Busque por título, autor ou assunto"; só filtro: todos que passam. Avisos: "Mostrando
   resultados para **lassale**." + "Buscar exatamente "lassalle"" (`corrigir: false` até o texto mudar) e, no OU,
   "Nenhum livro tem todas as palavras. Mostrando os que têm parte delas." "Último livro escaneado" fica para a Fase 3.
