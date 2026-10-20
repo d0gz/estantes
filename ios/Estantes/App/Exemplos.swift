@@ -365,36 +365,27 @@ enum Captura: String {
     }
 }
 
-/// A busca já com o texto digitado. O `simctl` não digita, e no iOS 16 não há como ativar o `.searchable`
-/// por código (o `isPresented` é do iOS 17): a captura mostra os resultados direto, com o texto na barra.
+/// A tela "Busca" já com o texto digitado (o `simctl` não digita), sem foco no campo: o teclado cobriria a lista.
+@MainActor
 private struct BuscaDeExemplo: View {
     let dependencias: Dependencias
-    private let mostrarFiltros: Bool
-    @State private var mostrandoFiltros = false
-    @StateObject private var busca: BuscaViewModel
-
-    init(dependencias: Dependencias, texto: String, mostrarFiltros: Bool = false) {
-        self.dependencias = dependencias
-        self.mostrarFiltros = mostrarFiltros
-        let busca = dependencias.fazerBuscaViewModel()
-        busca.texto = texto
-        _busca = StateObject(wrappedValue: busca)
-    }
+    let texto: String
+    var mostrarFiltros = false
 
     var body: some View {
         NavigationStack {
-            ResultadosDaBuscaView(busca: busca, miniaturas: dependencias.miniaturas, abrirFiltros: { mostrandoFiltros = true })
-                .navigationTitle("Minhas estantes")
-                // `.always`: a barra fica sempre à vista; no padrão ela só aparecia puxando a lista para baixo.
-                .searchable(
-                    text: $busca.texto, placement: .navigationBarDrawer(displayMode: .always), prompt: "Título, autor ou assunto"
-                )
-                .navigationDestination(isPresented: $mostrandoFiltros) {
-                    FiltrosDaBuscaView(busca: busca)
-                }
-                // Ligado depois de aparecer: no iOS 16, `isPresented` verdadeiro desde o início não empurra a tela.
-                .task { if mostrarFiltros { mostrandoFiltros = true } }
+            BuscaView(
+                viewModel: comTexto(dependencias.fazerBuscaViewModel()),
+                miniaturas: dependencias.miniaturas,
+                focarAoAbrir: false,
+                abrirFiltrosAoAbrir: mostrarFiltros
+            )
         }
+    }
+
+    private func comTexto(_ busca: BuscaViewModel) -> BuscaViewModel {
+        busca.texto = texto
+        return busca
     }
 }
 #endif

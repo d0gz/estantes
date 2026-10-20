@@ -1,15 +1,10 @@
 import SwiftUI
-#if DEBUG
-import os
-#endif
 
 /// Tela inicial: as estantes em grade de cartões (`CartaoDeEstante`) e, sem estantes, a ilustração do vazio.
 /// Fica dentro do `NavigationStack` montado em `App/Navegacao`: cada cartão só empurra a `Estante`,
 /// e a montagem decide qual tela abrir.
 struct InicioView: View {
     @StateObject private var viewModel: InicioViewModel
-    @StateObject private var busca: BuscaViewModel
-    private let miniaturas: CarregadorDeMiniaturas
 
     /// O que o alerta com campo de texto está pedindo: um nome para uma estante nova ou para renomear uma.
     private enum PedidoDeNome {
@@ -18,9 +13,6 @@ struct InicioView: View {
     }
 
     @State private var pedido: PedidoDeNome?
-    /// A tela "Filtros" da busca, empurrada daqui (fora da troca estantes ↔ resultados). Em folha, tocar num
-    /// campo tirava o foco da busca (`isSearching` falso, visto no log) e, ao fechar, voltavam as estantes.
-    @State private var mostrandoFiltros: Bool
     @State private var nomeDigitado = ""
 
     /// Apagar estante: o pedido (lido do banco) e qual das duas folhas está aberta.
@@ -47,31 +39,24 @@ struct InicioView: View {
     /// `@autoclosure`: o `StateObject` cria o ViewModel uma vez só, mesmo que a tela seja recriada.
     init(
         viewModel: @autoclosure @escaping () -> InicioViewModel,
-        busca: @autoclosure @escaping () -> BuscaViewModel,
-        miniaturas: CarregadorDeMiniaturas,
         abrirCategorias: @escaping () -> Void,
         acaoInicial: AcaoInicial? = nil
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
-        _busca = StateObject(wrappedValue: busca())
-        self.miniaturas = miniaturas
-        _mostrandoFiltros = State(initialValue: false)
         self.abrirCategorias = abrirCategorias
         self.acaoInicial = acaoInicial
     }
 
     var body: some View {
-        ConteudoComBusca(
-            busca: busca, miniaturas: miniaturas, filtrosAbertos: mostrandoFiltros, abrirFiltros: { mostrandoFiltros = true }
-        ) { conteudo }
+        conteudo
             .navigationTitle("Minhas estantes")
-            // Sempre visível, também sem estantes (aí só a dica): esconder a barra a faria pular na tela.
-            // `.always`: a barra fica sempre à vista; no padrão ela só aparecia puxando a lista para baixo.
-            .searchable(
-                text: $busca.texto, placement: .navigationBarDrawer(displayMode: .always), prompt: "Título, autor ou assunto"
-            )
-            .navigationDestination(isPresented: $mostrandoFiltros) {
-                FiltrosDaBuscaView(busca: busca)
+            // Sempre à vista, também sem estantes. Um botão, e não `.searchable`: a busca é uma tela própria
+            // (no iOS 16, empurrar o Detalhe ou os Filtros desligava o `.searchable` da tela raiz).
+            .safeAreaInset(edge: .top, spacing: 0) {
+                BotaoDeBusca()
+                    .padding(.horizontal, Espaco.padrao)
+                    .padding(.bottom, Espaco.pequeno)
+                    .background(Cor.fundo)
             }
             .toolbar {
                 // Só com a lista na tela: no vazio, a ação única é o botão do estado vazio (HIG); carregando, o "+"
@@ -314,47 +299,3 @@ struct InicioView_Previews: PreviewProvider {
     }
 }
 #endif
-
-/// Troca as estantes pelos resultados enquanto a busca está ativa. Vista à parte porque o `isSearching`
-/// só chega a quem está dentro do `.searchable`, e não à própria `InicioView`, que o aplica.
-private struct ConteudoComBusca<Estantes: View>: View {
-    @ObservedObject var busca: BuscaViewModel
-    let miniaturas: CarregadorDeMiniaturas
-    let filtrosAbertos: Bool
-    let abrirFiltros: () -> Void
-    @ViewBuilder let estantes: () -> Estantes
-    @Environment(\.isSearching) private var buscando
-
-    var body: some View {
-        Group {
-            // Não só o `isSearching`: na volta da tela Filtros a barra fica inativa (o campo de lá tirou o foco, e
-            // o iOS 16 não o devolve por código), mas a busca continua enquanto houver texto ou filtro.
-            if buscando || filtrosAbertos || busca.temBusca {
-                ResultadosDaBuscaView(busca: busca, miniaturas: miniaturas, abrirFiltros: abrirFiltros)
-            } else {
-                estantes()
-            }
-        }
-        // O "Cancelar" da barra desliga a busca e limpa o texto: aí sai da busca, com os filtros junto. Com a tela
-        // Filtros aberta, ou com texto ainda na barra, a busca só perdeu o foco: nada é limpo.
-        .onChange(of: buscando) { ativa in
-            #if DEBUG
-            registrar("isSearching = \(ativa), filtros abertos = \(filtrosAbertos), texto vazio = \(busca.texto.isEmpty)")
-            #endif
-            if !ativa, !filtrosAbertos, busca.texto.isEmpty {
-                busca.sairDaBusca()
-            }
-        }
-        #if DEBUG
-        .onChange(of: filtrosAbertos) { registrar("filtros abertos = \($0)") }
-        #endif
-    }
-
-    #if DEBUG
-    /// Diagnóstico da busca que desligava na tela Filtros (sai no fechamento da 2.7):
-    /// `log stream --predicate 'subsystem == "com.ricardo.estantes"'`.
-    private func registrar(_ mensagem: String) {
-        Logger(subsystem: "com.ricardo.estantes", category: "busca").debug("\(mensagem, privacy: .public)")
-    }
-    #endif
-}

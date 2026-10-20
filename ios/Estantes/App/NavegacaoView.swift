@@ -31,11 +31,12 @@ struct NavegacaoView: View {
         NavigationStack(path: $caminho) {
             InicioView(
                 viewModel: dependencias.fazerInicioViewModel(),
-                busca: dependencias.fazerBuscaViewModel(),
-                miniaturas: dependencias.miniaturas,
                 abrirCategorias: { caminho.append(RotaDasCategorias()) },
                 acaoInicial: acaoInicial
             )
+                .navigationDestination(for: RotaDaBusca.self) { _ in
+                    BuscaView(viewModel: dependencias.fazerBuscaViewModel(), miniaturas: dependencias.miniaturas)
+                }
                 .navigationDestination(for: RotaDasCategorias.self) { _ in
                     CategoriasView(
                         viewModel: dependencias.fazerCategoriasViewModel(),

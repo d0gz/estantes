@@ -10,6 +10,9 @@ struct RotaDoLivro: Hashable {
 /// Valor empurrado na pilha para abrir a tela de gerenciar categorias (menu ⋯ do Inicio).
 struct RotaDasCategorias: Hashable {}
 
+/// Valor empurrado na pilha para abrir a tela "Busca" (botão com a aparência da barra, no Inicio).
+struct RotaDaBusca: Hashable {}
+
 extension View {
     /// Roda `acao` toda vez que a tela volta a aparecer, menos na primeira (que fica com o `.task`).
     /// Na pilha de navegação o `.task` não roda de novo ao voltar de uma tela filha; é aqui que a tela

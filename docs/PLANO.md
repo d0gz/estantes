@@ -350,7 +350,8 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 - Botão da câmera embaixo, centralizado.
 - Estantes em grade; estado vazio com livros esmaecidos na cor `superficie` (`#AED3FC`), frase e um botão só (ver "Inicio" abaixo).
-- Topo: último livro escaneado + campo de busca (`.searchable`): título, autor e assunto →
+- Topo: último livro escaneado + botão com a aparência da barra de busca, que empurra a tela "Busca" (revisto em 20/10;
+  antes `.searchable`, ver 2.7 no checklist): título, autor e assunto →
   "Livro · item do sumário, p. N · Estante X · prateleira". Com a busca ativa, aparecem os chips de filtro.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
@@ -702,6 +703,15 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   `Cor.perigo`. **Editora fora da barra de busca** (só no filtro): seria um campo a mais no BM25F, sem algoritmo novo,
   mas traz ruído ("Livraria Freitas Bastos" casaria com o prefaciador Bastos do Lassalle; "Revista dos Tribunais"
   com "tribunais") e o peso não teria medida (só 4 das 22 fichas de referência têm editora).
+  **Revisto de novo em 20/10 (Q25–Q28; revisa Q2 e a linha "Topo" da Interface):** a busca é uma **tela empurrada
+  "Busca"** (`BuscaView`), não mais o `.searchable` do Inicio. O log mostrou que, no iOS 16, qualquer empurrão (Filtros
+  ou Detalhe) desliga o `.searchable` da tela raiz, e ele volta inativo (sem "Cancelar"; com a barra vazia, os
+  resultados sumiam). No Inicio, um botão com a aparência da barra (lupa, "Título, autor ou assunto"), sempre visível,
+  empurra a "Busca". Lá: campo próprio (`TextField` + `@FocusState`, focado ao entrar; na volta de Filtros ou do
+  Detalhe, o teclado não reabre), "Cancelar" à direita com o voltar escondido (volta às estantes e descarta a busca:
+  o `BuscaViewModel` é criado a cada entrada), chips, resultados, Filtros e Detalhe empurrados de dentro dela.
+  Descartados: `.searchable` dentro da tela Busca (o "Cancelar" continuaria sumindo na volta) e busca em folha com
+  pilha própria (o laço do iOS 16 com `navigationDestination(for:)` numa folha, Histórico de 20/10).
   Vazio sem filtro: chips + "Busque por título, autor ou assunto"; só filtro: todos que passam. Avisos: "Mostrando
   resultados para **lassale**." + "Buscar exatamente "lassalle"" (`corrigir: false` até o texto mudar) e, no OU,
   "Nenhum livro tem todas as palavras. Mostrando os que têm parte delas." "Último livro escaneado" fica para a Fase 3.
@@ -992,3 +1002,4 @@ Regras contra omissão:
 | 20/10 | Editar um item do sumário preserva a `origem`; só o item novo é `manual` | O JSON v1 (2.8) congela o significado. Virar `manual` a cada correção apagaria o rastro de foto/LexML/Gemini que a avaliação do parser (Fase 3) usa |
 | 20/10 | Na folha "Editar sumário", a tela de item é empurrada por `navigationDestination(isPresented:)`, com itens-botão e a seta desenhada; não por `navigationDestination(for:)` com caminho | No iOS 16, o destino por tipo numa folha aberta de dentro da pilha principal põe o app em laço (CPU a 100%, Detalhe preso no "carregando"), também com um tipo próprio no lugar do `UUID`. `NavigationLink(value:)` depende do destino por tipo; uma folha sobre a folha contrariaria a tela empurrada decidida para o item |
 | 20/10 | Índice da busca mantido por um decorador `actor` do `BibliotecaRepositorio` (`BibliotecaIndexada`, no Domínio), que atualiza o `MotorDeBusca` só depois de cada gravação bem-sucedida; montado ao abrir o app | Um lugar só sabe o que muda o índice e se testa com o repositório em memória. Descartados: cada ViewModel avisar o índice (6+ lugares, fácil esquecer um), remontar a cada busca (relê o banco a cada tecla, contraria o PLANO) e classe `@MainActor` (busca na thread da interface e Domínio preso a ela) |
+| 20/10 | Busca numa tela empurrada "Busca", com campo próprio (`TextField` + `@FocusState`) e "Cancelar"; no Inicio, só um botão com a aparência da barra. Revisa a decisão da manhã (`.searchable` no Inicio, resultados no lugar da grade) | No iOS 16, empurrar Filtros ou o Detalhe desliga o `.searchable` da tela raiz (visto no log) e ele volta inativo, sem "Cancelar"; remendos sobre o `isSearching` não seguravam os três casos. Descartados: `.searchable` dentro da tela Busca (o "Cancelar" continuaria sumindo) e busca em folha com pilha própria (laço do `navigationDestination(for:)` numa folha). Custo: o campo perde o vidro nativo do iOS 26 |
