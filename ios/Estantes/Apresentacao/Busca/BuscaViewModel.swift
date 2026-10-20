@@ -76,8 +76,19 @@ final class BuscaViewModel: ObservableObject {
         if filtro.estanteIds.remove(id) == nil { filtro.estanteIds.insert(id) }
     }
 
-    func alternar(categoria id: UUID) {
-        if filtro.categoriaIds.remove(id) == nil { filtro.categoriaIds.insert(id) }
+    /// O menu "Categoria ▾" escolhe uma só (o `FiltroBusca` aceitaria várias); `nil` é "Todas as categorias".
+    func escolher(categoria id: UUID?) {
+        filtro.categoriaIds = id.map { [$0] } ?? []
+    }
+
+    /// A categoria do menu, para o rótulo do chip; `nil` sem nenhuma (ou se ela não está entre as lidas).
+    var categoriaEscolhida: Categoria? {
+        categorias.first { filtro.categoriaIds.contains($0.id) }
+    }
+
+    /// Os chips da linha do resultado, na ordem da lista (alfabética). Id sem categoria lida fica de fora.
+    func categorias(de livro: Livro) -> [Categoria] {
+        categorias.filter { livro.categoriaIds.contains($0.id) }
     }
 
     // MARK: Busca

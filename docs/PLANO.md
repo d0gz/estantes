@@ -688,8 +688,13 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   busca." e nova tentativa na próxima busca. Tela: `.searchable` no Inicio, `ResultadosDaBuscaView` no lugar da grade
   com a busca ativa, `BuscaViewModel` próprio; busca a cada tecla com `.task(id:)` (cancela a anterior), sem espera.
   Linha: a da Estante + `LinhaDoResultado` ("§ 5.108 Conceito, p. 12 · Escritório · 2ª de cima", partes ausentes
-  omitidas; "sem: stf" no OU); toque → Detalhe. Filtros: linha horizontal de chips [Filtros (n)] [estantes…]
-  [categorias…]; folha "Filtros" com autor, editora e anos; **CDDir sem interface** até haver dado (Fases 4/5).
+  omitidas; "sem: stf" no OU); toque → Detalhe. Filtros: linha horizontal [Filtros (n)] [Categoria ▾] [estantes…];
+  folha "Filtros" com autor, editora e anos; **CDDir sem interface** até haver dado (Fases 4/5).
+  **Revisto em 20/10, depois do teste no simulador (Q17–Q20):** estantes continuam chips de seleção múltipla (só com
+  2 ou mais estantes); categorias saem dos chips e vão para um `Menu` nativo "Categoria ▾" de **escolha única**
+  ("Todas as categorias" desmarca; o chip mostra o nome escolhido), logo depois de "Filtros"; cada resultado mostra os
+  chips de categoria do livro (só leitura, o toque abre o Detalhe; sem o fantasma "+ Categoria"). A folha "Filtros"
+  mora na `InicioView`, fora da troca estantes ↔ resultados: presa aos resultados, fechava ao tocar num campo dela.
   Vazio sem filtro: chips + "Busque por título, autor ou assunto"; só filtro: todos que passam. Avisos: "Mostrando
   resultados para **lassale**." + "Buscar exatamente "lassalle"" (`corrigir: false` até o texto mudar) e, no OU,
   "Nenhum livro tem todas as palavras. Mostrando os que têm parte delas." "Último livro escaneado" fica para a Fase 3.

@@ -5,14 +5,9 @@ import SwiftUI
 struct ResultadosDaBuscaView: View {
     @ObservedObject var busca: BuscaViewModel
     let miniaturas: CarregadorDeMiniaturas
-    @State private var mostrandoFiltros: Bool
-
-    /// - Parameter mostrarFiltros: abre a folha "Filtros" logo de início (só as capturas usam).
-    init(busca: BuscaViewModel, miniaturas: CarregadorDeMiniaturas, mostrarFiltros: Bool = false) {
-        self.busca = busca
-        self.miniaturas = miniaturas
-        _mostrandoFiltros = State(initialValue: mostrarFiltros)
-    }
+    /// Abre a folha "Filtros". A folha mora em quem monta esta tela (o Inicio), e não aqui: esta vista some
+    /// quando a busca perde o foco, e a folha sumiria junto (tocar num campo dela tirava o foco da busca).
+    let abrirFiltros: () -> Void
 
     var body: some View {
         ScrollView {
@@ -31,9 +26,6 @@ struct ResultadosDaBuscaView: View {
             await busca.carregarOpcoes()
             await busca.buscar()
         }
-        .sheet(isPresented: $mostrandoFiltros) {
-            FiltrosDaBuscaView(filtro: $busca.filtro)
-        }
     }
 
     // MARK: Filtros
@@ -42,13 +34,12 @@ struct ResultadosDaBuscaView: View {
     private var barraDeFiltros: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Espaco.pequeno) {
-                Button {
-                    mostrandoFiltros = true
-                } label: {
+                Button(action: abrirFiltros) {
                     let quantidade = busca.quantidadeNaFolha
                     Label(quantidade > 0 ? "Filtros (\(quantidade))" : "Filtros",
                           systemImage: "line.3.horizontal.decrease.circle")
                 }
+                menuDeCategorias
                 // Com uma estante só, filtrar por ela não muda nada.
                 if busca.estantes.count > 1 {
                     ForEach(busca.estantes) { estante in
@@ -57,14 +48,32 @@ struct ResultadosDaBuscaView: View {
                         }
                     }
                 }
-                ForEach(busca.categorias) { categoria in
-                    chip(categoria.nome, marcado: busca.filtro.categoriaIds.contains(categoria.id)) {
-                        busca.alternar(categoria: categoria.id)
-                    }
-                }
             }
             .buttonStyle(.bordered)
             .padding(.horizontal, Espaco.padrao)
+        }
+    }
+
+    /// Uma categoria só por vez, escolhida num menu: com muitas categorias, um chip para cada empurraria as
+    /// estantes para fora da linha. Sem categorias, o menu não aparece.
+    @ViewBuilder
+    private var menuDeCategorias: some View {
+        if !busca.categorias.isEmpty {
+            Menu {
+                Picker("Categoria", selection: Binding(
+                    get: { busca.categoriaEscolhida?.id },
+                    set: { busca.escolher(categoria: $0) }
+                )) {
+                    Text("Todas as categorias").tag(UUID?.none)
+                    ForEach(busca.categorias) { categoria in
+                        Text(categoria.nome).tag(UUID?.some(categoria.id))
+                    }
+                }
+            } label: {
+                Label(busca.categoriaEscolhida?.nome ?? "Categoria", systemImage: "chevron.down")
+                    .labelStyle(RotuloComIconeDepois())
+            }
+            .accessibilityLabel("Categoria: \(busca.categoriaEscolhida?.nome ?? "todas")")
         }
     }
 
@@ -158,7 +167,16 @@ struct ResultadosDaBuscaView: View {
             estante: busca.nomeDaEstante(resultado.livro.estanteId),
             prateleira: resultado.livro.prateleira
         )
+        let categorias = busca.categorias(de: resultado.livro)
         VStack(alignment: .leading, spacing: 2) {
+            // Só mostram: o toque abre o Detalhe, como o resto da linha. Sem o fantasma "+ Categoria":
+            // na busca o assunto é achar o livro, não catalogá-lo.
+            if !categorias.isEmpty {
+                FluxoDeChips {
+                    ForEach(categorias) { ChipDeCategoria($0) }
+                }
+                .padding(.bottom, Espaco.pequeno)
+            }
             if !local.isEmpty {
                 Text(local)
                     .font(.subheadline)
@@ -169,6 +187,17 @@ struct ResultadosDaBuscaView: View {
                     .font(.caption)
                     .foregroundColor(Cor.textoSecundario)
             }
+        }
+    }
+}
+
+/// Texto antes e ícone depois ("Constitucional ▾"), como nos menus suspensos.
+private struct RotuloComIconeDepois: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: Espaco.minimo) {
+            configuration.title
+            configuration.icon
+                .imageScale(.small)
         }
     }
 }

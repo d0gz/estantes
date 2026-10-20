@@ -1,4 +1,7 @@
 import SwiftUI
+#if DEBUG
+import os
+#endif
 
 /// Tela inicial: as estantes em grade de cartões (`CartaoDeEstante`) e, sem estantes, a ilustração do vazio.
 /// Fica dentro do `NavigationStack` montado em `App/Navegacao`: cada cartão só empurra a `Estante`,
@@ -15,6 +18,9 @@ struct InicioView: View {
     }
 
     @State private var pedido: PedidoDeNome?
+    /// A folha "Filtros" da busca. Fica aqui, fora da troca estantes ↔ resultados: presa aos resultados, ela
+    /// fechava ao tocar num campo, porque o foco saía da busca e os resultados sumiam.
+    @State private var mostrandoFiltros: Bool
     @State private var nomeDigitado = ""
 
     /// Apagar estante: o pedido (lido do banco) e qual das duas folhas está aberta.
@@ -49,15 +55,21 @@ struct InicioView: View {
         _viewModel = StateObject(wrappedValue: viewModel())
         _busca = StateObject(wrappedValue: busca())
         self.miniaturas = miniaturas
+        _mostrandoFiltros = State(initialValue: false)
         self.abrirCategorias = abrirCategorias
         self.acaoInicial = acaoInicial
     }
 
     var body: some View {
-        ConteudoComBusca(busca: busca, miniaturas: miniaturas) { conteudo }
+        ConteudoComBusca(
+            busca: busca, miniaturas: miniaturas, filtrosAbertos: mostrandoFiltros, abrirFiltros: { mostrandoFiltros = true }
+        ) { conteudo }
             .navigationTitle("Minhas estantes")
             // Sempre visível, também sem estantes (aí só a dica): esconder a barra a faria pular na tela.
             .searchable(text: $busca.texto, prompt: "Título, autor ou assunto")
+            .sheet(isPresented: $mostrandoFiltros) {
+                FiltrosDaBuscaView(filtro: $busca.filtro)
+            }
             .toolbar {
                 // Só com a lista na tela: no vazio, a ação única é o botão do estado vazio (HIG); carregando, o "+"
                 // apareceria e sumiria; no erro, não há o que criar. O `if` fica fora do item para não sobrar
@@ -305,14 +317,25 @@ struct InicioView_Previews: PreviewProvider {
 private struct ConteudoComBusca<Estantes: View>: View {
     @ObservedObject var busca: BuscaViewModel
     let miniaturas: CarregadorDeMiniaturas
+    /// Com a folha "Filtros" aberta, os resultados ficam na tela mesmo que a busca perca o foco.
+    let filtrosAbertos: Bool
+    let abrirFiltros: () -> Void
     @ViewBuilder let estantes: () -> Estantes
     @Environment(\.isSearching) private var buscando
 
     var body: some View {
-        if buscando {
-            ResultadosDaBuscaView(busca: busca, miniaturas: miniaturas)
-        } else {
-            estantes()
+        Group {
+            if buscando || filtrosAbertos {
+                ResultadosDaBuscaView(busca: busca, miniaturas: miniaturas, abrirFiltros: abrirFiltros)
+            } else {
+                estantes()
+            }
         }
+        #if DEBUG
+        // Diagnóstico da folha que fechava: `log stream --predicate 'subsystem == "com.ricardo.estantes"'`.
+        .onChange(of: buscando) { valor in
+            Logger(subsystem: "com.ricardo.estantes", category: "busca").debug("isSearching = \(valor)")
+        }
+        #endif
     }
 }

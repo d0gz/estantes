@@ -82,16 +82,44 @@ final class BuscaViewModelTests: XCTestCase {
 
     // MARK: - Filtros
 
-    func testAlternarDuasVezesDesmarcaAEstanteEACategoria() {
+    func testAlternarDuasVezesDesmarcaAEstante() {
+        viewModel.alternar(estante: sala.id)
+        viewModel.alternar(estante: escritorio.id)
+        XCTAssertEqual(viewModel.filtro.estanteIds, [sala.id, escritorio.id])
+        viewModel.alternar(estante: sala.id)
+
+        XCTAssertEqual(viewModel.filtro.estanteIds, [escritorio.id])
+    }
+
+    // Categoria é escolha única (menu "Categoria ▾"): escolher outra troca a anterior; `nil` é "Todas".
+    func testEscolherCategoriaTrocaAAnteriorENilDesmarca() async throws {
         let civil = Categoria(nome: "Civil", cor: .laranja)
+        let penal = Categoria(nome: "Penal", cor: .amarelo)
+        try await base.salvar(civil)
+        try await base.salvar(penal)
+        await viewModel.carregarOpcoes()
 
-        viewModel.alternar(estante: sala.id)
-        viewModel.alternar(categoria: civil.id)
-        XCTAssertEqual(viewModel.filtro, FiltroBusca(estanteIds: [sala.id], categoriaIds: [civil.id]))
-        viewModel.alternar(estante: sala.id)
-        viewModel.alternar(categoria: civil.id)
+        viewModel.escolher(categoria: civil.id)
+        viewModel.escolher(categoria: penal.id)
+        XCTAssertEqual(viewModel.filtro.categoriaIds, [penal.id])
+        XCTAssertEqual(viewModel.categoriaEscolhida, penal)
 
-        XCTAssertEqual(viewModel.filtro, FiltroBusca())
+        viewModel.escolher(categoria: nil)
+        XCTAssertEqual(viewModel.filtro.categoriaIds, [])
+        XCTAssertNil(viewModel.categoriaEscolhida)
+    }
+
+    // Os chips da linha do resultado, na ordem da lista de categorias (alfabética); id sem categoria some.
+    func testCategoriasDoLivroNaOrdemDaListaSemIdsDesconhecidos() async throws {
+        let civil = Categoria(nome: "Civil", cor: .laranja)
+        let penal = Categoria(nome: "Penal", cor: .amarelo)
+        try await base.salvar(penal)
+        try await base.salvar(civil)
+        await viewModel.carregarOpcoes()
+        var livro = lassalle
+        livro.categoriaIds = [penal.id, civil.id, UUID()]
+
+        XCTAssertEqual(viewModel.categorias(de: livro), [civil, penal])
     }
 
     func testQuantidadeNaFolhaContaAutorEditoraEAnosComoUm() {
