@@ -132,4 +132,68 @@ final class RascunhoSumarioTests: XCTestCase {
 
         XCTAssertEqual(rascunho.itens.map(\.titulo), ["A", "B", "C"])
     }
+
+    // MARK: T4 — níveis
+
+    /// Capítulo (1) › seção (2) › § (3).
+    private var rascunhoEmEscada: RascunhoSumario {
+        RascunhoSumario(itens: [
+            ItemSumario(id: idA, nivel: 1, titulo: "Capítulo"),
+            ItemSumario(id: idB, nivel: 2, titulo: "Seção"),
+            ItemSumario(id: idC, nivel: 3, titulo: "Parágrafo"),
+        ])
+    }
+
+    func testNivelMaximoDoPrimeiroItemE1() {
+        XCTAssertEqual(rascunhoEmEscada.nivelMaximo(id: idA), 1)
+    }
+
+    func testNivelMaximoEONivelDoAnteriorMaisUm() {
+        XCTAssertEqual(rascunhoEmEscada.nivelMaximo(id: idC), 3)
+    }
+
+    func testAumentarNivelSobeUmAteOLimite() {
+        var rascunho = rascunhoABC
+
+        rascunho.aumentarNivel(id: idB)
+        XCTAssertEqual(rascunho.itens.map(\.nivel), [1, 2, 1])
+
+        rascunho.aumentarNivel(id: idB)
+        XCTAssertEqual(rascunho.itens.map(\.nivel), [1, 2, 1])
+    }
+
+    func testAumentarNivelDoPrimeiroItemNaoMudaNada() {
+        var rascunho = rascunhoABC
+
+        rascunho.aumentarNivel(id: idA)
+
+        XCTAssertEqual(rascunho.itens.map(\.nivel), [1, 1, 1])
+    }
+
+    func testDiminuirNivelNaoPassaDe1() {
+        var rascunho = rascunhoABC
+
+        rascunho.diminuirNivel(id: idB)
+
+        XCTAssertEqual(rascunho.itens.map(\.nivel), [1, 1, 1])
+    }
+
+    /// Nada é corrigido sozinho: o § fica no nível 3, agora com salto, que a validação vai apontar.
+    func testDiminuirNivelNaoMexeNosFilhos() {
+        var rascunho = rascunhoEmEscada
+
+        rascunho.diminuirNivel(id: idB)
+
+        XCTAssertEqual(rascunho.itens.map(\.nivel), [1, 1, 3])
+    }
+
+    /// Com a seção apagada, o § ficou acima do limite (3 depois de 1): "Nível →" não o rebaixa em silêncio.
+    func testAumentarNivelNaoRebaixaItemQueJaPassouDoLimite() {
+        var rascunho = rascunhoEmEscada
+        rascunho.apagar(IndexSet(integer: 1))
+
+        rascunho.aumentarNivel(id: idC)
+
+        XCTAssertEqual(rascunho.itens.map(\.nivel), [1, 3])
+    }
 }

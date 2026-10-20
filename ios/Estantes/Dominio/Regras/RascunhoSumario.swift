@@ -83,6 +83,29 @@ struct RascunhoSumario: Equatable {
         itens.insert(contentsOf: movidos, at: max(destinoFinal, 0))
     }
 
+    // MARK: Nível
+
+    /// O maior nível que o item pode ter sem salto: o do item anterior + 1; 1 no primeiro (e num id que não
+    /// existe). É o limite do `Stepper` na tela do item.
+    func nivelMaximo(id: UUID) -> Int {
+        guard let indice = itens.firstIndex(where: { $0.id == id }), indice > 0 else { return 1 }
+        return itens[indice - 1].nivel + 1
+    }
+
+    /// Sobe um nível se não passar do `nivelMaximo`. Um item que já passou do limite (o pai foi apagado) fica
+    /// como está: rebaixá-lo seria corrigir sozinho.
+    mutating func aumentarNivel(id: UUID) {
+        guard let indice = itens.firstIndex(where: { $0.id == id }),
+              itens[indice].nivel < nivelMaximo(id: id) else { return }
+        itens[indice].nivel += 1
+    }
+
+    /// Desce um nível, no mínimo 1. Os filhos não acompanham.
+    mutating func diminuirNivel(id: UUID) {
+        guard let indice = itens.firstIndex(where: { $0.id == id }), itens[indice].nivel > 1 else { return }
+        itens[indice].nivel -= 1
+    }
+
     private static func itemNovo(nivel: Int) -> Item {
         Item(id: UUID(), nivel: nivel, numeracao: "", titulo: "", pagina: "", origem: .manual)
     }
