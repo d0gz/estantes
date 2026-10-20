@@ -5,6 +5,8 @@ import SwiftUI
 /// e a montagem decide qual tela abrir.
 struct InicioView: View {
     @StateObject private var viewModel: InicioViewModel
+    @StateObject private var busca: BuscaViewModel
+    private let miniaturas: CarregadorDeMiniaturas
 
     /// O que o alerta com campo de texto está pedindo: um nome para uma estante nova ou para renomear uma.
     private enum PedidoDeNome {
@@ -39,17 +41,23 @@ struct InicioView: View {
     /// `@autoclosure`: o `StateObject` cria o ViewModel uma vez só, mesmo que a tela seja recriada.
     init(
         viewModel: @autoclosure @escaping () -> InicioViewModel,
+        busca: @autoclosure @escaping () -> BuscaViewModel,
+        miniaturas: CarregadorDeMiniaturas,
         abrirCategorias: @escaping () -> Void,
         acaoInicial: AcaoInicial? = nil
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
+        _busca = StateObject(wrappedValue: busca())
+        self.miniaturas = miniaturas
         self.abrirCategorias = abrirCategorias
         self.acaoInicial = acaoInicial
     }
 
     var body: some View {
-        conteudo
+        ConteudoComBusca(busca: busca, miniaturas: miniaturas) { conteudo }
             .navigationTitle("Minhas estantes")
+            // Sempre visível, também sem estantes (aí só a dica): esconder a barra a faria pular na tela.
+            .searchable(text: $busca.texto, prompt: "Título, autor ou assunto")
             .toolbar {
                 // Só com a lista na tela: no vazio, a ação única é o botão do estado vazio (HIG); carregando, o "+"
                 // apareceria e sumiria; no erro, não há o que criar. O `if` fica fora do item para não sobrar
@@ -291,3 +299,20 @@ struct InicioView_Previews: PreviewProvider {
     }
 }
 #endif
+
+/// Troca as estantes pelos resultados enquanto a busca está ativa. Vista à parte porque o `isSearching`
+/// só chega a quem está dentro do `.searchable`, e não à própria `InicioView`, que o aplica.
+private struct ConteudoComBusca<Estantes: View>: View {
+    @ObservedObject var busca: BuscaViewModel
+    let miniaturas: CarregadorDeMiniaturas
+    @ViewBuilder let estantes: () -> Estantes
+    @Environment(\.isSearching) private var buscando
+
+    var body: some View {
+        if buscando {
+            ResultadosDaBuscaView(busca: busca, miniaturas: miniaturas)
+        } else {
+            estantes()
+        }
+    }
+}

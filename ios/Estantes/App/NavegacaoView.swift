@@ -31,6 +31,8 @@ struct NavegacaoView: View {
         NavigationStack(path: $caminho) {
             InicioView(
                 viewModel: dependencias.fazerInicioViewModel(),
+                busca: dependencias.fazerBuscaViewModel(),
+                miniaturas: dependencias.miniaturas,
                 abrirCategorias: { caminho.append(RotaDasCategorias()) },
                 acaoInicial: acaoInicial
             )

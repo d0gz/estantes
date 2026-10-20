@@ -41,6 +41,11 @@ struct Dependencias {
     }
 
     @MainActor
+    func fazerBuscaViewModel() -> BuscaViewModel {
+        BuscaViewModel(biblioteca: biblioteca)
+    }
+
+    @MainActor
     func fazerEstanteViewModel(estante: Estante) -> EstanteViewModel {
         EstanteViewModel(estante: estante, repositorio: repositorio)
     }

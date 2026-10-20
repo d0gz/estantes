@@ -201,6 +201,11 @@ enum Captura: String {
     case categoriaNova = "CategoriaNova"
     case categoriaEditar = "CategoriaEditar"
     case apagarCategoria = "ApagarCategoria"
+    case busca = "Busca"
+    case buscaCorrecao = "BuscaCorrecao"
+    case buscaOU = "BuscaOU"
+    case buscaDica = "BuscaDica"
+    case buscaFiltros = "BuscaFiltros"
     case estilo = "Estilo"
     case estiloTelas = "EstiloTelas"
     case estiloCategorias = "EstiloCategorias"
@@ -325,6 +330,16 @@ enum Captura: String {
                     caminhoInicial: Self.caminhoDasCategorias
                 )
             }
+        case .busca:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "contrato coletivo") }
+        case .buscaCorrecao:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "constitucinal") }
+        case .buscaOU:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "constitucional stf") }
+        case .buscaDica:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "") }
+        case .buscaFiltros:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "direito", mostrarFiltros: true) }
         case .estilo:
             CatalogoDeEstiloView(pagina: .fundamentos)
         case .estiloTelas:
@@ -347,6 +362,30 @@ enum Captura: String {
             caminho.append(RotaDoLivro(livroId: livro))
         }
         return caminho
+    }
+}
+
+/// A busca já com o texto digitado. O `simctl` não digita, e no iOS 16 não há como ativar o `.searchable`
+/// por código (o `isPresented` é do iOS 17): a captura mostra os resultados direto, com o texto na barra.
+private struct BuscaDeExemplo: View {
+    let dependencias: Dependencias
+    let mostrarFiltros: Bool
+    @StateObject private var busca: BuscaViewModel
+
+    init(dependencias: Dependencias, texto: String, mostrarFiltros: Bool = false) {
+        self.dependencias = dependencias
+        self.mostrarFiltros = mostrarFiltros
+        let busca = dependencias.fazerBuscaViewModel()
+        busca.texto = texto
+        _busca = StateObject(wrappedValue: busca)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ResultadosDaBuscaView(busca: busca, miniaturas: dependencias.miniaturas, mostrarFiltros: mostrarFiltros)
+                .navigationTitle("Minhas estantes")
+                .searchable(text: $busca.texto, prompt: "Título, autor ou assunto")
+        }
     }
 }
 #endif
