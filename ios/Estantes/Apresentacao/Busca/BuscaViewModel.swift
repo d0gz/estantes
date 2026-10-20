@@ -40,6 +40,21 @@ final class BuscaViewModel: ObservableObject {
         self.biblioteca = biblioteca
     }
 
+    // MARK: Sessão
+
+    /// Há texto ou filtro: os resultados ficam na tela mesmo com a barra inativa. No iOS 16, um campo da tela
+    /// Filtros tira o foco da busca (`isSearching` falso) e não há como devolvê-lo por código.
+    var temBusca: Bool {
+        !texto.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !filtro.estaVazio
+    }
+
+    /// O "Cancelar" da barra: sai da busca, com os filtros junto (senão o Inicio continuaria nos resultados).
+    func sairDaBusca() {
+        texto = ""
+        filtro = FiltroBusca()
+        exatamente = false
+    }
+
     // MARK: Filtros
 
     /// Lê as estantes e as categorias dos chips. Tira do filtro as que não existem mais: sem chip na

@@ -80,6 +80,34 @@ final class BuscaViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.estado, .erro("Não foi possível preparar a busca."))
     }
 
+    // MARK: - Sessão de busca (resultados sem depender do `isSearching`)
+
+    // Na volta da tela Filtros a barra está inativa (iOS 16), mas os resultados continuam se há texto ou filtro.
+    func testTemBuscaComTextoOuFiltro() {
+        XCTAssertFalse(viewModel.temBusca)
+        viewModel.texto = "   "
+        XCTAssertFalse(viewModel.temBusca)
+
+        viewModel.texto = "lassalle"
+        XCTAssertTrue(viewModel.temBusca)
+
+        viewModel.texto = ""
+        viewModel.filtro = FiltroBusca(autor: "Pontes")
+        XCTAssertTrue(viewModel.temBusca)
+    }
+
+    // O "Cancelar" da barra sai da busca: texto, filtros e "exatamente" voltam ao começo.
+    func testSairDaBuscaLimpaTextoFiltrosEExatamente() {
+        viewModel.texto = "lassale"
+        viewModel.buscarExatamente()
+        viewModel.filtro = FiltroBusca(autor: "Pontes", estanteIds: [sala.id])
+
+        viewModel.sairDaBusca()
+
+        XCTAssertEqual(viewModel.chave, BuscaViewModel.Chave(texto: "", filtro: FiltroBusca(), exatamente: false))
+        XCTAssertFalse(viewModel.temBusca)
+    }
+
     // MARK: - Anos (folha Filtros)
 
     // Enquanto se digita "1972", o campo passa por "1", "19", "197": nenhum deles pode filtrar.

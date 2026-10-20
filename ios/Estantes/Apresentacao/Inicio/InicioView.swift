@@ -61,7 +61,9 @@ struct InicioView: View {
     }
 
     var body: some View {
-        ConteudoComBusca(busca: busca, miniaturas: miniaturas, abrirFiltros: { mostrandoFiltros = true }) { conteudo }
+        ConteudoComBusca(
+            busca: busca, miniaturas: miniaturas, filtrosAbertos: mostrandoFiltros, abrirFiltros: { mostrandoFiltros = true }
+        ) { conteudo }
             .navigationTitle("Minhas estantes")
             // Sempre visível, também sem estantes (aí só a dica): esconder a barra a faria pular na tela.
             .searchable(text: $busca.texto, prompt: "Título, autor ou assunto")
@@ -315,24 +317,41 @@ struct InicioView_Previews: PreviewProvider {
 private struct ConteudoComBusca<Estantes: View>: View {
     @ObservedObject var busca: BuscaViewModel
     let miniaturas: CarregadorDeMiniaturas
+    let filtrosAbertos: Bool
     let abrirFiltros: () -> Void
     @ViewBuilder let estantes: () -> Estantes
     @Environment(\.isSearching) private var buscando
 
     var body: some View {
         Group {
-            if buscando {
+            // Não só o `isSearching`: na volta da tela Filtros a barra fica inativa (o campo de lá tirou o foco, e
+            // o iOS 16 não o devolve por código), mas a busca continua enquanto houver texto ou filtro.
+            if buscando || filtrosAbertos || busca.temBusca {
                 ResultadosDaBuscaView(busca: busca, miniaturas: miniaturas, abrirFiltros: abrirFiltros)
             } else {
                 estantes()
             }
         }
-        #if DEBUG
-        // Diagnóstico da folha que fechava (a conferir com a tela empurrada; sai no fechamento da 2.7):
-        // `log stream --predicate 'subsystem == "com.ricardo.estantes"'`.
-        .onChange(of: buscando) { valor in
-            Logger(subsystem: "com.ricardo.estantes", category: "busca").debug("isSearching = \(valor)")
+        // O "Cancelar" da barra desliga a busca e limpa o texto: aí sai da busca, com os filtros junto. Com a tela
+        // Filtros aberta, ou com texto ainda na barra, a busca só perdeu o foco: nada é limpo.
+        .onChange(of: buscando) { ativa in
+            #if DEBUG
+            registrar("isSearching = \(ativa), filtros abertos = \(filtrosAbertos), texto vazio = \(busca.texto.isEmpty)")
+            #endif
+            if !ativa, !filtrosAbertos, busca.texto.isEmpty {
+                busca.sairDaBusca()
+            }
         }
+        #if DEBUG
+        .onChange(of: filtrosAbertos) { registrar("filtros abertos = \($0)") }
         #endif
     }
+
+    #if DEBUG
+    /// Diagnóstico da busca que desligava na tela Filtros (sai no fechamento da 2.7):
+    /// `log stream --predicate 'subsystem == "com.ricardo.estantes"'`.
+    private func registrar(_ mensagem: String) {
+        Logger(subsystem: "com.ricardo.estantes", category: "busca").debug("\(mensagem, privacy: .public)")
+    }
+    #endif
 }

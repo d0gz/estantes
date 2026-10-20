@@ -36,8 +36,11 @@ struct FiltrosDaBuscaView: View {
                 Text("Ano de publicação")
             } footer: {
                 if busca.faixaDeAnosInvertida {
-                    Text("O ano inicial é depois do final.")
-                        .foregroundColor(Cor.perigo)
+                    VStack(alignment: .leading, spacing: Espaco.minimo) {
+                        Text("O ano inicial é depois do final.")
+                            .foregroundColor(Cor.perigo)
+                        Text("Corrija os anos ou limpe os filtros para voltar.")
+                    }
                 } else {
                     Text("Só \"De\": desse ano em diante. Só \"Até\": até esse ano. Os dois anos entram no intervalo.")
                 }
@@ -53,6 +56,9 @@ struct FiltrosDaBuscaView: View {
         }
         .navigationTitle("Filtros")
         .navigationBarTitleDisplayMode(.inline)
+        // Faixa invertida não acha nenhum livro: não dá para voltar com ela. Sem o botão, o iOS 16 também
+        // desliga o gesto de voltar pela borda.
+        .navigationBarBackButtonHidden(busca.faixaDeAnosInvertida)
         // `onChange` de um parâmetro: deprecated no iOS 17, mas é a forma que o Xcode 14.2 aceita.
         .onChange(of: anoInicial) { busca.filtro.anoMinimo = BuscaViewModel.ano(deTexto: $0) }
         .onChange(of: anoFinal) { busca.filtro.anoMaximo = BuscaViewModel.ano(deTexto: $0) }
