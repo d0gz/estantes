@@ -106,6 +106,41 @@ final class RascunhoSumarioTests: XCTestCase {
         XCTAssertEqual(rascunho.itens.map(\.titulo), ["B", "C", "A"])
     }
 
+    /// O caso que o ajuste do destino existe para resolver: o item vem de cima e o destino fica no meio.
+    func testMoverOPrimeiroParaOMeio() {
+        var rascunho = rascunhoABC
+
+        rascunho.mover(de: IndexSet(integer: 0), para: 2)
+
+        XCTAssertEqual(rascunho.itens.map(\.titulo), ["B", "A", "C"])
+    }
+
+    func testMoverDoisItensJuntosParaOFim() {
+        var rascunho = rascunhoABC
+
+        rascunho.mover(de: IndexSet([0, 1]), para: 3)
+
+        XCTAssertEqual(rascunho.itens.map(\.titulo), ["C", "A", "B"])
+    }
+
+    func testMoverParaDestinoForaDaListaParaNasPontas() {
+        var paraOFim = rascunhoABC
+        paraOFim.mover(de: IndexSet(integer: 0), para: 99)
+        XCTAssertEqual(paraOFim.itens.map(\.titulo), ["B", "C", "A"])
+
+        var paraOTopo = rascunhoABC
+        paraOTopo.mover(de: IndexSet(integer: 2), para: -5)
+        XCTAssertEqual(paraOTopo.itens.map(\.titulo), ["C", "A", "B"])
+    }
+
+    func testApagarVariosItensDeUmaVez() {
+        var rascunho = rascunhoABC
+
+        rascunho.apagar(IndexSet([0, 2]))
+
+        XCTAssertEqual(rascunho.itens.map(\.titulo), ["B"])
+    }
+
     func testAtualizarTrocaOsTextosDoItemPeloId() {
         var rascunho = rascunhoABC
         var item = rascunho.itens[1]

@@ -14,7 +14,9 @@ final class EditarSumarioViewModelTests: XCTestCase {
             editora: "Borsoi", ano: 1965, prateleira: "caixa azul",
             itensSumario: [
                 ItemSumario(id: idTitulo, nivel: 1, titulo: "Contrato coletivo de trabalho"),
-                ItemSumario(id: idParagrafo, nivel: 2, numeracao: "§ 5.108", titulo: "Conceito e natureza", pagina: "3"),
+                ItemSumario(
+                    id: idParagrafo, nivel: 2, numeracao: "§ 5.108", titulo: "Conceito e natureza", pagina: "3"
+                ),
             ]
         )
     }
@@ -26,7 +28,9 @@ final class EditarSumarioViewModelTests: XCTestCase {
         return (viewModel, repositorio)
     }
 
-    private func editar(_ viewModel: EditarSumarioViewModel, _ id: UUID, _ mudar: (inout RascunhoSumario.Item) -> Void) {
+    private func editar(
+        _ viewModel: EditarSumarioViewModel, _ id: UUID, _ mudar: (inout RascunhoSumario.Item) -> Void
+    ) {
         guard var item = viewModel.item(id: id) else { return XCTFail("item \(id) não existe") }
         mudar(&item)
         viewModel.atualizar(item)
@@ -90,6 +94,19 @@ final class EditarSumarioViewModelTests: XCTestCase {
         XCTAssertTrue(salvou)
     }
 
+    /// Depois do "Salvar" com erro, corrigir o item tira a marca dele (a validação acompanha a edição).
+    func testErroSomeDepoisDeCorrigido() async {
+        let (viewModel, _) = await montar(livro())
+        editar(viewModel, idParagrafo) { $0.titulo = "" }
+        _ = await viewModel.salvar()
+        XCTAssertEqual(viewModel.quantidadeDeItensComErro, 1)
+
+        editar(viewModel, idParagrafo) { $0.titulo = "Conceito" }
+
+        XCTAssertNil(viewModel.erro(doItem: idParagrafo))
+        XCTAssertEqual(viewModel.quantidadeDeItensComErro, 0)
+    }
+
     func testFalhaAoGravarAvisaEMantemOsItens() async {
         let (viewModel, repositorio) = await montar(livro())
         editar(viewModel, idParagrafo) { $0.pagina = "5" }
@@ -107,11 +124,10 @@ final class EditarSumarioViewModelTests: XCTestCase {
     /// O nível vem do item que acabou de ser digitado, mesmo depois de mudado no `Stepper`.
     func testProximoItemEntraLogoAbaixoComONivelDoItemDigitado() async {
         let (viewModel, _) = await montar(livro())
-        editar(viewModel, idTitulo) { $0.nivel = 1 }
-        let primeiro = viewModel.proximoItem(depoisDe: idTitulo)!
+        let primeiro = viewModel.inserir(abaixoDe: idTitulo)!
         editar(viewModel, primeiro) { $0.nivel = 2; $0.titulo = "Capítulo I" }
 
-        let segundo = viewModel.proximoItem(depoisDe: primeiro)!
+        let segundo = viewModel.inserir(abaixoDe: primeiro)!
 
         XCTAssertEqual(viewModel.itens.map(\.id), [idTitulo, primeiro, segundo, idParagrafo])
         XCTAssertEqual(viewModel.item(id: segundo)?.nivel, 2)

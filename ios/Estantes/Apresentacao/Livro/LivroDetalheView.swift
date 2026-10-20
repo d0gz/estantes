@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Detalhe de um livro: cabeçalho centralizado (miniatura, título em serifa, subtítulo, volume e autores), um cartão
-/// por grupo com os campos preenchidos (rótulo em cima, valor embaixo), o cartão "Sumário" (prévia, sumário completo e a
-/// folha de edição) e "Apagar livro" no fim, num cartão próprio.
+/// por grupo com os campos preenchidos (rótulo em cima, valor embaixo), o cartão "Sumário" (prévia, sumário completo
+/// e a folha de edição) e "Apagar livro" no fim, num cartão próprio.
 struct LivroDetalheView: View {
     @StateObject private var viewModel: LivroDetalheViewModel
     @Environment(\.dismiss) private var dismiss

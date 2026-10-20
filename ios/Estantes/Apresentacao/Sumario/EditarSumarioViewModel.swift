@@ -16,12 +16,18 @@ final class EditarSumarioViewModel: ObservableObject {
     }
 
     @Published private(set) var estado: Estado = .carregando
-    @Published private(set) var rascunho = RascunhoSumario(itens: [])
+    @Published private(set) var rascunho = RascunhoSumario(itens: []) {
+        // Uma validação por mudança, e não uma por item exibido a cada desenho: com centenas de itens, cada tecla
+        // refazia a validação inteira para cada item da lista (O(n²)).
+        didSet { problemas = Self.problemasPorItem(de: rascunho) }
+    }
     /// Liga na primeira tentativa de salvar com erro (como no formulário do livro).
     @Published private(set) var mostrarErros = false
     @Published private(set) var salvando = false
     @Published var mensagemDeErro: String?
 
+    /// Erros e avisos de cada item, pelo id; recalculados quando o rascunho muda.
+    private var problemas = ProblemasPorItem()
     private let livroId: UUID
     /// O livro relido ao abrir: ao gravar, só o sumário muda nele.
     private var livro: Livro?
@@ -55,7 +61,7 @@ final class EditarSumarioViewModel: ObservableObject {
     var alterado: Bool { rascunho != original }
 
     func item(id: UUID) -> RascunhoSumario.Item? {
-        rascunho.itens.first { $0.id == id }
+        indice(de: id).map { rascunho.itens[$0] }
     }
 
     // MARK: Edição (repassada ao rascunho)
@@ -63,7 +69,8 @@ final class EditarSumarioViewModel: ObservableObject {
     func atualizar(_ item: RascunhoSumario.Item) { rascunho.atualizar(item) }
     @discardableResult
     func adicionarNoFim() -> UUID { rascunho.adicionarNoFim() }
-    /// "Inserir abaixo", do menu de contexto.
+    /// "Inserir abaixo", do menu de contexto, e "Próximo item", na tela de item: um item vazio logo abaixo, no mesmo
+    /// nível.
     @discardableResult
     func inserir(abaixoDe id: UUID) -> UUID? { rascunho.inserir(abaixoDe: id) }
     func mover(de origem: IndexSet, para destino: Int) { rascunho.mover(de: origem, para: destino) }
@@ -74,11 +81,6 @@ final class EditarSumarioViewModel: ObservableObject {
     func apagar(id: UUID) {
         guard let indice = indice(de: id) else { return }
         rascunho.apagar(IndexSet(integer: indice))
-    }
-
-    /// "Próximo item" na tela de item: um item vazio logo abaixo do que acabou de ser digitado, no mesmo nível.
-    func proximoItem(depoisDe id: UUID) -> UUID? {
-        rascunho.inserir(abaixoDe: id)
     }
 
     /// Ao voltar da tela de item: um item sem nada escrito (aberto pelo "Adicionar item" ou pelo "Próximo item" e
@@ -94,20 +96,37 @@ final class EditarSumarioViewModel: ObservableObject {
 
     /// O erro do item, só depois de tentar salvar.
     func erro(doItem id: UUID) -> String? {
-        guard mostrarErros, let indice = indice(de: id) else { return nil }
-        return rascunho.validacao().erros.first { $0.indice == indice }.map { Self.texto(de: $0) }
+        mostrarErros ? problemas.erros[id] : nil
     }
 
     /// O aviso do item, sempre (não impede de gravar).
     func aviso(doItem id: UUID) -> String? {
-        guard let indice = indice(de: id) else { return nil }
-        return rascunho.validacao().avisos.first { $0.indice == indice }.map { Self.texto(de: $0) }
+        problemas.avisos[id]
     }
 
     /// Quantos itens têm erro, para o topo da lista dizer o que impede de salvar.
     var quantidadeDeItensComErro: Int {
-        guard mostrarErros else { return 0 }
-        return Set(rascunho.validacao().erros.map(\.indice)).count
+        mostrarErros ? problemas.erros.count : 0
+    }
+
+    private struct ProblemasPorItem {
+        var erros: [UUID: String] = [:]
+        var avisos: [UUID: String] = [:]
+    }
+
+    /// O primeiro erro e o primeiro aviso de cada item, já em texto, pelo id (a validação aponta posições).
+    private static func problemasPorItem(de rascunho: RascunhoSumario) -> ProblemasPorItem {
+        let resultado = rascunho.validacao()
+        var porItem = ProblemasPorItem()
+        for problema in resultado.erros {
+            let id = rascunho.itens[problema.indice].id
+            if porItem.erros[id] == nil { porItem.erros[id] = texto(de: problema) }
+        }
+        for problema in resultado.avisos {
+            let id = rascunho.itens[problema.indice].id
+            if porItem.avisos[id] == nil { porItem.avisos[id] = texto(de: problema) }
+        }
+        return porItem
     }
 
     private static func texto(de problema: ValidacaoSumario.Problema) -> String {

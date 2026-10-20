@@ -1,19 +1,20 @@
 import SwiftUI
 
-/// Folha "Editar sumário" (decisão de 20/10): a lista só mostra os itens; "Adicionar item" ou tocar num item empurra a
-/// `EdicaoDoItemView`. Deslizar para a direita muda o nível, para a esquerda apaga; segurar e arrastar reordena; o menu
-/// de contexto tem "Inserir abaixo". Grava no "Salvar"; "Cancelar" descarta. Com mudanças, arrastar para fechar fica
-/// bloqueado, como no formulário do livro.
+/// Folha "Editar sumário" (decisão de 20/10; título "Sumário"): a lista só mostra os itens; "Adicionar item" ou
+/// tocar num item empurra a `EdicaoDoItemView`. Deslizar para a direita muda o nível, para a esquerda apaga; segurar
+/// e arrastar reordena; o menu de contexto tem "Inserir abaixo" e "Apagar". Grava no "Salvar"; "Cancelar" descarta,
+/// perguntando antes se houver mudanças. Com mudanças, arrastar para fechar fica bloqueado.
 ///
 /// A tela de item é empurrada por `navigationDestination(isPresented:)`, não por `navigationDestination(for:)` com um
 /// caminho: no iOS 16, o destino por tipo numa folha aberta de dentro da pilha principal (`NavegacaoView`) põe o app em
-/// laço (CPU a 100%, Detalhe preso no "carregando"; diagnosticado em 20/10 com a captura `EditarSumario`, também com
-/// um tipo próprio no lugar do `UUID`). Por isso as linhas são botões com a seta desenhada, e não `NavigationLink`.
+/// laço (CPU a 100%, Detalhe preso no "carregando"; diagnosticado em 20/10 com a captura `EditarSumario`, também
+/// com um tipo próprio no lugar do `UUID`). Por isso os itens são botões com a seta desenhada, e não `NavigationLink`.
 struct EditarSumarioView: View {
     @StateObject private var viewModel: EditarSumarioViewModel
     @Environment(\.dismiss) private var dismiss
     /// O item aberto na tela de item (no máximo um: ela troca de item sem navegar).
     @State private var itemEmEdicao: UUID?
+    @State private var confirmandoDescarte = false
 
     init(viewModel: @autoclosure @escaping () -> EditarSumarioViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -26,7 +27,17 @@ struct EditarSumarioView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancelar") { dismiss() }
+                        Button("Cancelar") {
+                            if viewModel.alterado { confirmandoDescarte = true } else { dismiss() }
+                        }
+                        // Um sumário digitado à mão dá trabalho: perder tudo num toque pede confirmação.
+                        .confirmationDialog(
+                            "Descartar as alterações do sumário?", isPresented: $confirmandoDescarte,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Descartar alterações", role: .destructive) { dismiss() }
+                            Button("Continuar editando", role: .cancel) {}
+                        }
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Salvar") {
@@ -79,7 +90,7 @@ struct EditarSumarioView: View {
                         itemEmEdicao = item.id
                     } label: {
                         HStack(spacing: Espaco.pequeno) {
-                            linha(item)
+                            itemDaLista(item)
                             Image(systemName: "chevron.right")
                                 .font(.footnote.weight(.semibold))
                                 .foregroundColor(Color(.tertiaryLabel))
@@ -126,7 +137,7 @@ struct EditarSumarioView: View {
     }
 
     /// O item e, embaixo, o erro (só depois de tentar salvar) ou o aviso de página (sempre).
-    private func linha(_ item: RascunhoSumario.Item) -> some View {
+    private func itemDaLista(_ item: RascunhoSumario.Item) -> some View {
         VStack(alignment: .leading, spacing: Espaco.minimo) {
             ItemDoSumarioView(item)
             if let erro = viewModel.erro(doItem: item.id) {

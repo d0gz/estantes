@@ -11,6 +11,9 @@ struct EdicaoDoItemView: View {
     @ObservedObject var viewModel: EditarSumarioViewModel
     @State private var itemId: UUID
     @FocusState private var campoEmFoco: Campo?
+    /// O foco no Título só na primeira vez: o `.task` roda de novo a cada reaparecimento e tiraria o foco do campo
+    /// em uso.
+    @State private var jaFocou = false
 
     private enum Campo {
         case numeracao, titulo, pagina
@@ -33,6 +36,8 @@ struct EdicaoDoItemView: View {
         .navigationTitle("Item do sumário")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            guard !jaFocou else { return }
+            jaFocou = true
             // No iOS 16, o foco pedido logo ao aparecer se perde durante o empurrão; espera a transição acabar.
             try? await Task.sleep(nanoseconds: 500_000_000)
             campoEmFoco = .titulo
@@ -43,12 +48,14 @@ struct EdicaoDoItemView: View {
     private func formulario(_ item: RascunhoSumario.Item) -> some View {
         Form {
             Section {
-                TextField("Numeração", text: texto(\.numeracao), prompt: Text("Numeração (ex.: Capítulo II, § 5.108)"))
+                TextField(
+                    "Numeração", text: ligacao(\.numeracao), prompt: Text("Numeração (ex.: Capítulo II, § 5.108)")
+                )
                     .focused($campoEmFoco, equals: .numeracao)
                     .submitLabel(.next)
                     .onSubmit { campoEmFoco = .titulo }
-                titulo
-                TextField("Página", text: texto(\.pagina), prompt: Text("Página (ex.: 45, XI)"))
+                campoDoTitulo
+                TextField("Página", text: ligacao(\.pagina), prompt: Text("Página (ex.: 45, XI)"))
                     .keyboardType(.numbersAndPunctuation)
                     .focused($campoEmFoco, equals: .pagina)
                     .submitLabel(.next)
@@ -57,9 +64,11 @@ struct EdicaoDoItemView: View {
                 problemas
             }
             Section {
-                Stepper("Nível \(item.nivel)", value: nivel, in: 1...max(viewModel.nivelMaximo(id: itemId), item.nivel))
+                // Um item que já passou do limite (o pai foi apagado) mantém o nível: nada é corrigido sozinho.
+                let maximo = max(viewModel.nivelMaximo(id: itemId), item.nivel)
+                Stepper("Nível \(item.nivel)", value: ligacaoDoNivel, in: 1...maximo)
             } footer: {
-                Text("O nível vai de 1 até um a mais que o do item de cima.")
+                Text("O nível vai de 1 até um a mais que o do item de cima (ou o nível atual, se já passou disso).")
             }
             Section {
                 Button("Próximo item", action: proximoItem)
@@ -69,13 +78,13 @@ struct EdicaoDoItemView: View {
     }
 
     /// Títulos jurídicos são longos: o campo cresce para baixo. O Return não quebra a linha, passa para a Página.
-    private var titulo: some View {
-        let texto = texto(\.titulo)
-        return TextField("Título", text: texto, prompt: Text("Título"), axis: .vertical)
+    private var campoDoTitulo: some View {
+        let titulo = ligacao(\.titulo)
+        return TextField("Título", text: titulo, prompt: Text("Título"), axis: .vertical)
             .focused($campoEmFoco, equals: .titulo)
-            .onChange(of: texto.wrappedValue) { novo in
+            .onChange(of: titulo.wrappedValue) { novo in
                 guard novo.contains(where: \.isNewline) else { return }
-                texto.wrappedValue = novo.split(whereSeparator: \.isNewline).joined(separator: " ")
+                titulo.wrappedValue = novo.split(whereSeparator: \.isNewline).joined(separator: " ")
                 campoEmFoco = .pagina
             }
     }
@@ -92,12 +101,13 @@ struct EdicaoDoItemView: View {
 
     private func proximoItem() {
         guard let item = viewModel.item(id: itemId), Normalizacao.textoLimpo(item.titulo) != nil,
-              let novo = viewModel.proximoItem(depoisDe: itemId) else { return }
+              let novo = viewModel.inserir(abaixoDe: itemId) else { return }
         itemId = novo
         campoEmFoco = .titulo
     }
 
-    private func texto(_ campo: WritableKeyPath<RascunhoSumario.Item, String>) -> Binding<String> {
+    /// Liga um campo de texto ao item aberto no rascunho da folha.
+    private func ligacao(_ campo: WritableKeyPath<RascunhoSumario.Item, String>) -> Binding<String> {
         Binding(
             get: { viewModel.item(id: itemId)?[keyPath: campo] ?? "" },
             set: { novo in
@@ -108,7 +118,7 @@ struct EdicaoDoItemView: View {
         )
     }
 
-    private var nivel: Binding<Int> {
+    private var ligacaoDoNivel: Binding<Int> {
         Binding(
             get: { viewModel.item(id: itemId)?.nivel ?? 1 },
             set: { novo in

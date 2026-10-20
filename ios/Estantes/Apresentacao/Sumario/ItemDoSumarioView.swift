@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Um item do sumário como as listas o mostram: recuado pelo nível, numeração em negrito antes do título e a página
-/// à direita. O mesmo no cartão do Detalhe, no sumário completo e na folha de edição.
+/// Um item do sumário como as listas o mostram: recuado pelo nível, numeração em negrito antes do título e a
+/// página à direita. O mesmo no cartão do Detalhe, no sumário completo e na folha de edição.
 struct ItemDoSumarioView: View {
     let nivel: Int
     let numeracao: String?
@@ -47,7 +47,8 @@ struct ItemDoSumarioView: View {
             ? Text("Sem título").italic().foregroundColor(Cor.textoSecundario)
             : Text(titulo)
         guard let numeracao = numeracao else { return corpo }
-        return Text(numeracao).bold() + Text(" ") + corpo
+        // Interpolação, e não `Text + Text`: a soma de `Text` é obsoleta no SDK do iOS 26.
+        return Text("\(Text(numeracao).bold()) \(corpo)")
     }
 
     /// "Nível 3. § 5.108 Conceito e natureza. Página 3."

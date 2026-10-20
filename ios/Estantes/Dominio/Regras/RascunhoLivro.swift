@@ -140,7 +140,9 @@ struct RascunhoLivro: Equatable {
     /// Linha sem nome sai (o papel sozinho não diz quem); sem papel fica, com papel vazio.
     private var colaboradoresLimpos: [Colaborador] {
         colaboradores.compactMap { linha in
-            Normalizacao.textoLimpo(linha.nome).map { Colaborador(nome: $0, papel: Normalizacao.textoLimpo(linha.papel) ?? "") }
+            Normalizacao.textoLimpo(linha.nome).map {
+                Colaborador(nome: $0, papel: Normalizacao.textoLimpo(linha.papel) ?? "")
+            }
         }
     }
 
