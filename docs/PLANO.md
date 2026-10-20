@@ -638,7 +638,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   abaixo" (se brigar com o arrastar no iOS 16, vai para o deslizar). Regra pura `RascunhoSumario` no Domínio. Nada é
   corrigido sozinho: salto de nível é erro na linha e bloqueia o Salvar (mudar o nível não mexe nos filhos); erros só
   depois de tentar salvar, o aviso de página sempre, discreto. Sem `[eu escrevo]`. Lógica primeiro, estilo depois.
-  Passos: 1 `RascunhoSumario` + testes · 2 lógica das telas · 3 estilo · 4 fechamento.
+  Passos: 1 `RascunhoSumario` + testes ✅ (T1–T6, 432 testes; limpeza em `Normalizacao.textoLimpo`) · 2 lógica das telas · 3 estilo · 4 fechamento.
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
   6 conjunto de consultas de referência e ajuste dos pesos ✅, depois da 2.3b · 2.3i sondas: plural, volume/artigos,
