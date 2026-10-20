@@ -629,6 +629,16 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   `LivroDetalheColaborador_1.0`, `FormularioColaborador_1.0`, `LivroDetalhe_1.3`). **Próximo: 2.6**, numa branch nova
   depois do merge.
 - [ ] Itens do sumário manuais na tela do livro (item a item, com `numeracao` e `ValidacaoSumario`)
+  **Decidido em 20/10 (`/decidir`, branch `fase2/sumario`):** Detalhe com cartão "Sumário" (depois dos grupos, antes de
+  "Apagar livro") com os ~10 primeiros itens e "Ver sumário completo (N)" → tela empurrada; sem sumário, frase +
+  "Adicionar sumário". Edição numa folha própria "Editar sumário" (Salvar grava o `Livro` inteiro; Cancelar descarta):
+  a lista só mostra os itens; "Adicionar item" (no fim) ou tocar na linha empurra a tela de item (Numeração, Título,
+  Página, `Stepper` de Nível de 1 até o anterior + 1) com "Próximo item" (guarda logo abaixo, limpa, mantém o nível e o
+  foco no Título); deslizar dá "← Nível", "Nível →" e "Apagar"; segurar e arrastar reordena; menu de contexto "Inserir
+  abaixo" (se brigar com o arrastar no iOS 16, vai para o deslizar). Regra pura `RascunhoSumario` no Domínio. Nada é
+  corrigido sozinho: salto de nível é erro na linha e bloqueia o Salvar (mudar o nível não mexe nos filhos); erros só
+  depois de tentar salvar, o aviso de página sempre, discreto. Sem `[eu escrevo]`. Lógica primeiro, estilo depois.
+  Passos: 1 `RascunhoSumario` + testes · 2 lógica das telas · 3 estilo · 4 fechamento.
 - [x] Motor de busca em `Dominio/Busca/` (normalização, índice invertido, BM25F, filtros) + testes
   (passos da 2.3: 1 tokenizador ✅ · 2 índice invertido ✅ · 3 BM25F ✅ · 4 filtros ✅ · 5 motor e resultado ✅ ·
   6 conjunto de consultas de referência e ajuste dos pesos ✅, depois da 2.3b · 2.3i sondas: plural, volume/artigos,
@@ -918,3 +928,5 @@ Regras contra omissão:
 | 16/10 | Nos tomos, a matéria impressa abaixo do volume ("Direito das Obrigações: …") vai no `subtitulo`; `parte` é a divisão da obra ("Parte Especial") | O OCR do Gemini (tomo XLVIII) e a folha do tomo I mostram três textos médios e o modelo não dizia onde ia a matéria (os testes divergiam). Campo novo descartado: mesmo papel na busca (já somam no `subtitulo`, linha de 09/10) e mais esquema antes do JSON v1. Juntar tudo em `parte` descartado: mistura dois dados. Refina a linha de 09/10 sobre `parte`/`subtitulo` |
 | 16/10 | `Livro.colaboradores: [Colaborador]` (nome + papel em texto livre: prefácio, tradução, organização, coordenação); na busca, soma no campo de autores | A ficha CIP do Lassalle traz "prefácio de Aurélio Wander Bastos" e o modelo não tinha onde guardá-lo; em livro jurídico, coordenador e tradutor são procurados pelo nome. Juntar em `autores` descartado: o cabeçalho ABNT mostraria um prefaciador como autor. Enum de papéis descartado: o valor bruto ficaria congelado no JSON v1. `[String]` livre descartado: mistura nome e papel. Entra antes do JSON v1 (2.8), sem migração |
 | 16/10 | CDU fica fora do `Livro`, ao lado da CDD, na `FichaExtraida` e no gabarito, com todos os códigos | O Gemini guardou só o "342" de "CDU 342 / 32". Estende a linha de 09/10 (CDD e assuntos fora do `Livro`), não a reverte |
+| 20/10 | Sumário editado numa folha própria aberta pelo Detalhe, gravando o `Livro` inteiro no "Salvar"; não no formulário do livro nem gravando a cada mudança | O formulário ficaria enorme com centenas de itens e misturaria ficha e sumário; gravar a cada mudança tiraria o "Cancelar". Repete o fluxo da escolha de categorias (mesma limitação conhecida) |
+| 20/10 | Editar um item do sumário preserva a `origem`; só o item novo é `manual` | O JSON v1 (2.8) congela o significado. Virar `manual` a cada correção apagaria o rastro de foto/LexML/Gemini que a avaliação do parser (Fase 3) usa |
