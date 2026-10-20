@@ -16,14 +16,6 @@ struct EstanteView: View {
     @State private var escolhendoCategoriasDe: Livro?
 
     @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
-    @Environment(\.dynamicTypeSize) private var tamanhoDoTexto
-    /// Largura da miniatura: cresce com o texto grande, para acompanhar o título ao lado.
-    @ScaledMetric(relativeTo: .body) private var larguraEscalada: CGFloat = 44
-
-    /// Com teto de 1,5× (66 pt): nos tamanhos de acessibilidade ela passava de um terço da linha e espremia o título.
-    private var larguraDaMiniatura: CGFloat {
-        min(larguraEscalada, 66)
-    }
 
     init(
         viewModel: @autoclosure @escaping () -> EstanteViewModel,
@@ -135,7 +127,7 @@ struct EstanteView: View {
             VStack(spacing: 0) {
                 ForEach(Array(grupo.livros.enumerated()), id: \.element.id) { indice, livro in
                     if indice > 0 {
-                        Divider().padding(.leading, Espaco.padrao + larguraDaMiniatura + Espaco.medio)
+                        DivisorDeLinhaDoLivro()
                     }
                     NavigationLink(value: RotaDoLivro(livroId: livro.id)) {
                         linha(livro)
@@ -157,46 +149,9 @@ struct EstanteView: View {
     }
 
     private func linha(_ livro: Livro) -> some View {
-        // Nos tamanhos de acessibilidade, os chips ocupam a linha inteira, embaixo da miniatura: na coluna ao lado dela,
-        // um nome como "Constitucional" não cabia e quebrava no meio da palavra.
-        let chipsNaLarguraDaLinha = tamanhoDoTexto.isAccessibilitySize
-        return VStack(alignment: .leading, spacing: Espaco.pequeno) {
-            HStack(alignment: .top, spacing: Espaco.medio) {
-                MiniaturaDoLivro(livroId: livro.id, carregador: miniaturas, largura: larguraDaMiniatura)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(livro.titulo)
-                        .font(Fonte.tituloLivroNaLista)
-                        .foregroundColor(.primary)
-                        // Nos tamanhos de acessibilidade, o título inteiro: cortado em 3 linhas, sobravam duas palavras.
-                        .lineLimit(tamanhoDoTexto.isAccessibilitySize ? nil : 3)
-                    if let volume = LivroDetalheViewModel.textoDoVolume(livro) {
-                        Text(volume)
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                    }
-                    if let secundaria = EstanteViewModel.linhaSecundaria(livro) {
-                        Text(secundaria)
-                            .font(.subheadline)
-                            .foregroundColor(Cor.textoSecundario)
-                    }
-                    if !chipsNaLarguraDaLinha {
-                        chips(de: livro)
-                            .padding(.top, Espaco.pequeno)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            if chipsNaLarguraDaLinha {
-                chips(de: livro)
-            }
+        LinhaDoLivro(livro: livro, miniaturas: miniaturas) {
+            chips(de: livro)
         }
-        .multilineTextAlignment(.leading)
-        .padding(.horizontal, Espaco.padrao)
-        .padding(.vertical, Espaco.medio)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // A linha inteira é tocável, não só o texto.
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
     }
 
     /// Os chips do livro, ou o fantasma "+ Categoria" sem nenhuma. Um botão dentro do botão da linha: o toque nos chips
