@@ -26,6 +26,15 @@ struct CabecalhoDoLivro: Equatable {
     let autores: String?
 }
 
+/// O começo do sumário no cartão do Detalhe; o resto fica na tela do sumário completo ("Ver sumário completo (N)").
+struct PreviaDoSumario: Equatable {
+    let itens: [ItemSumario]
+    let total: Int
+
+    /// Há itens fora da prévia: aparece o "Ver sumário completo".
+    var temMais: Bool { total > itens.count }
+}
+
 /// Detalhe de um livro. Recebe só o id e relê o livro do banco: uma struct guardada no link
 /// da navegação estaria velha depois de uma edição.
 @MainActor
@@ -74,6 +83,13 @@ final class LivroDetalheViewModel: ObservableObject {
             mensagemDeErro = "Não foi possível apagar o livro."
             return false
         }
+    }
+
+    // MARK: Sumário
+
+    /// Os primeiros itens, para o Detalhe não virar o sumário inteiro (um tomo do Tratado tem centenas).
+    static func previaDoSumario(_ itens: [ItemSumario], limite: Int = 10) -> PreviaDoSumario {
+        PreviaDoSumario(itens: Array(itens.prefix(limite)), total: itens.count)
     }
 
     // MARK: Campos mostrados
