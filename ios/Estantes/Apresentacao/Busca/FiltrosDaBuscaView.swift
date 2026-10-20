@@ -1,10 +1,8 @@
 import SwiftUI
 
-/// A tela "Filtros" da busca: os filtros que pedem texto (autor, editora, anos). Ligada direto ao
-/// filtro da busca, então a lista já está atualizada na volta.
-/// Empurrada, e não em folha: no iOS 16, tocar num campo de uma folha tirava o foco da busca e, ao fechar,
-/// o Inicio voltava às estantes; empurrar (como o Detalhe) mantém a busca ativa.
-/// Estantes e categorias ficam na barra de chips, e a CDDir fica fora até haver livros com ela.
+/// A tela "Filtros" da busca: os filtros que pedem texto (autor, editora, anos), ligados direto ao filtro, então a
+/// lista já está atualizada na volta. Empurrada pela "Busca", como o Detalhe, para a busca continuar como ficou.
+/// Estantes e categorias ficam nos chips (Categorias numa tela própria), e a CDDir fica fora até haver livros com ela.
 struct FiltrosDaBuscaView: View {
     @ObservedObject var busca: BuscaViewModel
     /// O texto dos anos como foi digitado: "197" fica no campo, mas só um ano completo vai para o filtro.
@@ -56,8 +54,8 @@ struct FiltrosDaBuscaView: View {
         }
         .navigationTitle("Filtros")
         .navigationBarTitleDisplayMode(.inline)
-        // Faixa invertida não acha nenhum livro: não dá para voltar com ela. Sem o botão, o iOS 16 também
-        // desliga o gesto de voltar pela borda.
+        // Faixa invertida não acha nenhum livro: não dá para voltar com ela (pedido do Ricardo; a saída é corrigir ou
+        // limpar). Sem o botão, o iOS 16 também desliga o gesto de voltar pela borda.
         .navigationBarBackButtonHidden(busca.faixaDeAnosInvertida)
         // `onChange` de um parâmetro: deprecated no iOS 17, mas é a forma que o Xcode 14.2 aceita.
         .onChange(of: anoInicial) { busca.filtro.anoMinimo = BuscaViewModel.ano(deTexto: $0) }

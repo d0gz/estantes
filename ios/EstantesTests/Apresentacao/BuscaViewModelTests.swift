@@ -32,11 +32,30 @@ final class BuscaViewModelTests: XCTestCase {
     }
 
     func testTextoQueNaoAchaNadaMostraNadaEncontrado() async {
-        viewModel.texto = "xyzw"
+        viewModel.texto = " xyzw "
 
         await viewModel.buscar()
 
-        XCTAssertEqual(viewModel.estado, .nadaEncontrado)
+        // O texto buscado (aparado) fica no estado: a mensagem não muda enquanto se digita a próxima busca.
+        XCTAssertEqual(viewModel.estado, .nadaEncontrado(texto: "xyzw"))
+    }
+
+    // Só filtro, nenhum livro passa: a tela diz "nos filtros", sem texto buscado.
+    func testSoComFiltroSemLivrosNaoTemTextoBuscado() async {
+        viewModel.filtro.anoMinimo = 2030
+
+        await viewModel.buscar()
+
+        XCTAssertEqual(viewModel.estado, .nadaEncontrado(texto: nil))
+    }
+
+    // Na volta do Detalhe, a busca roda de novo pela `chave` (o `.task(id:)` cancela a anterior), e não em paralelo.
+    func testPedirNovaBuscaMudaAChave() {
+        let antes = viewModel.chave
+
+        viewModel.pedirNovaBusca()
+
+        XCTAssertNotEqual(viewModel.chave, antes)
     }
 
     func testSoComFiltroListaOsLivrosQuePassamNele() async {
@@ -58,7 +77,7 @@ final class BuscaViewModelTests: XCTestCase {
         viewModel.buscarExatamente()
         await viewModel.buscar()
 
-        XCTAssertEqual(viewModel.estado, .nadaEncontrado)
+        XCTAssertEqual(viewModel.estado, .nadaEncontrado(texto: "lassale"))
     }
 
     func testMudarOTextoDepoisDeBuscarExatamenteVoltaACorrigir() async {
@@ -80,7 +99,7 @@ final class BuscaViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.estado, .erro("Não foi possível preparar a busca."))
     }
 
-    // MARK: - Anos (folha Filtros)
+    // MARK: - Anos (tela Filtros)
 
     // Enquanto se digita "1972", o campo passa por "1", "19", "197": nenhum deles pode filtrar.
     func testAnoSoContaComQuatroDigitos() {
@@ -156,10 +175,10 @@ final class BuscaViewModelTests: XCTestCase {
 
     func testQuantidadeNaFolhaContaAutorEditoraEAnosComoUm() {
         viewModel.filtro = FiltroBusca(autor: "Pontes", editora: "Borsoi", anoMinimo: 1954, anoMaximo: 1972)
-        XCTAssertEqual(viewModel.quantidadeNaFolha, 3)
+        XCTAssertEqual(viewModel.quantidadeDeFiltrosDeTexto, 3)
 
         viewModel.filtro = FiltroBusca(anoMaximo: 1972)
-        XCTAssertEqual(viewModel.quantidadeNaFolha, 1)
+        XCTAssertEqual(viewModel.quantidadeDeFiltrosDeTexto, 1)
     }
 
     // O `FiltroBusca` trata texto em branco como "sem filtro": o chip não pode dizer o contrário.
@@ -167,7 +186,7 @@ final class BuscaViewModelTests: XCTestCase {
     func testQuantidadeNaFolhaIgnoraTextoEmBrancoEOsChips() {
         viewModel.filtro = FiltroBusca(autor: "  ", editora: "", estanteIds: [sala.id])
 
-        XCTAssertEqual(viewModel.quantidadeNaFolha, 0)
+        XCTAssertEqual(viewModel.quantidadeDeFiltrosDeTexto, 0)
     }
 
     func testCarregarOpcoesTrazAsEstantesEAsCategoriasDosChips() async throws {

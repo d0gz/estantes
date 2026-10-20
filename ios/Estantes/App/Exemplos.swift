@@ -396,9 +396,7 @@ private struct BuscaDeExemplo: View {
             BuscaView(
                 viewModel: comTexto(dependencias.fazerBuscaViewModel()),
                 miniaturas: dependencias.miniaturas,
-                focarAoAbrir: false,
-                abrirFiltrosAoAbrir: mostrarFiltros,
-                abrirCategoriasAoAbrir: mostrarCategorias
+                acaoInicial: mostrarFiltros ? .abrirFiltros : mostrarCategorias ? .abrirCategorias : .nenhuma
             )
         }
     }

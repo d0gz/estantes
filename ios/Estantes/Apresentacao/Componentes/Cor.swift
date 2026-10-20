@@ -11,6 +11,8 @@ enum Cor {
     static let sobreDestaque = Color(uiColor: Paleta.sobreDestaque)
     static let textoSecundario = Color(uiColor: Paleta.textoSecundario)
     static let perigo = Color(uiColor: Paleta.perigo)
+    /// Fundo de campos e chips de filtro: o cinza dos campos de busca do sistema (segue modo e "Aumentar contraste").
+    static let campo = Color(uiColor: .tertiarySystemFill)
 }
 
 /// As mesmas cores em `UIColor`, com o tom claro e o escuro. Em código, e não num catálogo de cores, para o hex

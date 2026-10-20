@@ -1,6 +1,6 @@
 import Foundation
 
-/// Estado da busca do Inicio: o texto, os filtros (as chips) e o que a lista mostra.
+/// Estado da tela "Busca": o texto, os filtros (os chips e as telas Filtros e Categorias) e o que a lista mostra.
 @MainActor
 final class BuscaViewModel: ObservableObject {
     enum Estado: Equatable {
@@ -8,7 +8,9 @@ final class BuscaViewModel: ObservableObject {
         case dica
         /// Nunca com a lista vazia: aí o estado é `.nadaEncontrado`.
         case resultados(RespostaBusca)
-        case nadaEncontrado
+        /// Com o texto buscado (aparado), e não o que está sendo digitado: a mensagem não muda antes da próxima
+        /// resposta. `nil` quando a busca foi só por filtro.
+        case nadaEncontrado(texto: String?)
         case erro(String)
     }
 
@@ -30,9 +32,13 @@ final class BuscaViewModel: ObservableObject {
         let texto: String
         let filtro: FiltroBusca
         let exatamente: Bool
+        /// Sobe em `pedirNovaBusca`: a mesma consulta roda de novo (o banco pode ter mudado).
+        let versao: Int
     }
 
-    var chave: Chave { Chave(texto: texto, filtro: filtro, exatamente: exatamente) }
+    var chave: Chave { Chave(texto: texto, filtro: filtro, exatamente: exatamente, versao: versao) }
+
+    @Published private var versao = 0
 
     private let biblioteca: BibliotecaIndexada
 
@@ -59,10 +65,10 @@ final class BuscaViewModel: ObservableObject {
         estantes.first { $0.id == id }?.nome
     }
 
-    /// O "n" do chip "Filtros (n)": quantos dos filtros da folha estão ligados (autor, editora, anos;
+    /// O "n" do chip "Filtros (n)": quantos dos filtros de texto da tela Filtros estão ligados (autor, editora, anos;
     /// os dois anos contam como um). Lido do `preparado()`, para valer a mesma regra do motor
     /// ("em branco = sem filtro").
-    var quantidadeNaFolha: Int {
+    var quantidadeDeFiltrosDeTexto: Int {
         let preparado = filtro.preparado()
         return [
             !preparado.termosDoAutor.isEmpty,
@@ -71,14 +77,14 @@ final class BuscaViewModel: ObservableObject {
         ].filter { $0 }.count
     }
 
-    /// O ano de um campo da folha: só com 4 dígitos. Enquanto se digita "1972", o campo passa por "1",
+    /// O ano de um campo da tela Filtros: só com 4 dígitos. Enquanto se digita "1972", o campo passa por "1",
     /// "19" e "197", e filtrar por eles esvaziaria e encheria a lista a cada tecla.
     static func ano(deTexto texto: String) -> Int? {
         guard texto.count == 4, texto.allSatisfy(\.isASCII), texto.allSatisfy(\.isNumber) else { return nil }
         return Int(texto)
     }
 
-    /// "De" depois de "Até": nenhum livro passa, e a folha explica por quê em vez de mostrar só a lista vazia.
+    /// "De" depois de "Até": nenhum livro passa, e a tela Filtros explica por quê em vez de mostrar só a lista vazia.
     var faixaDeAnosInvertida: Bool {
         guard let minimo = filtro.anoMinimo, let maximo = filtro.anoMaximo else { return false }
         return minimo > maximo
@@ -117,9 +123,16 @@ final class BuscaViewModel: ObservableObject {
         exatamente = true
     }
 
+    /// Roda a mesma consulta de novo (na volta do Detalhe, o livro pode ter mudado). Muda a `chave`, e não chama
+    /// `buscar` direto: assim o `.task(id:)` cancela a busca anterior, em vez de duas correrem juntas.
+    func pedirNovaBusca() {
+        versao += 1
+    }
+
     func buscar() async {
         // A mesma regra do motor: só espaços ou só palavras vazias ("de") contam como nada digitado.
-        if Tokenizador.palavras(texto).isEmpty, filtro.estaVazio {
+        let semTexto = Tokenizador.palavras(texto).isEmpty
+        if semTexto, filtro.estaVazio {
             estado = .dica
             return
         }
@@ -128,7 +141,8 @@ final class BuscaViewModel: ObservableObject {
             // A tela cancela a busca da tecla anterior (`.task(id:)`), mas o actor termina o que começou:
             // a resposta velha não pode cobrir a nova.
             guard !Task.isCancelled else { return }
-            estado = resposta.resultados.isEmpty ? .nadaEncontrado : .resultados(resposta)
+            let buscado = semTexto ? nil : texto.trimmingCharacters(in: .whitespacesAndNewlines)
+            estado = resposta.resultados.isEmpty ? .nadaEncontrado(texto: buscado) : .resultados(resposta)
         } catch {
             guard !Task.isCancelled else { return }
             // Só a montagem do índice lê o banco; a próxima busca tenta montar de novo.

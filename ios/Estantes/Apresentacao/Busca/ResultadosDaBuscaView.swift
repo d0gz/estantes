@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// O que o Inicio mostra com a busca ativa: a linha de chips de filtro, os avisos (correção e OU de
-/// reserva) e os livros achados. A busca roda a cada mudança da `chave` (texto, filtros, "exatamente").
+/// O conteúdo da tela "Busca": o cabeçalho fixo (campo e chips de filtro), os avisos (correção e OU de reserva) e
+/// os livros achados. A busca roda a cada mudança da `chave` (texto, filtros, "exatamente", nova busca pedida).
 struct ResultadosDaBuscaView<Cabecalho: View>: View {
     @ObservedObject var busca: BuscaViewModel
     let miniaturas: CarregadorDeMiniaturas
@@ -32,10 +32,11 @@ struct ResultadosDaBuscaView<Cabecalho: View>: View {
         .task { await busca.carregarOpcoes() }
         // Mudou a chave: o SwiftUI cancela a busca anterior e começa esta.
         .task(id: busca.chave) { await busca.buscar() }
-        // Ao voltar do Detalhe, o livro pode ter sido editado ou apagado (e uma estante, renomeada).
+        // Ao voltar do Detalhe, o livro pode ter sido editado ou apagado (e uma estante, renomeada). A busca é pedida
+        // pela `chave`, e não chamada aqui: chamada direto, correria junto com a do `.task(id:)` e a mais lenta venceria.
         .aoVoltar {
             await busca.carregarOpcoes()
-            await busca.buscar()
+            busca.pedirNovaBusca()
         }
     }
 
@@ -46,13 +47,13 @@ struct ResultadosDaBuscaView<Cabecalho: View>: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Espaco.pequeno) {
                 Button(action: abrirFiltros) {
-                    let quantidade = busca.quantidadeNaFolha
+                    let quantidade = busca.quantidadeDeFiltrosDeTexto
                     Label(quantidade > 0 ? "Filtros (\(quantidade))" : "Filtros",
                           systemImage: quantidade > 0
                               ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                         .chipDeFiltro(marcado: quantidade > 0)
                 }
-                menuDeCategorias
+                chipDeCategorias
                 // Com uma estante só, filtrar por ela não muda nada.
                 if busca.estantes.count > 1 {
                     ForEach(busca.estantes) { estante in
@@ -70,7 +71,7 @@ struct ResultadosDaBuscaView<Cabecalho: View>: View {
     /// Empurra a tela Categorias, em que se marcam várias de uma vez: o `Menu` do iOS 16 fecha a cada toque (mantê-lo
     /// aberto é do 16.4, que o Xcode 14.2 não compila). Sem categorias, o chip não aparece.
     @ViewBuilder
-    private var menuDeCategorias: some View {
+    private var chipDeCategorias: some View {
         if !busca.categorias.isEmpty {
             let marcadas = !busca.filtro.categoriaIds.isEmpty
             Button(action: abrirCategorias) {
@@ -103,11 +104,11 @@ struct ResultadosDaBuscaView<Cabecalho: View>: View {
         switch busca.estado {
         case .dica:
             mensagem("Busque por título, autor ou assunto.")
-        case .nadaEncontrado:
-            if Tokenizador.palavras(busca.texto).isEmpty {
-                mensagem("Nenhum livro passa nos filtros.")
+        case .nadaEncontrado(let buscado):
+            if let buscado = buscado {
+                mensagem("Nenhum livro encontrado para \"\(buscado)\".")
             } else {
-                mensagem("Nenhum livro encontrado para \"\(busca.texto.trimmingCharacters(in: .whitespaces))\".")
+                mensagem("Nenhum livro passa nos filtros.")
             }
         case .erro(let texto):
             MensagemDeErroView(texto: texto) {
@@ -222,7 +223,7 @@ private extension View {
             .foregroundColor(.primary)
             .padding(.horizontal, Espaco.medio)
             .padding(.vertical, Espaco.pequeno)
-            .background(Capsule().fill(marcado ? Cor.superficie : Color(uiColor: .tertiarySystemFill)))
+            .background(Capsule().fill(marcado ? Cor.superficie : Cor.campo))
             .contentShape(Capsule())
     }
 }

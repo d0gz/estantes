@@ -7,32 +7,39 @@ import SwiftUI
 /// sem o "Cancelar" (visto no log; ver Histórico de 20/10). Aqui o "Cancelar" é um botão da barra, sempre à vista.
 /// O `BuscaViewModel` nasce a cada entrada: cancelar descarta a busca, e a próxima começa do zero.
 struct BuscaView: View {
+    /// O texto do campo e do botão do Inicio (um parece o outro).
+    static let textoDoCampo = "Título, autor ou assunto"
+    /// No iOS 16, o foco (e o `isPresented` da navegação) dado antes de a tela terminar de entrar se perde.
+    private static let esperaDaEntrada: UInt64 = 400_000_000
+
+    /// O que fazer ao entrar. Fora o padrão, só as capturas usam (sem teclado na frente; Filtros ou Categorias
+    /// já abertas), como a `AcaoInicial` do Inicio e de Categorias.
+    enum AcaoInicial {
+        case focarNoCampo
+        case nenhuma
+        case abrirFiltros
+        case abrirCategorias
+    }
+
     @StateObject private var busca: BuscaViewModel
     private let miniaturas: CarregadorDeMiniaturas
-    private let focarAoAbrir: Bool
-    private let abrirFiltrosAoAbrir: Bool
-    private let abrirCategoriasAoAbrir: Bool
+    private let acaoInicial: AcaoInicial
 
     @State private var mostrandoFiltros = false
     @State private var mostrandoCategorias = false
-    /// O foco só vai sozinho ao campo na primeira vez: na volta de Filtros ou do Detalhe, o teclado cobriria a lista.
+    /// A ação inicial só vale na primeira vez: na volta de Filtros ou do Detalhe, o teclado cobriria a lista.
     @State private var jaApareceu = false
     @FocusState private var campoFocado: Bool
     @Environment(\.dismiss) private var voltar
 
-    /// `focarAoAbrir` e os `abrir…AoAbrir` só servem às capturas (sem teclado na frente; Filtros já aberta).
     init(
         viewModel: @autoclosure @escaping () -> BuscaViewModel,
         miniaturas: CarregadorDeMiniaturas,
-        focarAoAbrir: Bool = true,
-        abrirFiltrosAoAbrir: Bool = false,
-        abrirCategoriasAoAbrir: Bool = false
+        acaoInicial: AcaoInicial = .focarNoCampo
     ) {
-        self.abrirCategoriasAoAbrir = abrirCategoriasAoAbrir
         _busca = StateObject(wrappedValue: viewModel())
         self.miniaturas = miniaturas
-        self.focarAoAbrir = focarAoAbrir
-        self.abrirFiltrosAoAbrir = abrirFiltrosAoAbrir
+        self.acaoInicial = acaoInicial
     }
 
     var body: some View {
@@ -58,12 +65,16 @@ struct BuscaView: View {
         }
         .task {
             guard !jaApareceu else { return }
+            // Cancelada (a tela saiu durante a espera, por "Cancelar"): nada muda numa tela que já não está aí, e
+            // `jaApareceu` fica falso para a ação valer se ela voltar.
+            do { try await Task.sleep(nanoseconds: BuscaView.esperaDaEntrada) } catch { return }
             jaApareceu = true
-            // No iOS 16, o foco (e o `isPresented` da navegação) dado antes de a tela terminar de entrar se perde.
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            if focarAoAbrir { campoFocado = true }
-            if abrirFiltrosAoAbrir { mostrandoFiltros = true }
-            if abrirCategoriasAoAbrir { mostrandoCategorias = true }
+            switch acaoInicial {
+            case .focarNoCampo: campoFocado = true
+            case .nenhuma: break
+            case .abrirFiltros: mostrandoFiltros = true
+            case .abrirCategorias: mostrandoCategorias = true
+            }
         }
     }
 
@@ -73,7 +84,7 @@ struct BuscaView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(Cor.textoSecundario)
                 .accessibilityHidden(true)
-            TextField("Título, autor ou assunto", text: $busca.texto)
+            TextField(BuscaView.textoDoCampo, text: $busca.texto)
                 .focused($campoFocado)
                 .submitLabel(.search)
                 .onSubmit { campoFocado = false }
@@ -89,10 +100,17 @@ struct BuscaView: View {
                 .accessibilityLabel("Limpar o texto")
             }
         }
-        .padding(.horizontal, Espaco.medio)
-        .padding(.vertical, Espaco.pequeno)
-        .background(Color(uiColor: .tertiarySystemFill))
-        .cantos(Raio.medio)
+        .campoDeBusca()
+    }
+}
+
+private extension View {
+    /// A cápsula do campo de busca, igual no campo da "Busca" e no botão do Inicio (um parece o outro).
+    func campoDeBusca() -> some View {
+        padding(.horizontal, Espaco.medio)
+            .padding(.vertical, Espaco.pequeno)
+            .background(Cor.campo)
+            .cantos(Raio.medio)
     }
 }
 
@@ -102,14 +120,11 @@ struct BotaoDeBusca: View {
         NavigationLink(value: RotaDaBusca()) {
             HStack(spacing: Espaco.pequeno) {
                 Image(systemName: "magnifyingglass")
-                Text("Título, autor ou assunto")
+                Text(BuscaView.textoDoCampo)
                 Spacer(minLength: 0)
             }
             .foregroundColor(Cor.textoSecundario)
-            .padding(.horizontal, Espaco.medio)
-            .padding(.vertical, Espaco.pequeno)
-            .background(Color(uiColor: .tertiarySystemFill))
-            .cantos(Raio.medio)
+            .campoDeBusca()
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Buscar por título, autor ou assunto")
