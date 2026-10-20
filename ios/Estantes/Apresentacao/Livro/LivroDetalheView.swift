@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Detalhe de um livro: cabeçalho centralizado (miniatura, título em serifa, subtítulo, volume e autores), um cartão
-/// por grupo com os campos preenchidos (rótulo em cima, valor embaixo) e "Apagar livro" no fim, num cartão próprio.
+/// por grupo com os campos preenchidos (rótulo em cima, valor embaixo), o cartão "Sumário" (prévia, sumário completo e a
+/// folha de edição) e "Apagar livro" no fim, num cartão próprio.
 struct LivroDetalheView: View {
     @StateObject private var viewModel: LivroDetalheViewModel
     @Environment(\.dismiss) private var dismiss
@@ -25,20 +26,26 @@ struct LivroDetalheView: View {
     private let escolha: @MainActor (UUID) -> EscolhaDeCategoriasViewModel
     private let formularioDeCategoria: @MainActor (CategoriaFormularioViewModel.Modo) -> CategoriaFormularioViewModel
     @State private var escolhendoCategorias: Bool
+    /// A folha "Editar sumário"; também vem da montagem.
+    private let edicaoDoSumario: @MainActor (UUID) -> EditarSumarioViewModel
+    @State private var editandoSumario: Bool
 
     /// - Parameters:
     ///   - abrirConfirmacao: abre a confirmação de apagar logo de início (só as capturas usam).
     ///   - abrirFormulario: abre a edição logo de início (só as capturas usam).
     ///   - abrirCategorias: abre a escolha de categorias logo de início (só as capturas usam).
+    ///   - abrirSumario: abre a edição do sumário logo de início (só as capturas usam).
     init(
         viewModel: @autoclosure @escaping () -> LivroDetalheViewModel,
         miniaturas: CarregadorDeMiniaturas,
         formulario: @escaping @MainActor (LivroFormularioViewModel.Modo) -> LivroFormularioViewModel,
         escolha: @escaping @MainActor (UUID) -> EscolhaDeCategoriasViewModel,
         formularioDeCategoria: @escaping @MainActor (CategoriaFormularioViewModel.Modo) -> CategoriaFormularioViewModel,
+        edicaoDoSumario: @escaping @MainActor (UUID) -> EditarSumarioViewModel,
         abrirConfirmacao: Bool = false,
         abrirFormulario: Bool = false,
-        abrirCategorias: Bool = false
+        abrirCategorias: Bool = false,
+        abrirSumario: Bool = false
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
         self.miniaturas = miniaturas
@@ -48,6 +55,8 @@ struct LivroDetalheView: View {
         _confirmandoExclusao = State(initialValue: abrirConfirmacao)
         _editando = State(initialValue: abrirFormulario)
         _escolhendoCategorias = State(initialValue: abrirCategorias)
+        self.edicaoDoSumario = edicaoDoSumario
+        _editandoSumario = State(initialValue: abrirSumario)
     }
 
     var body: some View {
@@ -64,6 +73,9 @@ struct LivroDetalheView: View {
             }
             .sheet(isPresented: $escolhendoCategorias, onDismiss: { Task { await viewModel.carregar() } }) {
                 EscolhaDeCategoriasView(viewModel: escolha(viewModel.livroId), formulario: formularioDeCategoria)
+            }
+            .sheet(isPresented: $editandoSumario, onDismiss: { Task { await viewModel.carregar() } }) {
+                EditarSumarioView(viewModel: edicaoDoSumario(viewModel.livroId))
             }
             .task { await viewModel.carregar() }
             .aoVoltar { await viewModel.carregar() }
@@ -94,6 +106,7 @@ struct LivroDetalheView: View {
                     ForEach(LivroDetalheViewModel.grupos(de: livro)) { grupo in
                         cartao(grupo)
                     }
+                    cartaoDoSumario(livro)
                     botaoApagar
                 }
                 .padding(Espaco.padrao)
@@ -224,6 +237,61 @@ struct LivroDetalheView: View {
         .padding(.horizontal, Espaco.padrao)
         .padding(.vertical, Espaco.medio)
         .accessibilityElement(children: .combine)
+    }
+
+    /// Os primeiros itens (`previaDoSumario`), "Ver sumário completo (N)" quando há mais, e o botão que abre a folha de
+    /// edição. Sem sumário, uma frase e "Adicionar sumário".
+    private func cartaoDoSumario(_ livro: Livro) -> some View {
+        let previa = LivroDetalheViewModel.previaDoSumario(livro.itensSumario)
+        return VStack(alignment: .leading, spacing: Espaco.pequeno) {
+            Text("Sumário")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(Cor.textoSecundario)
+                .padding(.horizontal, Espaco.minimo)
+                .accessibilityAddTraits(.isHeader)
+            VStack(spacing: 0) {
+                if previa.itens.isEmpty {
+                    Text("Com o sumário, a busca acha os temas dentro do livro.")
+                        .foregroundColor(Cor.textoSecundario)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Espaco.padrao)
+                        .padding(.vertical, Espaco.medio)
+                } else {
+                    ForEach(previa.itens) { item in
+                        ItemDoSumarioView(item)
+                            .padding(.horizontal, Espaco.padrao)
+                            .padding(.vertical, Espaco.pequeno)
+                    }
+                }
+                if previa.temMais {
+                    Divider().padding(.leading, Espaco.padrao)
+                    NavigationLink {
+                        SumarioCompletoView(itens: livro.itensSumario)
+                    } label: {
+                        acaoDoSumario("Ver sumário completo (\(previa.total))")
+                    }
+                    .buttonStyle(EstiloLinha())
+                }
+                Divider().padding(.leading, Espaco.padrao)
+                Button {
+                    editandoSumario = true
+                } label: {
+                    acaoDoSumario(previa.itens.isEmpty ? "Adicionar sumário" : "Editar sumário")
+                }
+                .buttonStyle(EstiloLinha())
+            }
+            .padding(.top, previa.itens.isEmpty ? 0 : Espaco.pequeno)
+            .cartao()
+        }
+    }
+
+    private func acaoDoSumario(_ texto: String) -> some View {
+        Text(texto)
+            .foregroundColor(Cor.destaque)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Espaco.padrao)
+            .padding(.vertical, Espaco.medio)
+            .contentShape(Rectangle())
     }
 
     /// No fim da tela, num cartão próprio; a confirmação continua a mesma.

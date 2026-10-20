@@ -67,4 +67,9 @@ struct Dependencias {
     func fazerEscolhaDeCategoriasViewModel(livroId: UUID) -> EscolhaDeCategoriasViewModel {
         EscolhaDeCategoriasViewModel(livroId: livroId, repositorio: repositorio)
     }
+
+    @MainActor
+    func fazerEditarSumarioViewModel(livroId: UUID) -> EditarSumarioViewModel {
+        EditarSumarioViewModel(livroId: livroId, repositorio: repositorio)
+    }
 }

@@ -60,7 +60,7 @@ enum DadosDeExemplo {
                   subtitulo: "Direito das obrigações: Contrato coletivo do trabalho. Contratos especiais de trabalho",
                   autores: ["Miranda, Pontes de"], editora: "Borsoi", local: "Rio de Janeiro", edicao: "2.ª ed.",
                   volume: 48, volumeRotulo: "Tomo XLVIII", parte: "Parte especial", ano: 1965, prateleira: "caixa azul",
-                  categoriaIds: [civil.id]),
+                  categoriaIds: [civil.id], itensSumario: sumarioDoTomo48),
             Livro(id: tratadoTomo47, estanteId: escritorio.id, titulo: "Tratado de direito privado",
                   autores: ["Miranda, Pontes de"], editora: "Borsoi", local: "Rio de Janeiro",
                   volume: 47, volumeRotulo: "Tomo XLVII", parte: "Parte especial", ano: 1965, prateleira: "caixa azul"),
@@ -95,6 +95,26 @@ enum DadosDeExemplo {
             doLivro: tratadoTomo48
         )
     }
+
+    /// Sumário no formato do contrato de campos (PLANO): pré-textual em romanos, divisões sem página, § com a
+    /// numeração separada e subitens numerados como filhos na mesma página. Mais de 10 itens: o Detalhe mostra
+    /// "Ver sumário completo". Texto ilustrativo, não transcrito do livro.
+    private static let sumarioDoTomo48: [ItemSumario] = [
+        ItemSumario(nivel: 1, titulo: "Nota explicativa", pagina: "ix"),
+        ItemSumario(nivel: 1, numeracao: "Título LIII", titulo: "Contrato coletivo de trabalho"),
+        ItemSumario(nivel: 2, numeracao: "Capítulo I", titulo: "Conceito e natureza"),
+        ItemSumario(nivel: 3, numeracao: "§ 5.108", titulo: "Conceito e natureza do contrato coletivo", pagina: "3"),
+        ItemSumario(nivel: 4, numeracao: "1.", titulo: "Conceito", pagina: "3"),
+        ItemSumario(nivel: 4, numeracao: "2.", titulo: "Figurantes coletivos", pagina: "3"),
+        ItemSumario(nivel: 3, numeracao: "§ 5.109", titulo: "Pressupostos e requisitos", pagina: "12"),
+        ItemSumario(nivel: 3, numeracao: "§ 5.110", titulo: "Eficácia do contrato coletivo", pagina: "21"),
+        ItemSumario(nivel: 2, numeracao: "Capítulo II", titulo: "Conteúdo e interpretação"),
+        ItemSumario(nivel: 3, numeracao: "§ 5.111", titulo: "Cláusulas obrigacionais", pagina: "34"),
+        ItemSumario(nivel: 3, numeracao: "§ 5.112", titulo: "Cláusulas normativas", pagina: "41"),
+        ItemSumario(nivel: 3, numeracao: "§ 5.113", titulo: "Interpretação", pagina: "52"),
+        ItemSumario(nivel: 1, numeracao: "Título LIV", titulo: "Contratos especiais de trabalho"),
+        ItemSumario(nivel: 2, numeracao: "§ 5.114", titulo: "Contrato de aprendizagem", pagina: "67"),
+    ]
 
     /// Foto desenhada (capa ou folha de rosto fictícia), em JPEG como viria da câmera. Sem fotos reais de livros:
     /// direitos autorais (mesma regra das fotos do conjunto de avaliação).
@@ -171,6 +191,8 @@ enum Captura: String {
     case apagarLivro = "ApagarLivro"
     case livroDetalheSemCategoria = "LivroDetalheSemCategoria"
     case escolhaDeCategorias = "EscolhaDeCategorias"
+    case editarSumario = "EditarSumario"
+    case editarSumarioVazio = "EditarSumarioVazio"
     case formularioNovo = "FormularioNovo"
     case formularioEditar = "FormularioEditar"
     case formularioColaborador = "FormularioColaborador"
@@ -231,6 +253,22 @@ enum Captura: String {
                     dependencias: $0,
                     caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48),
                     folhaInicial: FolhaPendente(.categorias, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo48))
+                )
+            }
+        case .editarSumario:
+            ComExemplos {
+                NavegacaoView(
+                    dependencias: $0,
+                    caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo48),
+                    folhaInicial: FolhaPendente(.sumario, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo48))
+                )
+            }
+        case .editarSumarioVazio:
+            ComExemplos {
+                NavegacaoView(
+                    dependencias: $0,
+                    caminhoInicial: Self.caminho(DadosDeExemplo.escritorio, livro: DadosDeExemplo.tratadoTomo47),
+                    folhaInicial: FolhaPendente(.sumario, em: RotaDoLivro(livroId: DadosDeExemplo.tratadoTomo47))
                 )
             }
         case .apagarLivro:
