@@ -113,6 +113,24 @@ final class BibliotecaIndexadaTests: XCTestCase {
         XCTAssertEqual(peloFiltro, [])
     }
 
+    // A gravação da categoria deu certo e só a releitura da lista falhou: não vira erro, e o índice velho
+    // (com o nome antigo) não pode continuar. A busca seguinte monta tudo de novo.
+    func testReleituraDeCategoriasQueFalhaDescartaOIndice() async throws {
+        var categoria = Categoria(nome: "Constitucional", cor: .verde)
+        try await base.salvar(categoria)
+        lassalle.categoriaIds = [categoria.id]
+        try await base.salvar(lassalle)
+        try await biblioteca.preparar()
+
+        categoria.nome = "Teoria do Estado"
+        base.falharAoLer = true
+        try await biblioteca.salvar(categoria)
+        base.falharAoLer = false
+
+        let peloNomeNovo = try await ids("teoria")
+        XCTAssertEqual(peloNomeNovo, [lassalle.id])
+    }
+
     // MARK: - Falhas e ordem
 
     func testGravacaoQueFalhaLancaOErroENaoMudaOIndice() async throws {

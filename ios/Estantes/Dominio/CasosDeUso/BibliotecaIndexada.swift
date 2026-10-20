@@ -4,13 +4,19 @@ import Foundation
 /// uma gravação bem-sucedida, atualiza o `MotorDeBusca` (padrão Decorador). Quem grava não sabe que
 /// existe um índice, então nenhum ViewModel precisa lembrar de avisá-lo.
 ///
-/// `actor` porque o motor é estado que muda: duas gravações e uma busca ao mesmo tempo poderiam deixar
-/// o índice pela metade. O actor deixa entrar uma chamada de cada vez.
+/// `actor` porque o motor é estado que muda: o actor garante que dois trechos de código nunca mexem no motor ao
+/// mesmo tempo (não há índice "pela metade"). Ele **não** põe em fila uma chamada inteira: em cada `await` (ler o
+/// banco, gravar, esperar a montagem), outra chamada pode entrar (reentrância). Por isso a montagem é uma `Task`
+/// guardada e tem uma `geracao`; e duas gravações do mesmo livro ao mesmo tempo poderiam atualizar o índice na
+/// ordem inversa da do banco (as telas gravam uma coisa de cada vez, então isso não acontece hoje).
 actor BibliotecaIndexada: BibliotecaRepositorio {
     private let base: BibliotecaRepositorio
-    /// A montagem do índice, guardada como `Task` para que quem chega durante ela espere a mesma
-    /// montagem em vez de começar outra: num `await`, o actor deixa outra chamada entrar (reentrância).
+    /// A montagem em andamento: quem chega durante ela espera a mesma, em vez de começar outra.
     private var montagem: Task<MotorDeBusca, Error>?
+    /// Sobe a cada montagem nova e a cada descarte do índice. Quem termina de esperar uma montagem só grava o
+    /// resultado (ou a esquece, se falhou) se a geração ainda for a sua: senão um descarte feito no meio da espera
+    /// seria desfeito com o índice velho.
+    private var geracao = 0
     private var motor: MotorDeBusca?
 
     init(base: BibliotecaRepositorio) {
@@ -32,18 +38,35 @@ actor BibliotecaIndexada: BibliotecaRepositorio {
 
     private func motorPronto() async throws -> MotorDeBusca {
         if let motor = motor { return motor }
-        let tarefa = montagem ?? Task { [base] in
-            MotorDeBusca(livros: try await base.todosOsLivros(), categorias: try await base.categorias())
+        let tarefa: Task<MotorDeBusca, Error>
+        if let emAndamento = montagem {
+            tarefa = emAndamento
+        } else {
+            geracao += 1
+            tarefa = Task { [base] in
+                MotorDeBusca(livros: try await base.todosOsLivros(), categorias: try await base.categorias())
+            }
+            montagem = tarefa
         }
-        montagem = tarefa
+        let minhaGeracao = geracao
         do {
             let montado = try await tarefa.value
-            if motor == nil { motor = montado }
+            if geracao == minhaGeracao, motor == nil {
+                motor = montado
+                montagem = nil
+            }
             return motor ?? montado
         } catch {
-            montagem = nil
+            if geracao == minhaGeracao { montagem = nil }
             throw error
         }
+    }
+
+    /// Esquece o índice: a próxima busca monta tudo de novo, e uma montagem que termine depois disto é ignorada.
+    private func descartarIndice() {
+        geracao += 1
+        motor = nil
+        montagem = nil
     }
 
     /// Aplica a mudança ao índice depois de uma gravação bem-sucedida. Índice ainda não montado: nada a
@@ -54,20 +77,23 @@ actor BibliotecaIndexada: BibliotecaRepositorio {
             // Se a montagem falhar, o próximo `preparar` lê tudo de novo, com esta gravação.
             _ = try? await motorPronto()
         }
-        guard motor != nil else { return }
-        mudanca(&motor!)
+        guard var atualizado = motor else { return }
+        // Sai do `motor` antes de mudar: com dois donos, o dicionário do índice seria copiado inteiro.
+        motor = nil
+        mudanca(&atualizado)
+        motor = atualizado
     }
 
     /// Depois de criar, renomear ou apagar uma categoria: o motor precisa da lista inteira, relida.
-    /// Se a releitura falhar, a gravação já deu certo e não deve virar erro: o índice é descartado e a
-    /// próxima busca monta tudo de novo.
+    /// Sem índice nem montagem, não há o que atualizar (a montagem vai ler a lista nova). Se a releitura
+    /// falhar, a gravação já deu certo e não deve virar erro: o índice é descartado.
     private func atualizarCategoriasDoIndice() async {
+        guard motor != nil || montagem != nil else { return }
         do {
             let categorias = try await base.categorias()
             await atualizarIndice { $0.atualizar(categorias: categorias) }
         } catch {
-            motor = nil
-            montagem = nil
+            descartarIndice()
         }
     }
 
