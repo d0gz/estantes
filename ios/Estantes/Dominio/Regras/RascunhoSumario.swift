@@ -112,9 +112,17 @@ struct RascunhoSumario: Equatable {
 
     // MARK: Montagem
 
-    /// Os itens prontos para gravar no `Livro`.
+    /// A `ValidacaoSumario` sobre os itens já limpos (título só de espaços conta como vazio). Os índices dos
+    /// problemas são as posições em `itens`.
+    func validacao() -> ValidacaoSumario.Resultado {
+        ValidacaoSumario.validar(itensLimpos)
+    }
+
+    /// Os itens prontos para gravar no `Livro`, ou `nil` se houver erro (`validacao()` diz quais). Aviso não
+    /// impede.
     func montar() -> [ItemSumario]? {
-        itensLimpos
+        let limpos = itensLimpos
+        return ValidacaoSumario.validar(limpos).valido ? limpos : nil
     }
 
     /// Cada texto pela `Normalizacao.textoLimpo`; numeração e página vazias viram `nil`. O título vazio vira `""`

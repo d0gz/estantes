@@ -196,4 +196,71 @@ final class RascunhoSumarioTests: XCTestCase {
 
         XCTAssertEqual(rascunho.itens.map(\.nivel), [1, 3])
     }
+
+    // MARK: T5 — limpeza ao montar
+
+    func testMontarLimpaEspacosEQuebrasDosTextos() {
+        var rascunho = RascunhoSumario(itens: [])
+        let id = rascunho.adicionarNoFim()
+        rascunho.atualizar(
+            RascunhoSumario.Item(
+                id: id, nivel: 1, numeracao: "  Capítulo   II ", titulo: "Das\n  obrigações ", pagina: " 45 ",
+                origem: .manual
+            )
+        )
+
+        XCTAssertEqual(
+            rascunho.montar(),
+            [ItemSumario(id: id, nivel: 1, numeracao: "Capítulo II", titulo: "Das obrigações", pagina: "45")]
+        )
+    }
+
+    func testMontarTrocaNumeracaoEPaginaEmBrancoPorNil() {
+        var rascunho = RascunhoSumario(itens: [])
+        let id = rascunho.adicionarNoFim()
+        rascunho.atualizar(
+            RascunhoSumario.Item(id: id, nivel: 1, numeracao: "   ", titulo: "Introdução", pagina: "", origem: .manual)
+        )
+
+        XCTAssertEqual(rascunho.montar(), [ItemSumario(id: id, nivel: 1, numeracao: nil, titulo: "Introdução")])
+    }
+
+    // MARK: T6 — validação ao montar
+
+    /// Título só de espaços conta como vazio: a validação olha o texto já limpo.
+    func testTituloEmBrancoEErroENaoMonta() {
+        var rascunho = rascunhoABC
+        var item = rascunho.itens[1]
+        item.titulo = "   "
+        rascunho.atualizar(item)
+
+        XCTAssertEqual(rascunho.validacao().erros, [.tituloVazio(indice: 1)])
+        XCTAssertNil(rascunho.montar())
+    }
+
+    /// Apagar a seção deixa o § (nível 3) logo depois do capítulo (nível 1).
+    func testSaltoDeNivelDepoisDeApagarOPaiEErroENaoMonta() {
+        var rascunho = rascunhoEmEscada
+        rascunho.apagar(IndexSet(integer: 1))
+
+        XCTAssertEqual(rascunho.validacao().erros, [.saltoDeNivel(indice: 1)])
+        XCTAssertNil(rascunho.montar())
+    }
+
+    /// Página que volta (45 → 12) é só aviso: o sumário monta.
+    func testPaginaMenorQueAAnteriorEAvisoEMontaMesmoAssim() {
+        let rascunho = RascunhoSumario(itens: [
+            ItemSumario(id: idA, nivel: 1, titulo: "A", pagina: "45"),
+            ItemSumario(id: idB, nivel: 1, titulo: "B", pagina: "12"),
+        ])
+
+        XCTAssertEqual(
+            rascunho.validacao(),
+            ValidacaoSumario.Resultado(erros: [], avisos: [.paginaMenorQueAnterior(indice: 1)])
+        )
+        XCTAssertEqual(rascunho.montar(), [
+            ItemSumario(id: idA, nivel: 1, titulo: "A", pagina: "45"),
+            ItemSumario(id: idB, nivel: 1, titulo: "B", pagina: "12"),
+        ])
+    }
 }
