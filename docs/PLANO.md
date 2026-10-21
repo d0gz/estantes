@@ -741,7 +741,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
   (2.8, `/decidir` de 21/10, Histórico de 21/10): regra pura `Mesclagem` + `substituirBiblioteca` atômico na porta;
   `CodificadorDeBiblioteca` (porta) implementado por `BibliotecaExportadaV1` (Dados); menu ⋯ com Exportar
-  (`ShareLink`), Importar (`fileImporter` + confirmação Mesclar/Substituir tudo) e, só em `DEBUG || EXEMPLOS`,
+  (folha de compartilhar do UIKit, T2), Importar (`fileImporter` + confirmação Mesclar/Substituir tudo) e, só em `DEBUG || EXEMPLOS`,
   "Carregar dados de exemplo"; CI com a opção `exemplos` no "Run workflow".
   Passos: 1 `ConteudoDaBiblioteca` + `Mesclagem` ✅ · 2 `ValidacaoDaBiblioteca` ✅ (ids repetidos, categoria inexistente,
   nome de categoria pela `NomeDeCategoria`, ISBN fora da forma gravada, sumário com erro na `ValidacaoSumario`; avisos
@@ -751,8 +751,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   exportar → importar → comparar no Core Data) ·
   6 tela e exemplos ✅ (`ExportacaoViewModel` próprio com os exemplos injetados pelas `Dependencias` (T1); folha de
   compartilhar do UIKit (T2); ids fixos em todos os exemplos) · 7 CI ✅ (opção `exemplos` no "Run workflow" → artefato `Estantes-exemplos-ipa`).
-  **Onde paramos (21/10, branch `fase2/exportar-importar`, 534 testes):** passos 1–6 concluídos; próximo: passo 7
-  (opção `exemplos` no "Run workflow"), revisores, PR e `.ipa` no iPhone.
+  **Onde paramos (21/10, branch `fase2/exportar-importar`, 534 testes):** passos 1–7 concluídos; próximo: revisores
+  (`revisor` + `revisor-spec`), PR, CI e `.ipa` com exemplos no iPhone.
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
 
 ## Identificação de livros e sumário (Fases 3 e 4)
