@@ -745,10 +745,11 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   "Carregar dados de exemplo"; CI com a opção `exemplos` no "Run workflow".
   Passos: 1 `ConteudoDaBiblioteca` + `Mesclagem` ✅ · 2 `ValidacaoDaBiblioteca` ✅ (ids repetidos, categoria inexistente,
   nome de categoria pela `NomeDeCategoria`, ISBN fora da forma gravada, sumário com erro na `ValidacaoSumario`; avisos
-  passam) · 3 porta `CodificadorDeBiblioteca` + `BibliotecaExportadaV1` · 4 `substituirBiblioteca` · 5 casos de uso ·
+  passam) · 3 porta `CodificadorDeBiblioteca` + `BibliotecaExportadaV1` ✅ (formato F1–F4: chaves = campos, ISO 8601 com
+  milissegundos, opcional vazio sem chave, saída ordenada) · 4 `substituirBiblioteca` · 5 casos de uso ·
   6 tela e exemplos · 7 CI.
-  **Onde paramos (21/10, branch `fase2/exportar-importar`, 505 testes):** passos 1 e 2 concluídos; próximo: passo 3,
-  começando por mostrar ao Ricardo o JSON v1 de exemplo (as chaves congelam o formato).
+  **Onde paramos (21/10, branch `fase2/exportar-importar`, 514 testes):** passos 1–3 concluídos; próximo: passo 4
+  (`substituirBiblioteca` atômico no Core Data, no repositório em memória dos testes e na `BibliotecaIndexada`).
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
 
 ## Identificação de livros e sumário (Fases 3 e 4)
