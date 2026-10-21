@@ -743,8 +743,12 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   `CodificadorDeBiblioteca` (porta) implementado por `BibliotecaExportadaV1` (Dados); menu ⋯ com Exportar
   (`ShareLink`), Importar (`fileImporter` + confirmação Mesclar/Substituir tudo) e, só em `DEBUG || EXEMPLOS`,
   "Carregar dados de exemplo"; CI com a opção `exemplos` no "Run workflow".
-  **Onde paramos (21/10, branch `fase2/exportar-importar`, 490 testes):** decisões tomadas; próximo: contextualização dos
-  tipos novos e OK das fronteiras de teste, depois o passo 1 (`ConteudoDaBiblioteca` + `Mesclagem`).
+  Passos: 1 `ConteudoDaBiblioteca` + `Mesclagem` ✅ · 2 `ValidacaoDaBiblioteca` ✅ (ids repetidos, categoria inexistente,
+  nome de categoria pela `NomeDeCategoria`, ISBN fora da forma gravada, sumário com erro na `ValidacaoSumario`; avisos
+  passam) · 3 porta `CodificadorDeBiblioteca` + `BibliotecaExportadaV1` · 4 `substituirBiblioteca` · 5 casos de uso ·
+  6 tela e exemplos · 7 CI.
+  **Onde paramos (21/10, branch `fase2/exportar-importar`, 505 testes):** passos 1 e 2 concluídos; próximo: passo 3,
+  começando por mostrar ao Ricardo o JSON v1 de exemplo (as chaves congelam o formato).
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
 
 ## Identificação de livros e sumário (Fases 3 e 4)
