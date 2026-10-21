@@ -167,4 +167,18 @@ final class BibliotecaIndexadaTests: XCTestCase {
         let achados = try await ids("lassalle")
         XCTAssertEqual(achados, [lassalle.id])
     }
+
+    // MARK: - Biblioteca inteira (importação)
+
+    func testDepoisDeSubstituirABibliotecaABuscaAchaOImportadoENaoOQueSaiu() async throws {
+        try await biblioteca.preparar()
+        let pontes = Livro(estanteId: escritorio.id, titulo: "Tratado de direito privado", autores: ["Pontes de Miranda"])
+
+        try await biblioteca.substituirBiblioteca(por: ConteudoDaBiblioteca(estantes: [escritorio], livros: [pontes]))
+
+        let importado = try await ids("tratado")
+        let queSaiu = try await ids("lassalle")
+        XCTAssertEqual(importado, [pontes.id])
+        XCTAssertEqual(queSaiu, [])
+    }
 }

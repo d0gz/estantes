@@ -184,4 +184,13 @@ actor BibliotecaIndexada: BibliotecaRepositorio {
     func quantidadeDeLivrosPorCategoria() async throws -> [UUID: Int] {
         try await base.quantidadeDeLivrosPorCategoria()
     }
+
+    // MARK: - Biblioteca inteira
+
+    /// A importação troca quase tudo (livros, estantes e categorias): em vez de atualizar livro a livro, o índice
+    /// é descartado e a próxima busca o monta de novo a partir do banco já gravado.
+    func substituirBiblioteca(por conteudo: ConteudoDaBiblioteca) async throws {
+        try await base.substituirBiblioteca(por: conteudo)
+        descartarIndice()
+    }
 }

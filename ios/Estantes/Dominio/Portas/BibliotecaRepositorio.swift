@@ -48,4 +48,11 @@ protocol BibliotecaRepositorio {
     func apagarCategoria(id: UUID) async throws
     /// Quantos livros têm cada categoria. Toda categoria aparece, com 0 se não estiver em nenhum livro.
     func quantidadeDeLivrosPorCategoria() async throws -> [UUID: Int]
+
+    // MARK: Biblioteca inteira
+
+    /// Deixa a biblioteca igual ao `conteudo`, de uma vez: ou grava tudo, ou nada muda (importação, 21/10).
+    /// O que não está no conteúdo é apagado; o livro que continua (mesmo id) mantém a foto, que o arquivo
+    /// não traz. Livro que aponta para estante ou categoria fora do conteúdo lança erro, sem gravar nada.
+    func substituirBiblioteca(por conteudo: ConteudoDaBiblioteca) async throws
 }

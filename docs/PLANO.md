@@ -746,10 +746,11 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   Passos: 1 `ConteudoDaBiblioteca` + `Mesclagem` ✅ · 2 `ValidacaoDaBiblioteca` ✅ (ids repetidos, categoria inexistente,
   nome de categoria pela `NomeDeCategoria`, ISBN fora da forma gravada, sumário com erro na `ValidacaoSumario`; avisos
   passam) · 3 porta `CodificadorDeBiblioteca` + `BibliotecaExportadaV1` ✅ (formato F1–F4: chaves = campos, ISO 8601 com
-  milissegundos, opcional vazio sem chave, saída ordenada) · 4 `substituirBiblioteca` · 5 casos de uso ·
+  milissegundos, opcional vazio sem chave, saída ordenada) · 4 `substituirBiblioteca` ✅ (um contexto e um `save`;
+  grava antes e apaga depois; a `BibliotecaIndexada` descarta o índice) · 5 casos de uso ·
   6 tela e exemplos · 7 CI.
-  **Onde paramos (21/10, branch `fase2/exportar-importar`, 514 testes):** passos 1–3 concluídos; próximo: passo 4
-  (`substituirBiblioteca` atômico no Core Data, no repositório em memória dos testes e na `BibliotecaIndexada`).
+  **Onde paramos (21/10, branch `fase2/exportar-importar`, 519 testes):** passos 1–4 concluídos; próximo: passo 5
+  (casos de uso `ExportarBiblioteca` e `ImportarBiblioteca` + teste exportar → importar → comparar).
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
 
 ## Identificação de livros e sumário (Fases 3 e 4)

@@ -152,4 +152,27 @@ final class BibliotecaRepositorioEmMemoria: BibliotecaRepositorio {
             quantidades[id] = livrosGuardados.values.filter { $0.categoriaIds.contains(id) }.count
         }
     }
+
+    // MARK: Biblioteca inteira
+
+    /// Quantas vezes a biblioteca foi substituída (para conferir que a importação grava uma vez só).
+    private(set) var substituicoes = 0
+
+    func substituirBiblioteca(por conteudo: ConteudoDaBiblioteca) async throws {
+        try gravando()
+        // Confere tudo antes de mudar algo: ou grava tudo, ou nada (contrato da porta).
+        let idsDasEstantes = Set(conteudo.estantes.map(\.id))
+        let idsDasCategorias = Set(conteudo.categorias.map(\.id))
+        for livro in conteudo.livros {
+            if !idsDasEstantes.contains(livro.estanteId) { throw ErroPersistencia.estanteNaoEncontrada(livro.estanteId) }
+            if let sumida = livro.categoriaIds.first(where: { !idsDasCategorias.contains($0) }) {
+                throw ErroPersistencia.categoriaNaoEncontrada(sumida)
+            }
+        }
+        substituicoes += 1
+        estantesGuardadas = Dictionary(uniqueKeysWithValues: conteudo.estantes.map { ($0.id, $0) })
+        categoriasGuardadas = Dictionary(uniqueKeysWithValues: conteudo.categorias.map { ($0.id, $0) })
+        livrosGuardados = Dictionary(uniqueKeysWithValues: conteudo.livros.map { ($0.id, $0) })
+        fotos = fotos.filter { livrosGuardados[$0.key] != nil }
+    }
 }
