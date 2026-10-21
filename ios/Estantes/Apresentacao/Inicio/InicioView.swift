@@ -48,7 +48,17 @@ struct InicioView: View {
     }
 
     var body: some View {
-        conteudo
+        // Sempre à vista, também sem estantes. Um botão, e não `.searchable`: a busca é uma tela própria
+        // (no iOS 16, empurrar o Detalhe ou os Filtros desligava o `.searchable` da tela raiz).
+        // Numa pilha acima da lista, e não por cima dela (`safeAreaInset`): ali o título grande encolhia ao rolar e
+        // passava sobre o botão; sem a lista logo abaixo da barra, o título fica parado e só os cartões rolam.
+        VStack(spacing: 0) {
+            BotaoDeBusca()
+                .padding(.horizontal, Espaco.padrao)
+                .padding(.bottom, Espaco.pequeno)
+            conteudo
+                .frame(maxHeight: .infinity)
+        }
             .navigationTitle("Minhas estantes")
             .toolbar {
                 // Só com a lista na tela: no vazio, a ação única é o botão do estado vazio (HIG); carregando, o "+"

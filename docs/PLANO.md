@@ -344,14 +344,17 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     do peso do sumário). **Peso do sumário 0,5 → 0,25**: o plural tirou a parte estrutural da #11 e as de risco inverso
     não pioraram. Resultado: 29 de ajuste, todas em 1º (top 1, top 3, MRR e item = 1,000); pisos top 1 ≥ 0,96, MRR ≥ 0,98.
 - **Filtros** combináveis: autor, editora, faixa de anos, estante, prefixo de CDDir e categoria (chips coloridas).
+  Na tela (2.7): autor, editora e anos na tela Filtros; estantes nos chips; categorias na tela Categorias; o prefixo de
+  CDDir fica sem interface até haver livros com o dado (Fases 4/5). O `volumeRotulo` aparece na linha pela `LinhaDoLivro`.
 - **Resultado**: livro · item do sumário · página · estante · prateleira.
 
 ### Interface
 
 - Botão da câmera embaixo, centralizado.
 - Estantes em grade; estado vazio com livros esmaecidos na cor `superficie` (`#AED3FC`), frase e um botão só (ver "Inicio" abaixo).
-- Topo: último livro escaneado + campo de busca (`.searchable`): título, autor e assunto →
-  "Livro · item do sumário, p. N · Estante X · prateleira". Com a busca ativa, aparecem os chips de filtro.
+- Topo: botão com a aparência da barra de busca, que empurra a tela "Busca" (revisto em 20/10; antes `.searchable`, ver
+  2.7 no checklist); o último livro escaneado entra na Fase 3. Na "Busca", título, autor e assunto →
+  "Livro · item do sumário, p. N · Estante X · prateleira", com os chips de filtro sempre no cabeçalho.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
   menu (⋯) no canto superior.
@@ -466,7 +469,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     tons de texto do claro (fonte: as capturas). Cor gravada desconhecida (o "azul" antigo) vira cinza na leitura.
   - Componentes: `ChipDeCategoria` (com a variante fantasma "+ Categoria": `plus`, contorno tracejado em
     `textoSecundario`, sem véu) e o `FluxoDeChips` (`Layout`, iOS 16; conta das linhas pura e testada; alinhamento à
-    esquerda ou centralizado) que quebra os chips em linhas; todos visíveis, sem "+N" (serve também à 2.7). Com texto
+    esquerda ou centralizado) que quebra os chips em linhas; todos visíveis, sem "+N" (na busca da 2.7, os chips vão numa linha com rolagem horizontal: lá os resultados importam mais que os filtros; decidido em 20/10). Com texto
     grande os nomes não cortam letra a letra (captura `EstiloCategorias_1.7-textogrande`). `EstiloPressao` (encolhe e
     escurece ao tocar) em `Componentes/`, para a foto e os chips.
   - Gerenciar: menu ⋯ do Inicio (`ellipsis.circle`, à direita do "+"; por ora só "Categorias", visível também sem
@@ -513,6 +516,22 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     atual se o item já passou disso: nada é corrigido sozinho) e
     "Próximo item" (desligado sem título), que troca de item sem navegar e mantém o teclado. Item sem nada escrito
     sai ao voltar.
+
+- **Busca (2.7, decidido em 20/10 via `/decidir`; estilo E1–E4 sobre as capturas `Busca/*_1.0–1.1`, a aprovar no uso):**
+  - Inicio: botão com a aparência da barra (lupa, "Título, autor ou assunto", `tertiarySystemFill`) numa pilha acima da
+    lista (Q29), que empurra a tela "Busca" (título pequeno, "Cancelar" à direita, voltar escondido).
+  - Cabeçalho fixo sobre os resultados (`safeAreaInset` + `.ultraThinMaterial` + fio embaixo): campo próprio e a
+    linha horizontal de chips [Filtros (n)] [Categorias ▾] [estantes…]. **Categorias com escolha múltipla (Q30–Q32,
+    revisa a Q18 de escolha única):** o chip empurra a tela "Categorias" (`CategoriasDaBuscaView`: chips coloridos, ✓,
+    "Desmarcar todas"), porque o `Menu` do iOS 16 fecha a cada toque; vale OU ("qualquer uma", como as estantes e a
+    linha de 09/10); rótulo "Categorias", o nome com uma, "Categorias (2)" com mais. Chip de filtro (E1): cápsula `tertiarySystemFill`
+    desmarcado; `superficie` marcado, texto `.primary`, ✓ nas estantes e ícone `.fill` em "Filtros (n)".
+  - Resultado: a `LinhaDoLivro` da Estante + chips de categoria (só leitura) + duas linhas (E3): item do sumário e
+    página em `.primary` com `list.bullet.indent` (o motivo da busca) e estante · prateleira em `textoSecundario` com
+    `books.vertical`; no OU, "sem: …" em `.caption`.
+  - Avisos (E4): faixa com ícone, sem cartão — `wand.and.stars` na correção (com "Buscar exatamente" no `destaque`) e
+    `text.magnifyingglass` no OU, em `textoSecundario`.
+  - Tela Filtros: `Form` nativo empurrado (como o Formulário), anos com regra e erro em `Cor.perigo` no rodapé.
 
 ### Forma de trabalho nas telas (2.4 em diante)
 
@@ -678,7 +697,47 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   artigosInicio/Fim); `pagina` como texto + regra de conversão romano/arábico (`NumeroDePagina`); `ValidacaoSumario`
   comparando por sequência (escrita pelo Claude, a pedido do Ricardo); Core Data + `Conversao.swift`; `numeracao`
   e `parte` no índice; hífen no `Tokenizador`; 171 testes
-- [ ] Busca (título, autor, assunto) com filtros; exclusão com confirmação
+- [x] Busca (título, autor, assunto) com filtros; ~~exclusão com confirmação~~ (já feita na 2.4: "Apagar livro" no Detalhe)
+  **Estado final (20/10, branch `fase2/busca-interface`):**
+  - Índice: `BibliotecaIndexada` (`actor`, decorador do `BibliotecaRepositorio` em `Dominio/CasosDeUso/`; Histórico de
+    20/10) repassa cada chamada e, só depois de gravar com sucesso, atualiza o `MotorDeBusca` (`salvar(livro)` →
+    atualizar; `apagarLivro` → remover; `apagarEstante` sem destino → remove os livros, lidos antes; com destino → as
+    cópias lidas com a estante nova; categoria criada/renomeada/apagada → `atualizar(categorias:)` com a lista relida;
+    estante renomeada e foto → nada). `preparar()` idempotente, no `.task` da `NavegacaoView`; `buscar` espera a
+    montagem; falha → "Não foi possível preparar a busca." e nova tentativa na próxima. Releitura de categorias que
+    falha descarta o índice; uma `geracao` impede que uma montagem antiga desfaça o descarte.
+  - Telas: no Inicio, `BotaoDeBusca` (aparência da barra) numa pilha acima da lista (Q29) → tela empurrada **"Busca"**
+    (`BuscaView`: campo próprio focado ao entrar, "Cancelar" à direita com o voltar escondido, `BuscaViewModel` novo a
+    cada entrada). Dentro dela, cabeçalho fixo (campo + [Filtros (n)] [Categorias ▾] [estantes…], estantes só com 2 ou
+    mais), resultados, e as telas empurradas **Filtros** (autor, editora, anos de 4 dígitos; faixa invertida mostra o
+    erro e esconde o voltar, pedido do Ricardo), **Categorias** (várias, OU) e o Detalhe. Busca a cada tecla pelo
+    `.task(id: chave)`; a volta do Detalhe pede nova busca pela `chave` (`pedirNovaBusca`), sem correr em paralelo.
+  - Linha: a `LinhaDoLivro` da Estante (com o volume/`volumeRotulo` do `textoDoVolume`) + chips de categoria (só
+    leitura) + item do sumário e página / estante · prateleira (`LinhaDoResultado.item` e `.lugar`) + "sem: …" no OU.
+  - Estados: dica sem texto nem filtro; "Nenhum livro encontrado para "…"" (texto buscado guardado no estado) ou
+    "Nenhum livro passa nos filtros."; avisos de correção ("Buscar exatamente", `corrigir: false` até o texto mudar) e
+    de OU. **Editora fora da barra de busca** (só no filtro): campo a mais no BM25F, com ruído ("Livraria Freitas
+    Bastos" × o prefaciador Bastos; "Revista dos Tribunais") e peso sem medida (4 de 22 fichas). **CDDir sem interface**
+    até haver dado (Fases 4/5). "Último livro escaneado" fica para a Fase 3. Sem `[eu escrevo]`.
+  **Revisões do dia** (o desenho da manhã, depois do teste no simulador; detalhes no Histórico de 20/10):
+  ~~`.searchable` no Inicio com os resultados no lugar da grade~~ → tela "Busca" (Q25–Q28: empurrar Filtros ou o
+  Detalhe desligava o `.searchable`, visto no log) · ~~folha "Filtros"~~ → tela empurrada (Q21: tocar num campo da folha
+  desligava a busca) · ~~chips de categoria~~ e ~~`Menu` "Categoria ▾" de escolha única~~ (Q17–Q20) → tela Categorias
+  com várias (Q30–Q32: o `Menu` do iOS 16 fecha a cada toque) · ~~botão em `safeAreaInset`~~ → pilha acima da lista
+  (Q29: o título grande passava sobre ele) · ano só com 4 dígitos (Q22) · editora fora da barra (Q23).
+  Passos: 1 `BibliotecaIndexada` + testes ✅ · 2 `LinhaDoResultado` + testes ✅ · 3 `BuscaViewModel` + testes e telas ✅
+  (lógica aprovada em 20/10) · 4 estilo ✅ (E1–E4, aprovado no uso em 20/10) · 5 fechamento ✅.
+  No caminho, o diagnóstico da rolagem na primeira entrada (Estante e Categorias; Histórico de 20/10).
+  Revisão final: aplicados P1 (geração na montagem), P2 (só o teste do descarte), P3 (comentário da reentrância), P5
+  (cancelamento na entrada), P6 (`BuscaView.AcaoInicial`), P7 (`Cor.campo`, `.campoDeBusca()`, `textoDoCampo`), P8
+  (`.nadaEncontrado(texto:)`), P9 (nomes), P12 (sem `motor!`, saída cedo, corrida do `aoVoltar`) e E1–E3, E5–E8.
+  Recusados: P4 (porta própria da busca: um uso só; rever se outra tela buscar) e P11 (voltar escondido com a faixa
+  invertida: pedido do Ricardo). **Dívidas:** testes da reentrância da montagem e da gravação durante ela (pedem um
+  repositório falso que pause a leitura); P10 (a `LinhaDoLivro` chama `LivroDetalheViewModel.textoDoVolume` e
+  `EstanteViewModel.linhaSecundaria`: mover para um tipo neutro com testes); conferir no Xcode 26 o aviso do
+  `onChange(of:)` da `FiltrosDaBuscaView`.
+  **Onde paramos (20/10, branch `fase2/busca-interface`, 490 testes):** 2.7 concluída; PR aberto. **Próximo: 2.8
+  (exportar/importar)**, numa branch nova depois do merge, pelo `/decidir`.
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
 - [ ] Simulador iOS 16 e CI verde (Sideloadly no iPhone adiado até haver aparelho)
 
@@ -962,3 +1021,7 @@ Regras contra omissão:
 | 20/10 | Sumário editado numa folha própria aberta pelo Detalhe, gravando o `Livro` inteiro no "Salvar"; não no formulário do livro nem gravando a cada mudança | O formulário ficaria enorme com centenas de itens e misturaria ficha e sumário; gravar a cada mudança tiraria o "Cancelar". Repete o fluxo da escolha de categorias (mesma limitação conhecida) |
 | 20/10 | Editar um item do sumário preserva a `origem`; só o item novo é `manual` | O JSON v1 (2.8) congela o significado. Virar `manual` a cada correção apagaria o rastro de foto/LexML/Gemini que a avaliação do parser (Fase 3) usa |
 | 20/10 | Na folha "Editar sumário", a tela de item é empurrada por `navigationDestination(isPresented:)`, com itens-botão e a seta desenhada; não por `navigationDestination(for:)` com caminho | No iOS 16, o destino por tipo numa folha aberta de dentro da pilha principal põe o app em laço (CPU a 100%, Detalhe preso no "carregando"), também com um tipo próprio no lugar do `UUID`. `NavigationLink(value:)` depende do destino por tipo; uma folha sobre a folha contrariaria a tela empurrada decidida para o item |
+| 20/10 | Índice da busca mantido por um decorador `actor` do `BibliotecaRepositorio` (`BibliotecaIndexada`, no Domínio), que atualiza o `MotorDeBusca` só depois de cada gravação bem-sucedida; montado ao abrir o app | Um lugar só sabe o que muda o índice e se testa com o repositório em memória. Descartados: cada ViewModel avisar o índice (6+ lugares, fácil esquecer um), remontar a cada busca (relê o banco a cada tecla, contraria o PLANO) e classe `@MainActor` (busca na thread da interface e Domínio preso a ela) |
+| 20/10 | Busca numa tela empurrada "Busca", com campo próprio (`TextField` + `@FocusState`) e "Cancelar"; no Inicio, só um botão com a aparência da barra. Revisa a decisão da manhã (`.searchable` no Inicio, resultados no lugar da grade) | No iOS 16, empurrar Filtros ou o Detalhe desliga o `.searchable` da tela raiz (visto no log) e ele volta inativo, sem "Cancelar"; remendos sobre o `isSearching` não seguravam os três casos. Descartados: `.searchable` dentro da tela Busca (o "Cancelar" continuaria sumindo) e busca em folha com pilha própria (laço do `navigationDestination(for:)` numa folha). Custo: o campo perde o vidro nativo do iOS 26 |
+| 20/10 | Telas empurradas com título grande têm a rolagem (`ScrollView` ou `List`) na tela desde o primeiro quadro, com carregando, vazio e erro dentro dela (Estante) ou por cima dela (Categorias, que usa `List`) | Na primeira entrada na Estante e em Categorias, rolar não encolhia o título e a barra ficava sem fundo sobre a lista (vindo da 2.4/2.5, visto só agora). Causa, por laço de captura com rolagem por código (verde com ida e volta ao Detalhe, vermelho no `main` e na branch): o iOS escolhe a rolagem que a barra acompanha quando a tela aparece, e a lista só surgia depois do "carregando". Descartado: esconder o "carregando" (a leitura pode demorar no aparelho). Sem teste de regressão: só um XCUITest alcançaria a barra. Detalhe e Inicio passaram no mesmo laço |
+| 20/10 | Na busca, categorias com escolha múltipla (OU) numa tela empurrada "Categorias", aberta pelo chip "Categorias ▾"; revisa a escolha única no `Menu` decidida no mesmo dia (Q18) | Pedido do Ricardo: buscar em mais de uma categoria. O `Menu` do iOS 16 fecha a cada toque (mantê-lo aberto é do 16.4, que o Xcode 14.2 não compila). Descartados: `Menu` com ✓ (abrir uma vez por categoria) e uma seção dentro de Filtros (esconderia um filtro à vista). OU como nas estantes (linha de 09/10); E daria lista vazia com duas categorias raras |

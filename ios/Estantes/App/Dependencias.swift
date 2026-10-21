@@ -6,12 +6,17 @@ import Foundation
 /// pelo `init`. Trocar o banco (ou usar um em memória nas capturas) muda só este arquivo.
 /// É um valor criado uma vez no `EstantesApp`, não um singleton.
 struct Dependencias {
+    /// O repositório que as telas usam: o da `base` embrulhado na `BibliotecaIndexada`, para que toda
+    /// gravação atualize o índice da busca sem que os ViewModels saibam dele.
     let repositorio: BibliotecaRepositorio
+    /// O mesmo objeto do `repositorio`, com o tipo concreto: a busca (`buscar`) não faz parte da porta.
+    let biblioteca: BibliotecaIndexada
     /// Um só para o app: o cache das miniaturas vale entre telas (voltar à estante não relê as fotos).
     let miniaturas: CarregadorDeMiniaturas
 
-    init(repositorio: BibliotecaRepositorio) {
-        self.repositorio = repositorio
+    init(repositorio base: BibliotecaRepositorio) {
+        biblioteca = BibliotecaIndexada(base: base)
+        repositorio = biblioteca
         miniaturas = CarregadorDeMiniaturas(repositorio: repositorio)
     }
 
@@ -33,6 +38,11 @@ struct Dependencias {
     @MainActor
     func fazerInicioViewModel() -> InicioViewModel {
         InicioViewModel(repositorio: repositorio)
+    }
+
+    @MainActor
+    func fazerBuscaViewModel() -> BuscaViewModel {
+        BuscaViewModel(biblioteca: biblioteca)
     }
 
     @MainActor

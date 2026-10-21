@@ -16,14 +16,6 @@ struct EstanteView: View {
     @State private var escolhendoCategoriasDe: Livro?
 
     @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
-    @Environment(\.dynamicTypeSize) private var tamanhoDoTexto
-    /// Largura da miniatura: cresce com o texto grande, para acompanhar o título ao lado.
-    @ScaledMetric(relativeTo: .body) private var larguraEscalada: CGFloat = 44
-
-    /// Com teto de 1,5× (66 pt): nos tamanhos de acessibilidade ela passava de um terço da linha e espremia o título.
-    private var larguraDaMiniatura: CGFloat {
-        min(larguraEscalada, 66)
-    }
 
     init(
         viewModel: @autoclosure @escaping () -> EstanteViewModel,
@@ -68,8 +60,17 @@ struct EstanteView: View {
     }
 
     /// Troca de estado (carregando → lista ou vazio) com a mola `suave`, como no Inicio.
+    /// Uma `ScrollView` só, presente desde o primeiro quadro, com os estados dentro: o iOS escolhe a rolagem que a
+    /// barra acompanha quando a tela aparece. Com a lista surgindo só depois do "carregando", não havia nenhuma, e na
+    /// primeira entrada o título grande não encolhia (a barra ficava sem fundo sobre os livros).
     private var conteudo: some View {
-        estadoAtual.animacaoSuave(valor: viewModel.estado)
+        GeometryReader { tela in
+            ScrollView {
+                estadoAtual
+                    .frame(maxWidth: .infinity, minHeight: tela.size.height)
+                    .animacaoSuave(valor: viewModel.estado)
+            }
+        }
     }
 
     private var entrada: AnyTransition {
@@ -103,14 +104,14 @@ struct EstanteView: View {
             .padding(Espaco.padrao)
             .transition(entrada)
         case .pronta(let grupos):
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: Espaco.grande) {
-                    ForEach(grupos, id: \.prateleira) { grupo in
-                        prateleira(grupo)
-                    }
+            LazyVStack(alignment: .leading, spacing: Espaco.grande) {
+                ForEach(grupos, id: \.prateleira) { grupo in
+                    prateleira(grupo)
                 }
-                .padding(Espaco.padrao)
             }
+            .padding(Espaco.padrao)
+            // Em cima, e não centralizada no espaço de "ao menos a altura da tela".
+            .frame(maxHeight: .infinity, alignment: .top)
             .transition(entrada)
         case .erro(let texto):
             MensagemDeErroView(texto: texto) {
@@ -135,7 +136,7 @@ struct EstanteView: View {
             VStack(spacing: 0) {
                 ForEach(Array(grupo.livros.enumerated()), id: \.element.id) { indice, livro in
                     if indice > 0 {
-                        Divider().padding(.leading, Espaco.padrao + larguraDaMiniatura + Espaco.medio)
+                        DivisorDeLinhaDoLivro()
                     }
                     NavigationLink(value: RotaDoLivro(livroId: livro.id)) {
                         linha(livro)
@@ -157,46 +158,9 @@ struct EstanteView: View {
     }
 
     private func linha(_ livro: Livro) -> some View {
-        // Nos tamanhos de acessibilidade, os chips ocupam a linha inteira, embaixo da miniatura: na coluna ao lado dela,
-        // um nome como "Constitucional" não cabia e quebrava no meio da palavra.
-        let chipsNaLarguraDaLinha = tamanhoDoTexto.isAccessibilitySize
-        return VStack(alignment: .leading, spacing: Espaco.pequeno) {
-            HStack(alignment: .top, spacing: Espaco.medio) {
-                MiniaturaDoLivro(livroId: livro.id, carregador: miniaturas, largura: larguraDaMiniatura)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(livro.titulo)
-                        .font(Fonte.tituloLivroNaLista)
-                        .foregroundColor(.primary)
-                        // Nos tamanhos de acessibilidade, o título inteiro: cortado em 3 linhas, sobravam duas palavras.
-                        .lineLimit(tamanhoDoTexto.isAccessibilitySize ? nil : 3)
-                    if let volume = LivroDetalheViewModel.textoDoVolume(livro) {
-                        Text(volume)
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                    }
-                    if let secundaria = EstanteViewModel.linhaSecundaria(livro) {
-                        Text(secundaria)
-                            .font(.subheadline)
-                            .foregroundColor(Cor.textoSecundario)
-                    }
-                    if !chipsNaLarguraDaLinha {
-                        chips(de: livro)
-                            .padding(.top, Espaco.pequeno)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            if chipsNaLarguraDaLinha {
-                chips(de: livro)
-            }
+        LinhaDoLivro(livro: livro, miniaturas: miniaturas) {
+            chips(de: livro)
         }
-        .multilineTextAlignment(.leading)
-        .padding(.horizontal, Espaco.padrao)
-        .padding(.vertical, Espaco.medio)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // A linha inteira é tocável, não só o texto.
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
     }
 
     /// Os chips do livro, ou o fantasma "+ Categoria" sem nenhuma. Um botão dentro do botão da linha: o toque nos chips

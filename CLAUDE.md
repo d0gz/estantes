@@ -70,9 +70,12 @@ todas as telas; 361 testes; PR #23 mergeado em 16/10), 2.5 (categorias: paleta d
 fluxo de chips, tela de gerenciar, escolha no Detalhe e na Estante; 400 testes; PR #24 mergeado) e 2.5b (conferência
 do modelo com o OCR do Gemini: matéria no `subtitulo`, `Livro.colaboradores`, CDU na `FichaExtraida`, "Contrato de
 campos" no PLANO; 408 testes; PR #25 mergeado) e 2.6 (sumário manual: `RascunhoSumario` no Domínio, cartão no
-Detalhe, folha "Editar sumário" e tela de item com "Próximo item"; 449 testes; branch `fase2/sumario`).
-**Próximo: 2.7 — busca na interface** (branch nova depois do merge da 2.6; começar pelo `/decidir`; "Onde paramos" no
-checklist do PLANO; forma de trabalho em "Forma de trabalho nas telas"). Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
+Detalhe, folha "Editar sumário" e tela de item com "Próximo item"; 449 testes; PR #26 mergeado) e 2.7 (busca na
+interface: `BibliotecaIndexada` (actor decorador que mantém o índice), tela "Busca" própria com campo, chips, telas
+Filtros e Categorias; correção da rolagem na primeira entrada da Estante e de Categorias; 490 testes; branch
+`fase2/busca-interface`).
+**Próximo: 2.8 — exportar/importar** (branch nova depois do merge da 2.7; começar pelo `/decidir`; "Onde paramos" no
+checklist do PLANO). Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que

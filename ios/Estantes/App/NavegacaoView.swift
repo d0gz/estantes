@@ -34,6 +34,9 @@ struct NavegacaoView: View {
                 abrirCategorias: { caminho.append(RotaDasCategorias()) },
                 acaoInicial: acaoInicial
             )
+                .navigationDestination(for: RotaDaBusca.self) { _ in
+                    BuscaView(viewModel: dependencias.fazerBuscaViewModel(), miniaturas: dependencias.miniaturas)
+                }
                 .navigationDestination(for: RotaDasCategorias.self) { _ in
                     CategoriasView(
                         viewModel: dependencias.fazerCategoriasViewModel(),
@@ -69,6 +72,9 @@ struct NavegacaoView: View {
                     .onAppear { folhaPendente?.esquecer(se: rota) }
                 }
         }
+        // O índice da busca começa a ser montado ao abrir o app, sem prender a tela. A falha é ignorada
+        // aqui de propósito: a primeira busca tenta de novo e aí mostra o erro.
+        .task { try? await dependencias.biblioteca.preparar() }
     }
 }
 

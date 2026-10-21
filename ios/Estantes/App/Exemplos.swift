@@ -201,6 +201,13 @@ enum Captura: String {
     case categoriaNova = "CategoriaNova"
     case categoriaEditar = "CategoriaEditar"
     case apagarCategoria = "ApagarCategoria"
+    case busca = "Busca"
+    case buscaCorrecao = "BuscaCorrecao"
+    case buscaOU = "BuscaOU"
+    case buscaDica = "BuscaDica"
+    case buscaFiltros = "BuscaFiltros"
+    case buscaMarcada = "BuscaMarcada"
+    case buscaCategorias = "BuscaCategorias"
     case estilo = "Estilo"
     case estiloTelas = "EstiloTelas"
     case estiloCategorias = "EstiloCategorias"
@@ -325,6 +332,31 @@ enum Captura: String {
                     caminhoInicial: Self.caminhoDasCategorias
                 )
             }
+        case .busca:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "contrato coletivo") }
+        case .buscaCorrecao:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "constitucinal") }
+        case .buscaOU:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "constitucional stf") }
+        case .buscaDica:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "") }
+        case .buscaMarcada:
+            ComExemplos {
+                BuscaDeExemplo(
+                    dependencias: $0, texto: "direito",
+                    filtro: FiltroBusca(estanteIds: [DadosDeExemplo.escritorio.id], categoriaIds: [DadosDeExemplo.civil.id])
+                )
+            }
+        case .buscaCategorias:
+            ComExemplos {
+                BuscaDeExemplo(
+                    dependencias: $0, texto: "direito",
+                    filtro: FiltroBusca(categoriaIds: [DadosDeExemplo.civil.id, DadosDeExemplo.constitucional.id]),
+                    mostrarCategorias: true
+                )
+            }
+        case .buscaFiltros:
+            ComExemplos { BuscaDeExemplo(dependencias: $0, texto: "direito", mostrarFiltros: true) }
         case .estilo:
             CatalogoDeEstiloView(pagina: .fundamentos)
         case .estiloTelas:
@@ -347,6 +379,32 @@ enum Captura: String {
             caminho.append(RotaDoLivro(livroId: livro))
         }
         return caminho
+    }
+}
+
+/// A tela "Busca" já com o texto digitado (o `simctl` não digita), sem foco no campo: o teclado cobriria a lista.
+@MainActor
+private struct BuscaDeExemplo: View {
+    let dependencias: Dependencias
+    let texto: String
+    var filtro = FiltroBusca()
+    var mostrarFiltros = false
+    var mostrarCategorias = false
+
+    var body: some View {
+        NavigationStack {
+            BuscaView(
+                viewModel: comTexto(dependencias.fazerBuscaViewModel()),
+                miniaturas: dependencias.miniaturas,
+                acaoInicial: mostrarFiltros ? .abrirFiltros : mostrarCategorias ? .abrirCategorias : .nenhuma
+            )
+        }
+    }
+
+    private func comTexto(_ busca: BuscaViewModel) -> BuscaViewModel {
+        busca.texto = texto
+        busca.filtro = filtro
+        return busca
     }
 }
 #endif
