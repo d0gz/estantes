@@ -3123,3 +3123,106 @@ Dois fatos de método: o defeito vinha da 2.4/2.5 (vermelho também no `main`), 
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.8 — Exportar/importar a biblioteca e o .ipa com dados de exemplo (2026-10-21)
+
+### O que foi feito
+A biblioteca inteira passou a poder sair do app como um arquivo JSON e voltar, em dois modos (mesclar ou substituir). No Domínio: `ConteudoDaBiblioteca`, as regras puras `Mesclagem` e `ValidacaoDaBiblioteca`, a porta `CodificadorDeBiblioteca` e os casos de uso `ExportarBiblioteca`/`ImportarBiblioteca`. Em Dados: `BibliotecaExportadaV1` (o formato, com DTOs privados) e `substituirBiblioteca(por:)` no repositório Core Data. Na tela: `ExportacaoViewModel`, `FolhaDeCompartilhar` e itens no menu do Início. Na CI: a opção `exemplos` do "Run workflow", que gera um `.ipa` com dados de exemplo (`Exemplos.swift`). Foram 490 → 539 testes, cada passo em vermelho → verde.
+
+### Conceitos envolvidos
+
+**1. Atomicidade com contexto descartável (Core Data).** Uma importação em "substituir" mexe em dezenas de objetos. Se falhar no meio e cada objeto fosse salvo na hora, o usuário ficaria com uma biblioteca pela metade. O repositório abre um contexto novo, faz *todas* as alterações em memória e chama `save` uma única vez. O contexto é a "área de rascunho" do Core Data: nada vai ao banco antes do `save`; se um `throw` sai antes dele, o contexto é jogado fora e o banco nunca viu nada. Isso é uma transação com o menor esforço possível: o SQLite por baixo faz o `save` como uma transação só (tudo ou nada). Em `substituirBiblioteca`, os `throw` de `estanteNaoEncontrada`/`categoriaNaoEncontrada` acontecem antes do `gravar`.
+
+**2. Gravar/atualizar antes, apagar depois (cascata).** A relação estante → livros tem regra de exclusão em *cascata*: apagar a estante apaga seus livros. Suponha que o arquivo move o livro L da estante A para a B e remove A. Se apagássemos A primeiro, L iria junto na cascata, e perderíamos um livro que deveria continuar. Fazendo na ordem certa (grava tudo, reatribui `livroMO.estante = B`, e só então apaga o que sobrou de fora), o L já não pertence a A quando A é apagada.
+
+```mermaid
+flowchart LR
+  A[Ler tudo: categorias, estantes, livros] --> B[Gravar ou atualizar pelo id]
+  B --> C[Reatribuir estante e categorias]
+  C --> D[Apagar o que não está no conteúdo]
+  D --> E[Um único save]
+```
+
+Um detalhe que vale: o livro que continua é *o mesmo objeto* (`livrosAntigos[livro.id]`), não um apagado e recriado. É por isso que a `fotoMiniatura`, que não faz parte do arquivo, sobrevive.
+
+**3. Mesclagem como regra pura e a ordem dos passos.** `Mesclagem.mesclar` recebe dois valores e devolve um terceiro, sem tocar em banco. Isso a deixa testável sem Core Data. A ideia central: "o arquivo vence por UUID" (um backup existe para restaurar). A subtileza está em categorias, que têm nome único. Ordem obrigatória:
+1. O arquivo renomeia (vence pelo UUID).
+2. Se esse renome colidiu com uma categoria que só existe no aparelho, as duas se fundem na do arquivo (os livros do aparelho são remapeados).
+3. Só então as categorias *novas* do arquivo procuram nome igual entre as existentes.
+
+Invertendo 2 e 3 você poderia reaproveitar uma categoria que logo em seguida seria absorvida, deixando livros apontando para um id que sumiu. É um exemplo de que, em regras que dependem uma da outra, a ordem faz parte da especificação. O remapeamento (`[UUID: UUID]`) é a estrutura que registra "este id virou aquele" e é aplicado aos `categoriaIds` dos livros. Custo: O(n) em cada `unir` (dicionário + conjunto); a busca por nome na fusão é O(c²) em categorias, irrelevante para dezenas de categorias.
+
+**4. Validar na fronteira (`ValidacaoDaBiblioteca`).** Um arquivo vindo de fora é entrada não confiável, mesmo que seja "seu". A regra devolve o *primeiro* `Problema?` (mesmo molde da `NomeDeCategoria`) e checa: ids repetidos, categoria inexistente, nome de categoria, ISBN fora da forma gravada e sumário com erro. Os itens do sumário ficam de fora da checagem de ids repetidos porque o repositório os recria sem procurar pelo id. A prova de que a validação precisa estar *também* em `importar` (P4): ao tirá-la, o teste caiu com `Fatal error: Duplicate values for key` no `Dictionary(uniqueKeysWithValues:)` do falso. Ou seja, conteúdo incoerente chegava ao repositório; quem confia que "a tela já validou" cria um caminho de crash. Princípio: cada camada que *depende* de um invariante o garante ou o verifica.
+
+**5. DTO em vez de `Codable` nas entidades; congelar um formato.** Se `Livro: Codable`, o formato do arquivo passa a ser "o que a struct tiver hoje". Renomear um campo ou adicionar um quebra backups antigos sem ninguém perceber. `BibliotecaExportadaV1` tem DTOs `private` com as chaves escritas à mão: o arquivo só muda quando decidimos mudar. O custo é código de conversão; o ganho é que o formato é um contrato separado do modelo interno. As cores e origens são `String` convertidas manualmente: valor desconhecido → arquivo inválido, em vez de um valor padrão que esconde o problema.
+
+**6. Versão lida primeiro, num envelope.** O decodificador lê antes só `{ "versao": N }`. Se N é maior que o conhecido, devolve `ErroDeImportacao.versaoMaisNova(N)` ("atualize o app"); só então decodifica a estrutura completa. Motivo: um v2 pode ter outra estrutura inteira, e decodificar com os tipos do v1 falharia com um erro genérico e enganoso. Regra geral: todo formato persistido leva um número de versão no início, lido antes do resto.
+
+**7. Datas em ISO 8601 e precisão.** Formato textual, com milissegundos. O que passa do milissegundo se perde (testado: 1_792_594_603.738_4 → .738). Os valores esperados dos testes foram calculados fora do Swift (Python, UTC: 2026-10-21T14:56:43Z = 1_792_594_603), porque recalcular com o mesmo `ISO8601DateFormatter` testaria o código contra ele mesmo (teste tautológico).
+
+**8. Determinismo: `Set` não tem ordem.** Duas fontes de não determinismo apareceram. (a) `categoriaIds` é um `Set`; ao exportar, ordenamos, senão o mesmo conteúdo geraria arquivos diferentes a cada execução (ruim para diff, para testes e para comparar backups). Além disso `prettyPrinted + sortedKeys` fixam a ordem das chaves. (b) Na validação, o problema citado para "categorias inexistentes" usa ids ordenados; sem isso a mensagem mudaria entre execuções. **Teste que passa por sorte:** com 2 ids, uma implementação sem ordenação acertaria a ordem em 1 de 2 execuções (50%); com 5 ids, em 1 de 120 (1/5!). Para testar determinismo, aumente o espaço de possibilidades até que acertar por acaso seja desprezível. Um erro meu no caminho: o teste procurava `"C…01"\n`, mas o primeiro id do array vem seguido de vírgula; troquei por uma regex.
+
+**9. Teste que nasce verde e a mutação.** O teste "sumário substituído em bloco" passou de primeira, o que é um sinal de alerta: um teste que nunca foi vermelho não prova que consegue falhar. A técnica é a *mutação manual*: altera-se a implementação para o comportamento errado (juntar os itens dos dois lados), confirma-se que o teste falha e desfaz-se. É a versão artesanal do "mutation testing". Do mesmo tipo, o teste da busca só ficou vermelho "pelo motivo certo" depois que o falso em memória passou a substituir de verdade.
+
+**10. Compilação condicional e conferência no binário.** `#if DEBUG || EXEMPLOS` é decidido em *tempo de compilação*: o código fora da condição nem entra no binário. `DEBUG` vem de `SWIFT_ACTIVE_COMPILATION_CONDITIONS` no build Debug; a CI acrescenta `EXEMPLOS`. O valor `$(inherited)` significa "o que já estava definido neste nível acima"; ele passa literal pela variável de ambiente do GitHub e quem o expande é o `xcodebuild`. Sem o `$(inherited)`, substituiríamos as condições do Release em vez de acrescentar. A conferência foi feita com `strings` no binário: o Release com `EXEMPLOS` contém os dados; o normal só traz o rótulo do item (que fica inalcançável). Lição: "funciona" não basta quando a questão é *o que vai dentro do binário*; verifique o artefato.
+
+**11. Ids fixos nos exemplos.** `Exemplos.swift` usa UUIDs literais em todos os livros e categorias. Como carregar exemplos passa pela mesclagem (o arquivo vence por UUID), carregar de novo *atualiza* o que já está lá. Com UUIDs gerados a cada chamada, reabrir o app e carregar outra vez duplicaria tudo.
+
+**12. Compartilhar e seletor de arquivos (iOS).** `FolhaDeCompartilhar` embrulha o `UIActivityViewController`. O `ShareLink` exigiria o arquivo pronto antes do toque e não abre por código (decisão T2). Para *ler* um arquivo escolhido no seletor, o iOS entrega uma URL fora da caixa-preta do app: é preciso `startAccessingSecurityScopedResource()` antes de ler e `stopAccessing…` depois (idealmente com `defer`); sem isso a leitura falha com erro de permissão, e só em arquivos de fora do app (por exemplo iCloud Drive), o que dificulta perceber nos testes.
+
+**13. `ImportacaoPendente` e a igualdade por `id` (P1).** O ViewModel guarda o arquivo lido, esperando a confirmação do usuário no diálogo. Ler *o mesmo arquivo de novo* produzia um valor igual ao anterior; o `onChange` do SwiftUI só dispara quando o valor muda, então o diálogo não reabria. A solução foi dar a `ImportacaoPendente` um `id` e definir a igualdade comparando só ele. Bônus: o `onChange` deixa de comparar a biblioteca inteira a cada verificação (custo proporcional ao tamanho do arquivo).
+
+### Por que assim
+- **Regra pura + gravação atômica (Q4):** a lógica difícil (mesclar, validar) fica testável sem banco; o repositório só grava. Um laço de `salvar` item a item deixaria um backup pela metade se falhasse.
+- **Arquivo vence por UUID (Q3):** "o aparelho vence" não restauraria nada; "o mais recente vence" exigiria uma data de alteração no modelo, que ele não tem.
+- **Fusão de categorias de mesmo nome (Q9):** rejeitar o arquivo seria hostil; renomear para "Nome (2)" cria lixo que o usuário teria que limpar.
+- **Rejeitar o arquivo inteiro se for inválido (Q6)** e **ISBN com hífens rejeitado, sumário com erro rejeitado:** previsibilidade; importar "o que dá" esconde perdas.
+- **JSON v1 sem fotos (Q5):** fotos pesariam muito e o arquivo deixaria de ser legível; a foto de um livro que continua é preservada pelo id, também em "substituir".
+- **Exemplos em disco, por item do menu (Q1, Q2, Q8):** em memória sumiriam sempre que o iOS fecha o app; uma carga automática com o banco vazio impediria testar o estado vazio.
+- **`ExportacaoViewModel` próprio (T1):** o `InicioViewModel` não pode receber como valor padrão um codificador da camada Dados (violaria "Domínio/Apresentação não conhecem Dados"). Os exemplos entram pelas `Dependencias` com `#if`, e a View fica sem `#if`.
+- **`ExportarBiblioteca.conteudoInteiro()` como extensão da porta:** só junta leituras que já existem; um método novo obrigaria todos os implementadores a escrevê-lo.
+- **`confirmarImportacao` devolve `Bool`** ("mudou") e a View recarrega o Início: uma closure no `init` criaria objetos a cada redesenho.
+- **Nota honesta (P5):** três leituras seguidas (estantes, categorias, livros) não formam um instantâneo consistente; se algo escrever no meio, o arquivo pode misturar momentos. Hoje não há escritor concorrente; ficou comentado.
+
+### Alternativas descartadas
+- `Codable` direto nas entidades: acopla o arquivo ao modelo.
+- Laço de `salvar` por item: não é atômico.
+- Carga automática de exemplos no banco vazio; exemplos em memória.
+- `ShareLink` (T2): exige arquivo pronto e não abre por código.
+- Leitura assíncrona do arquivo e log (P3): custo sem necessidade com arquivos desse tamanho.
+- Build extra com `EXEMPLOS` a cada push: gasta minutos de macOS na CI para um artefato que só se quer sob demanda.
+- Incluir fotos no JSON ou um pacote (zip): complexidade que o v1 não precisa; o formato é versionado e pode crescer no v2.
+
+### Padrões e boas práticas
+- **Ports & Adapters (hexagonal):** `CodificadorDeBiblioteca` é uma porta; o JSON é um detalhe de Dados. NÃO crie porta quando só existe um uso e nenhuma razão para trocar (como se decidiu na 2.7 para a busca); aqui ela existe porque o Domínio não pode importar o formato.
+- **Funções puras para regras:** entra valor, sai valor, sem relógio nem banco.
+- **Versionar formatos persistidos e rejeitar o desconhecido** em vez de adivinhar.
+- **Saída determinística** para tudo que vira arquivo.
+- **Teste com mutação** para checar que o teste enxerga o defeito.
+- **Verificar o artefato**, não só o código (`strings` no binário).
+
+### Armadilhas
+- Apagar antes de reatribuir, com cascata, perde dados em silêncio.
+- `Dictionary(uniqueKeysWithValues:)` com chaves repetidas **derruba o processo** (trap, não erro tratável). Por isso as validações vêm antes, e o `todos(...)` usa `uniquingKeysWith`.
+- `Set` iterado sem ordenar muda a ordem entre execuções.
+- Valor igual não dispara `onChange`: dê identidade ao evento, não só ao conteúdo.
+- Esquecer `stopAccessingSecurityScopedResource` vaza acesso; esquecer o `start` falha só com arquivos externos.
+- `$(inherited)` esquecido substitui as flags em vez de acrescentar.
+- Dívida: o `testar.sh` não mostra quedas do processo de testes; o crash do `Duplicate values for key` só foi notado pela falta da linha "Executed". Quando o resumo some, desconfie de crash, não de "zero falhas".
+
+### Para ir além
+- Apple, *Core Data Programming Guide* e a documentação de `NSManagedObjectContext.save()` e `NSDeleteRule` (cascade).
+- Documentação Apple de `UIActivityViewController` e `URL.startAccessingSecurityScopedResource()`.
+- Martin Kleppmann, *Designing Data-Intensive Applications*, cap. 4 (codificação e evolução de formatos).
+
+### Perguntas
+1. Com suas palavras: por que `substituirBiblioteca` usa um contexto só e um único `save`? O que o usuário veria se cada objeto fosse salvo separadamente e a importação falhasse no meio?
+2. Aplicação: o arquivo traz o livro L na estante B, mas no aparelho ele está na estante A, e A não existe no arquivo. Em que ordem o repositório precisa agir para L sobreviver? E o que aconteceria se `Mesclagem` passasse a usar "o mais recente vence" em vez de "o arquivo vence"? Que campo novo o modelo precisaria?
+3. Raciocínio: aparelho tem as categorias "Civil" (id X) e "Penal" (id Y). O arquivo tem X renomeada para "Penal". Descreva o resultado da mesclagem (quantas categorias, qual id fica, para onde apontam os livros que estavam em Y). Depois diga por que um teste de determinismo com apenas 2 ids em um `Set` seria fraco.
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
