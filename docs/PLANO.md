@@ -750,9 +750,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   grava antes e apaga depois; a `BibliotecaIndexada` descarta o índice) · 5 casos de uso ✅ (`conteudoInteiro()` como extensão da porta;
   exportar → importar → comparar no Core Data) ·
   6 tela e exemplos · 7 CI.
-  **Onde paramos (21/10, branch `fase2/exportar-importar`, 524 testes):** passos 1–5 concluídos; próximo: passo 6
-  (menu ⋯ do Inicio: exportar, importar, carregar exemplos; `InicioViewModel` com testes; `Exemplos.swift` em
-  `DEBUG || EXEMPLOS`).
+  **Onde paramos (21/10, branch `fase2/exportar-importar`, 534 testes):** passos 1–6 concluídos; próximo: passo 7
+  (opção `exemplos` no "Run workflow"), revisores, PR e `.ipa` no iPhone.
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
 
 ## Identificação de livros e sumário (Fases 3 e 4)

@@ -1,10 +1,13 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Tela inicial: as estantes em grade de cartões (`CartaoDeEstante`) e, sem estantes, a ilustração do vazio.
 /// Fica dentro do `NavigationStack` montado em `App/Navegacao`: cada cartão só empurra a `Estante`,
 /// e a montagem decide qual tela abrir.
 struct InicioView: View {
     @StateObject private var viewModel: InicioViewModel
+    /// Exportar, importar e (nos builds com exemplos) carregar os dados de exemplo, no menu ⋯.
+    @StateObject private var exportacao: ExportacaoViewModel
 
     /// O que o alerta com campo de texto está pedindo: um nome para uma estante nova ou para renomear uma.
     private enum PedidoDeNome {
@@ -21,6 +24,12 @@ struct InicioView: View {
     @State private var exclusao: PedidoDeExclusao?
     @State private var confirmandoExclusao = false
     @State private var escolhendoDestino = false
+
+    /// Importação: o seletor de arquivos e a pergunta "mesclar ou substituir". Um `Bool` próprio, e não ligado
+    /// à importação pendente, pelo mesmo motivo da exclusão: ao tocar numa ação, o SwiftUI zera o `Bool` antes
+    /// de a ação usar o que foi lido.
+    @State private var escolhendoArquivo = false
+    @State private var confirmandoImportacao = false
 
     @Environment(\.dynamicTypeSize) private var tamanhoDoTexto
     @Environment(\.accessibilityReduceMotion) private var reduzirMovimento
@@ -39,10 +48,12 @@ struct InicioView: View {
     /// `@autoclosure`: o `StateObject` cria o ViewModel uma vez só, mesmo que a tela seja recriada.
     init(
         viewModel: @autoclosure @escaping () -> InicioViewModel,
+        exportacao: @autoclosure @escaping () -> ExportacaoViewModel,
         abrirCategorias: @escaping () -> Void,
         acaoInicial: AcaoInicial? = nil
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
+        _exportacao = StateObject(wrappedValue: exportacao())
         self.abrirCategorias = abrirCategorias
         self.acaoInicial = acaoInicial
     }
@@ -73,12 +84,33 @@ struct InicioView: View {
                         }
                     }
                 }
-                // Também no vazio: dá para criar categorias antes de ter estantes. Por ora só "Categorias";
-                // exportar e importar entram aqui na 2.8.
+                // Também no vazio: dá para criar categorias antes de ter estantes, e importar um backup num
+                // aparelho novo.
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button(action: abrirCategorias) {
                             Label("Categorias", systemImage: "tag")
+                        }
+                        Divider()
+                        Button {
+                            Task { await exportacao.exportarBiblioteca() }
+                        } label: {
+                            Label("Exportar biblioteca", systemImage: "square.and.arrow.up")
+                        }
+                        Button {
+                            escolhendoArquivo = true
+                        } label: {
+                            Label("Importar…", systemImage: "square.and.arrow.down")
+                        }
+                        if exportacao.podeCarregarExemplos {
+                            Divider()
+                            Button {
+                                Task {
+                                    if await exportacao.carregarExemplos() { await viewModel.carregar() }
+                                }
+                            } label: {
+                                Label("Carregar dados de exemplo", systemImage: "books.vertical")
+                            }
                         }
                     } label: {
                         Label("Mais opções", systemImage: "ellipsis.circle")
@@ -126,6 +158,12 @@ struct InicioView: View {
                 Text("A estante \"\(pedido.estante.nome)\" será apagada depois de mover os livros.")
             }
             .alertaDeErro($viewModel.mensagemDeErro)
+            .modifier(ExportacaoEImportacao(
+                exportacao: exportacao,
+                escolhendoArquivo: $escolhendoArquivo,
+                confirmandoImportacao: $confirmandoImportacao,
+                aoImportar: { await viewModel.carregar() }
+            ))
     }
 
     /// Troca de estado (carregando → lista ou vazio) e cartões que entram ou saem: com a mola `suave`.
@@ -287,6 +325,58 @@ struct InicioView: View {
             case .nova: await viewModel.criarEstante(nome: nome)
             case .renomear(let estante): await viewModel.renomear(estante, para: nome)
             }
+        }
+    }
+}
+
+/// Folha de compartilhar, seletor de arquivos, pergunta "mesclar ou substituir" e o aviso do resultado.
+/// À parte do `body` do Inicio, que já tem os alertas das estantes (e o Xcode 14 demora a conferir um `body` longo).
+private struct ExportacaoEImportacao: ViewModifier {
+    @ObservedObject var exportacao: ExportacaoViewModel
+    @Binding var escolhendoArquivo: Bool
+    @Binding var confirmandoImportacao: Bool
+    let aoImportar: @MainActor () async -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: $exportacao.arquivoExportado) { arquivo in
+                FolhaDeCompartilhar(url: arquivo.url)
+            }
+            .fileImporter(isPresented: $escolhendoArquivo, allowedContentTypes: [.json]) { resultado in
+                if case .success(let url) = resultado {
+                    exportacao.lerArquivo(url)
+                }
+            }
+            .onChange(of: exportacao.importacaoPendente) { pendente in
+                confirmandoImportacao = pendente != nil
+            }
+            .confirmationDialog(
+                "Importar biblioteca", isPresented: $confirmandoImportacao, titleVisibility: .visible,
+                presenting: exportacao.importacaoPendente
+            ) { _ in
+                Button("Mesclar") { importar(.mesclar) }
+                Button("Substituir tudo", role: .destructive) { importar(.substituir) }
+                Button("Cancelar", role: .cancel) { exportacao.cancelarImportacao() }
+            } message: { pendente in
+                Text("\(pendente.resumo)\n\nMesclar junta o arquivo à biblioteca. Substituir tudo apaga o que não "
+                     + "estiver no arquivo.")
+            }
+            .alert(
+                exportacao.aviso?.titulo ?? "", isPresented: avisoAberto, presenting: exportacao.aviso
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { aviso in
+                Text(aviso.mensagem)
+            }
+    }
+
+    private var avisoAberto: Binding<Bool> {
+        Binding(get: { exportacao.aviso != nil }, set: { if !$0 { exportacao.aviso = nil } })
+    }
+
+    private func importar(_ modo: ImportarBiblioteca.Modo) {
+        Task {
+            if await exportacao.confirmarImportacao(modo) { await aoImportar() }
         }
     }
 }
