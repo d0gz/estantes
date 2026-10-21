@@ -35,22 +35,26 @@ enum Mesclagem {
         // O arquivo pode ter renomeado uma categoria para o nome de outra que só existe no aparelho:
         // a do aparelho é absorvida pela do arquivo (que venceu pelo UUID).
         for local in resultado where !idsDoArquivo.contains(local.id) {
-            let chave = Normalizacao.chave(local.nome)
-            if let doArquivo = resultado.first(where: { idsDoArquivo.contains($0.id) && Normalizacao.chave($0.nome) == chave }) {
+            if let doArquivo = categoria(comONomeDe: local, em: resultado.filter { idsDoArquivo.contains($0.id) }) {
                 remapeamento[local.id] = doArquivo.id
             }
         }
         resultado.removeAll { remapeamento[$0.id] != nil }
 
         for nova in arquivo where !idsDoAparelho.contains(nova.id) {
-            let chave = Normalizacao.chave(nova.nome)
-            if let existente = resultado.first(where: { Normalizacao.chave($0.nome) == chave }) {
+            if let existente = categoria(comONomeDe: nova, em: resultado) {
                 remapeamento[nova.id] = existente.id
             } else {
                 resultado.append(nova)
             }
         }
         return (resultado, remapeamento)
+    }
+
+    /// A categoria de `candidatas` com o mesmo nome, sem diferenciar maiúsculas e acentos (como a `NomeDeCategoria`).
+    private static func categoria(comONomeDe categoria: Categoria, em candidatas: [Categoria]) -> Categoria? {
+        let chave = Normalizacao.chave(categoria.nome)
+        return candidatas.first { Normalizacao.chave($0.nome) == chave }
     }
 
     /// Ordem fixa: os do aparelho, cada um trocado pelo do arquivo com o mesmo id; depois os que só

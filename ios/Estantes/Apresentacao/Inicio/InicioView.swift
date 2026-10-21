@@ -343,8 +343,9 @@ private struct ExportacaoEImportacao: ViewModifier {
                 FolhaDeCompartilhar(url: arquivo.url)
             }
             .fileImporter(isPresented: $escolhendoArquivo, allowedContentTypes: [.json]) { resultado in
-                if case .success(let url) = resultado {
-                    exportacao.lerArquivo(url)
+                switch resultado {
+                case .success(let url): exportacao.lerArquivo(url)
+                case .failure: exportacao.arquivoNaoAberto()
                 }
             }
             .onChange(of: exportacao.importacaoPendente) { pendente in

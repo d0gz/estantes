@@ -41,4 +41,35 @@ final class ExportarImportarTests: XCTestCase {
         XCTAssertEqual(categorias, [civil, filosofia])
         XCTAssertEqual(livros, [kelsen, tratado])
     }
+
+    /// Revisão E3: mesclar no Core Data de verdade. O que só existe no aparelho fica, com a foto, e o arquivo entra.
+    func testExportarEMesclarNumBancoComOutrosLivrosJuntaOsDois() async throws {
+        let codificador = BibliotecaExportadaV1()
+        let origem = try Dependencias.emMemoria().repositorio
+        let destino = try Dependencias.emMemoria().repositorio
+
+        let escritorio = Estante(nome: "Escritório", criadaEm: Date(timeIntervalSince1970: 1_790_845_200))
+        let kelsen = Livro(estanteId: escritorio.id, titulo: "Teoria pura do direito",
+                           adicionadoEm: Date(timeIntervalSince1970: 1_792_594_603))
+        try await origem.salvar(escritorio)
+        try await origem.salvar(kelsen)
+
+        let quarto = Estante(nome: "Quarto", criadaEm: Date(timeIntervalSince1970: 1_790_845_100))
+        let reale = Livro(estanteId: quarto.id, titulo: "Lições preliminares de direito",
+                          adicionadoEm: Date(timeIntervalSince1970: 1_792_594_000))
+        try await destino.salvar(quarto)
+        try await destino.salvar(reale)
+        try await destino.salvarFotoMiniatura(Data([7, 8, 9]), doLivro: reale.id)
+
+        let arquivo = try await ExportarBiblioteca(repositorio: origem, codificador: codificador).executar()
+        let importar = ImportarBiblioteca(repositorio: destino, codificador: codificador)
+        try await importar.importar(importar.ler(arquivo), modo: .mesclar)
+
+        let estantes = try await destino.estantes()
+        let livros = try await destino.todosOsLivros()
+        let foto = try await destino.fotoMiniatura(doLivro: reale.id)
+        XCTAssertEqual(estantes, [quarto, escritorio])
+        XCTAssertEqual(livros, [reale, kelsen])
+        XCTAssertEqual(foto, Data([7, 8, 9]))
+    }
 }

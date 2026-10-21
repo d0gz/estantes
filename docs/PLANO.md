@@ -54,15 +54,15 @@ ios/Estantes/
     Entidades/      Livro, Estante, Categoria (+ CorCategoria), ItemSumario, Candidato, FichaExtraida, LinhaOCR
     Regras/         ISBN, ParserFichaCIP, ParserFolhaDeRosto, ParserSumario, NumeroRomano, Pontuacao, JaroWinkler, Normalizacao
     Busca/          Tokenizador, IndiceInvertido, BM25F, FiltroBusca, MotorDeBusca, ResultadoBusca
-    CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca
-    Portas/         BibliotecaRepositorio, CatalogoServico, OCRServico, LeitorCodigoBarras
+    CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca, BibliotecaIndexada
+    Portas/         BibliotecaRepositorio, CodificadorDeBiblioteca, CatalogoServico, OCRServico, LeitorCodigoBarras
   Dados/
     Persistencia/   PersistenceController, BibliotecaRepositorioCoreData (NSManagedObject <-> struct)
     Rede/           CatalogoSupabase
     Visao/          OCRVision, LeitorCodigoBarrasVision
     Exportacao/     BibliotecaExportadaV1 (Codable)
   Apresentacao/
-    Inicio/  Busca/  Estante/  Livro/  Categorias/  Scanner/  Sumario/  Confirmacao/  Componentes/
+    Inicio/  Busca/  Estante/  Livro/  Categorias/  Exportacao/  Scanner/  Sumario/  Confirmacao/  Componentes/
 ios/EstantesTests/
   Dominio/          testes puros e rápidos
   Dados/            Core Data em memória, ida e volta da exportação
@@ -357,7 +357,9 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   "Livro · item do sumário, p. N · Estante X · prateleira", com os chips de filtro sempre no cabeçalho.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
-  menu (⋯) no canto superior.
+  menu (⋯) no canto superior (2.8): "Exportar biblioteca" gera `Estantes-AAAA-MM-DD.json` e abre a folha de
+  compartilhar; "Importar…" abre o seletor de arquivos, mostra o resumo ("N livros · N estantes · N categorias") e
+  pergunta Mesclar / Substituir tudo; um alerta dá o resultado. Em `DEBUG || EXEMPLOS`, "Carregar dados de exemplo".
 
 - **Fundamentos do estilo (Estilo 0, decididos em 12/10):**
   - Referências: Apple Books (disposição dos livros: capas protagonistas, serifa, transição capa → detalhe), Bevel (forma e
@@ -751,8 +753,15 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   exportar → importar → comparar no Core Data) ·
   6 tela e exemplos ✅ (`ExportacaoViewModel` próprio com os exemplos injetados pelas `Dependencias` (T1); folha de
   compartilhar do UIKit (T2); ids fixos em todos os exemplos) · 7 CI ✅ (opção `exemplos` no "Run workflow" → artefato `Estantes-exemplos-ipa`).
-  **Onde paramos (21/10, branch `fase2/exportar-importar`, 534 testes):** passos 1–7 concluídos; próximo: revisores
-  (`revisor` + `revisor-spec`), PR, CI e `.ipa` com exemplos no iPhone.
+  Revisão final: aplicados P1 (`id` em cada leitura pendente), P2 (falha do seletor avisa), P3 (só apagar exportações
+  anteriores), P4 (`importar` valida de novo), P5 (comentário do instantâneo), P6 (auxiliar na `Mesclagem`), P7 (só
+  `preencher` para DEBUG), E1–E4 (E6 resolvido pelo P1). Recusados: P3 leitura assíncrona e log (backups de centenas de
+  KB), P7 build com `EXEMPLOS` a cada push (minutos de macOS; compilado à mão), P8 (rigidez coerente com a Q6), P9
+  (rever na Fase 5, com o .zip), P10 (sem mudança: o `.ipa` com exemplos usa o mesmo banco do normal).
+  **Dívidas:** o `testar.sh` não mostra quedas do processo de testes ("Fatal error", "Restarting after…"): só se nota
+  pela falta da linha "Executed"; o `onChange(of:)` de um parâmetro (aviso no Xcode 26) também no Inicio.
+  **Onde paramos (21/10, branch `fase2/exportar-importar`, 539 testes):** passos 1–7 e revisão concluídos; próximo:
+  PR, CI e `.ipa` com exemplos no iPhone.
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
 
 ## Identificação de livros e sumário (Fases 3 e 4)
@@ -1044,3 +1053,6 @@ Regras contra omissão:
 | 21/10 | JSON v1 sem fotos; livro que continua (mesmo UUID) mantém a foto, também no "substituir" | Fotos só no .zip (Fase 5); apagar a cada restauração perderia fotos no mesmo aparelho |
 | 21/10 | `.ipa` com exemplos por flag de compilação `EXEMPLOS` (opção do "Run workflow"), gravados em disco por um item do menu ⋯ que passa pela mesclagem; também em DEBUG | Em memória, os dados sumiriam a cada vez que o iOS fecha o app; carga automática no banco vazio impediria testar o estado vazio. O `.ipa` normal não compila os exemplos |
 | 21/10 | Teste no iPhone pelo Sideloadly a partir da 2.8 (revisa a linha de 08/10: "testes de fotos no simulador; Sideloadly adiado") | O Ricardo já tem o aparelho com o `.ipa` inicial; a folha de compartilhar e o app Arquivos só se provam de verdade no aparelho. As fotos continuam com a alternativa `PhotosPicker` |
+| 21/10 | Formato do JSON v1: chaves = nomes dos campos do Domínio, livro dentro da estante (sem `estanteId`); datas ISO 8601 com milissegundos; opcional vazio sem chave e listas obrigatórias; saída ordenada (`sortedKeys`, `categoriaIds` ordenados), sem `exportadoEm` | Congela o arquivo do backup: mudar depois quebra os backups já gravados. Descartados: tradução das chaves (mais uma tabela a manter), datas em segundos (ilegível), `null` explícito (arquivo maior). Saída ordenada: dois backups da mesma biblioteca saem iguais byte a byte |
+| 21/10 | Arquivo incoerente é rejeitado inteiro: ids repetidos, categoria inexistente, nome de categoria vazio ou repetido, ISBN fora da forma gravada, sumário com erro na `ValidacaoSumario` (avisos passam) | O app só grava dados que passam por essas regras, então o arquivo que falha foi editado fora dele. Normalizar o ISBN em silêncio e pular só os itens ruins descartados: regras novas sem caso real |
+| 21/10 | Exportar/importar num `ExportacaoViewModel` próprio, com os exemplos injetados pelas `Dependencias`; folha de compartilhar do UIKit no lugar do `ShareLink` (revisa a Q7 do /decidir) | O `InicioViewModel` não pode receber o codificador (camada Dados) como valor padrão, e seus testes mudariam todos. O `ShareLink` não abre por código depois de gerar o arquivo; gerar a cada carga do Inicio deixaria o arquivo velho |

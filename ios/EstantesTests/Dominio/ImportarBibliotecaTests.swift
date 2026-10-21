@@ -36,6 +36,17 @@ final class ImportarBibliotecaTests: XCTestCase {
         }
     }
 
+    /// Revisão P4: `importar` não depende de quem chama ter passado por `ler` (os exemplos não passam).
+    func testImportarConteudoIncoerenteLancaArquivoInvalidoSemGravar() async {
+        do {
+            try await importar.importar(ConteudoDaBiblioteca(estantes: [escritorio, escritorio]), modo: .substituir)
+            XCTFail("Deveria lançar arquivoInvalido")
+        } catch {
+            XCTAssertEqual(error as? ErroDeImportacao, .arquivoInvalido)
+        }
+        XCTAssertEqual(repositorio.substituicoes, 0)
+    }
+
     func testLerArquivoCoerenteDevolveOConteudo() throws {
         let conteudo = ConteudoDaBiblioteca(estantes: [escritorio])
         let dados = try BibliotecaExportadaV1().codificar(conteudo)

@@ -13,6 +13,9 @@ struct ExportarBiblioteca {
 extension BibliotecaRepositorio {
     /// A biblioteca inteira como um valor: para exportar e para mesclar com um arquivo. Extensão, e não um
     /// método da porta, porque só junta leituras que a porta já tem.
+    ///
+    /// Três leituras separadas, não um instantâneo: uma gravação entre elas (ou entre ler e a mesclagem gravar)
+    /// se perderia. Aceito porque o app tem um usuário só, parado no diálogo da importação enquanto isto roda.
     func conteudoInteiro() async throws -> ConteudoDaBiblioteca {
         ConteudoDaBiblioteca(
             estantes: try await estantes(),

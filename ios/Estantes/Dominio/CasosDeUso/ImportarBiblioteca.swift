@@ -23,8 +23,12 @@ struct ImportarBiblioteca {
         return conteudo
     }
 
-    /// `conteudo` vem de `ler` (já validado). Grava uma vez só, pela substituição atômica do repositório.
+    /// Grava uma vez só, pela substituição atômica do repositório. Valida de novo (é barato): quem chama não
+    /// precisa ter passado por `ler` (os dados de exemplo não passam), e conteúdo incoerente nunca chega ao banco.
     func importar(_ conteudo: ConteudoDaBiblioteca, modo: Modo) async throws {
+        if ValidacaoDaBiblioteca.validar(conteudo) != nil {
+            throw ErroDeImportacao.arquivoInvalido
+        }
         let final: ConteudoDaBiblioteca
         switch modo {
         case .mesclar:

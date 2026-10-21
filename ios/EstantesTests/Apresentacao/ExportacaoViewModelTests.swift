@@ -60,6 +60,18 @@ final class ExportacaoViewModelTests: XCTestCase {
         XCTAssertEqual(lido.estantes, [escritorio])
     }
 
+    /// Revisão P3: o arquivo de uma exportação anterior não fica esquecido na pasta temporária.
+    func testExportarApagaOArquivoDeUmaExportacaoAnterior() async throws {
+        let antigo = try gravar(Data("{}".utf8), como: "Estantes-2026-10-01.json")
+        let outro = try gravar(Data("{}".utf8), como: "outro.json")
+        let viewModel = fazerViewModel()
+
+        await viewModel.exportarBiblioteca()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: antigo.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outro.path))
+    }
+
     func testFalhaAoLerABibliotecaAvisaSemAbrirACompartilhar() async {
         repositorio.falharAoLer = true
         let viewModel = fazerViewModel()
@@ -79,6 +91,29 @@ final class ExportacaoViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.importacaoPendente?.resumo, "2 livros · 1 estante · 1 categoria")
         XCTAssertEqual(repositorio.substituicoes, 0)
+    }
+
+    /// Revisão P1: escolher o mesmo arquivo de novo (depois de fechar o diálogo tocando fora) precisa ser uma
+    /// leitura nova, ou a tela não percebe a mudança e o diálogo não reabre.
+    func testLerOMesmoArquivoDuasVezesDaDuasLeiturasDiferentes() throws {
+        let viewModel = fazerViewModel()
+        let url = try arquivoDeBackup()
+        viewModel.lerArquivo(url)
+        let primeira = viewModel.importacaoPendente
+
+        viewModel.lerArquivo(url)
+
+        XCTAssertNotNil(primeira)
+        XCTAssertNotEqual(viewModel.importacaoPendente, primeira)
+    }
+
+    /// Revisão P2: o seletor falhou ao abrir o arquivo; a tela avisa em vez de não fazer nada.
+    func testFalhaDoSeletorDeArquivosAvisa() {
+        let viewModel = fazerViewModel()
+
+        viewModel.arquivoNaoAberto()
+
+        XCTAssertEqual(viewModel.aviso?.titulo, "Arquivo não aberto")
     }
 
     func testConfirmarImportaUmaVezAvisaEPedeParaRecarregarOInicio() async throws {

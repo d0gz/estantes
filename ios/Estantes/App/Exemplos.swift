@@ -42,12 +42,6 @@ enum DadosDeExemplo {
     static let filosofia = Categoria(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000004")!, nome: "Filosofia", cor: .marrom)
     static let lerDepois = Categoria(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000005")!, nome: "Ler depois", cor: .cinza)
 
-    /// Banco vazio (previews e capturas): grava o conteúdo de uma vez, com as fotos.
-    static func preencher(_ repositorio: BibliotecaRepositorio) async throws {
-        try await repositorio.substituirBiblioteca(por: conteudo)
-        try await salvarFotos(repositorio)
-    }
-
     /// O item "Carregar dados de exemplo": passa pela mesclagem da importação, como um arquivo de backup
     /// (o que já estiver no aparelho fica), e depois grava as fotos, que o arquivo não traz.
     static func carregar(importar: ImportarBiblioteca, repositorio: BibliotecaRepositorio) async throws {
@@ -96,7 +90,7 @@ enum DadosDeExemplo {
         ]
     )
 
-    private static func salvarFotos(_ repositorio: BibliotecaRepositorio) async throws {
+    fileprivate static func salvarFotos(_ repositorio: BibliotecaRepositorio) async throws {
         // Duas fotos da miniatura, uma de cada tipo; os outros livros ficam com a substituta.
         try await repositorio.salvarFotoMiniatura(
             fotoDeExemplo(fundo: UIColor(red: 0.55, green: 0.12, blue: 0.14, alpha: 1), texto: .white,
@@ -156,6 +150,15 @@ enum DadosDeExemplo {
 #endif
 
 #if DEBUG
+extension DadosDeExemplo {
+    /// Banco vazio (previews e capturas): grava o conteúdo de uma vez, com as fotos. Só em DEBUG: o `.ipa` com
+    /// exemplos carrega pelo menu (`carregar`), nunca por aqui.
+    static func preencher(_ repositorio: BibliotecaRepositorio) async throws {
+        try await repositorio.substituirBiblioteca(por: conteudo)
+        try await salvarFotos(repositorio)
+    }
+}
+
 /// Mostra o conteúdo só depois de montar um banco em memória (vazio ou com os exemplos).
 /// Necessário porque preencher o banco é assíncrono: sem esperar, a tela carregaria antes dos dados.
 struct ComExemplos<Conteudo: View>: View {

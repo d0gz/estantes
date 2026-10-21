@@ -10,10 +10,16 @@ final class ExportacaoViewModel: ObservableObject {
     }
 
     /// Arquivo lido e validado, esperando a escolha entre mesclar e substituir.
+    ///
+    /// Cada leitura é única (`id`), e a igualdade compara só o `id`: ler o mesmo arquivo de novo (depois de fechar
+    /// o diálogo tocando fora) é uma mudança que a tela percebe, e a comparação não percorre a biblioteca inteira.
     struct ImportacaoPendente: Equatable {
+        let id = UUID()
         let conteudo: ConteudoDaBiblioteca
         /// "10 livros · 3 estantes · 5 categorias".
         let resumo: String
+
+        static func == (a: ImportacaoPendente, b: ImportacaoPendente) -> Bool { a.id == b.id }
     }
 
     /// Resultado ou erro, num alerta.
@@ -56,11 +62,21 @@ final class ExportacaoViewModel: ObservableObject {
     func exportarBiblioteca() async {
         do {
             let dados = try await exportar.executar()
+            apagarExportacoesAnteriores()
             let url = pasta.appendingPathComponent("Estantes-\(Self.formatoDoNome.string(from: hoje())).json")
             try dados.write(to: url, options: .atomic)
             arquivoExportado = ArquivoExportado(url: url)
         } catch {
             aviso = Aviso(titulo: "Exportação não concluída", mensagem: "Não foi possível gerar o arquivo da biblioteca.")
+        }
+    }
+
+    /// A pasta temporária só é limpa pelo sistema de vez em quando: sem isto, cada dia exportado deixaria uma
+    /// cópia da biblioteca lá. Só os arquivos com o nome da exportação; falhar aqui não impede exportar.
+    private func apagarExportacoesAnteriores() {
+        let arquivos = (try? FileManager.default.contentsOfDirectory(at: pasta, includingPropertiesForKeys: nil)) ?? []
+        for arquivo in arquivos where arquivo.lastPathComponent.hasPrefix("Estantes-") && arquivo.pathExtension == "json" {
+            try? FileManager.default.removeItem(at: arquivo)
         }
     }
 
@@ -106,6 +122,11 @@ final class ExportacaoViewModel: ObservableObject {
             : "A biblioteca agora é a do arquivo (\(pendente.resumo))."
         aviso = Aviso(titulo: "Biblioteca importada", mensagem: mensagem)
         return true
+    }
+
+    /// O seletor de arquivos não conseguiu entregar o arquivo escolhido.
+    func arquivoNaoAberto() {
+        aviso = Aviso(titulo: "Arquivo não aberto", mensagem: "Não foi possível abrir o arquivo escolhido.")
     }
 
     func cancelarImportacao() {
