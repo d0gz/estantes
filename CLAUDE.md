@@ -74,8 +74,9 @@ Detalhe, folha "Editar sumário" e tela de item com "Próximo item"; 449 testes;
 interface: `BibliotecaIndexada` (actor decorador que mantém o índice), tela "Busca" própria com campo, chips, telas
 Filtros e Categorias; correção da rolagem na primeira entrada da Estante e de Categorias; 490 testes; branch
 `fase2/busca-interface`).
-**Próximo: 2.8 — exportar/importar** (branch nova depois do merge da 2.7; começar pelo `/decidir`; "Onde paramos" no
-checklist do PLANO). Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
+2.8 (exportar/importar + `.ipa` com exemplos pela opção `exemplos` do "Run workflow"; 539 testes; branch
+`fase2/exportar-importar`, PR #28 aberto e não mergeado). **Próximo: teste da 2.8 no iPhone** (passos no "Onde
+paramos" do checklist do PLANO), depois o merge do #28. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que

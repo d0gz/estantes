@@ -760,8 +760,15 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   (rever na Fase 5, com o .zip), P10 (sem mudança: o `.ipa` com exemplos usa o mesmo banco do normal).
   **Dívidas:** o `testar.sh` não mostra quedas do processo de testes ("Fatal error", "Restarting after…"): só se nota
   pela falta da linha "Executed"; o `onChange(of:)` de um parâmetro (aviso no Xcode 26) também no Inicio.
-  **Onde paramos (21/10, branch `fase2/exportar-importar`, 539 testes):** passos 1–7 e revisão concluídos; próximo:
-  PR, CI e `.ipa` com exemplos no iPhone.
+  **Onde paramos (21/10, branch `fase2/exportar-importar`, 539 testes):** passos 1–7 e revisão concluídos; PR #28
+  aberto, **não mergeado**; CI do PR verde no Xcode 26; `.ipa` com exemplos gerado pelo "Run workflow" (run
+  39659696298, artefato `Estantes-exemplos-ipa`, baixado em `~/Downloads/Estantes-exemplos-2026-10-21/`; o binário
+  contém os exemplos). Aprendizado registrado pelo teacher. **Próximo: o Ricardo testa no iPhone** (Sideloadly por cima
+  do app atual): 1 carregar exemplos (3 estantes, 10 livros; tocar de novo não duplica) · 2 exportar e salvar em
+  Arquivos · 3 apagar uma estante · 4 importar com "Mesclar" (resumo "10 livros · 3 estantes · 5 categorias") e ver
+  a estante de volta · 5 "Substituir tudo" (as fotos de exemplo ficam) · 6 fechar e reabrir (dados em disco) ·
+  7 buscar um livro importado. Com tudo certo, marcar o item e o de baixo, mergear o #28 e seguir o checklist;
+  se algo falhar, `/diagnosticar` com o passo e o que apareceu na tela.
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
 
 ## Identificação de livros e sumário (Fases 3 e 4)
