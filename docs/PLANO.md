@@ -555,6 +555,8 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   este PLANO (onde parou e qual o próximo passo), commitar e abrir o PR em rascunho (`gh pr create --draft`) se ainda
   não houver. Voltar só quando o uso reiniciar ou o Ricardo mandar. O Claude não enxerga o `/usage`: **o Ricardo avisa**.
   Commits pequenos ao fim de cada passo limitam a perda se o aviso não vier.
+- **Modo escuro é o principal** (22/10): o usuário principal usa o app no escuro. Capturas e aprovações de estilo
+  começam pelo escuro; o claro continua conferido.
 - **Idioma:** `developmentLanguage: pt-BR` e `CFBundleDevelopmentRegion: pt-BR` (Info.plist) no `project.yml`, para os
   textos do próprio sistema ("Voltar", "Cancelar", "Editar", folhas e alertas) saírem em português sem catálogo de
   tradução. O app é só em português; localizar em inglês fica fora do escopo.
@@ -740,7 +742,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   `onChange(of:)` da `FiltrosDaBuscaView`.
   **Onde paramos (20/10, branch `fase2/busca-interface`, 490 testes):** 2.7 concluída; PR aberto. **Próximo: 2.8
   (exportar/importar)**, numa branch nova depois do merge, pelo `/decidir`.
-- [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
+- [x] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
   (2.8, `/decidir` de 21/10, Histórico de 21/10): regra pura `Mesclagem` + `substituirBiblioteca` atômico na porta;
   `CodificadorDeBiblioteca` (porta) implementado por `BibliotecaExportadaV1` (Dados); menu ⋯ com Exportar
   (folha de compartilhar do UIKit, T2), Importar (`fileImporter` + confirmação Mesclar/Substituir tudo) e, só em `DEBUG || EXEMPLOS`,
@@ -760,16 +762,20 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   (rever na Fase 5, com o .zip), P10 (sem mudança: o `.ipa` com exemplos usa o mesmo banco do normal).
   **Dívidas:** o `testar.sh` não mostra quedas do processo de testes ("Fatal error", "Restarting after…"): só se nota
   pela falta da linha "Executed"; o `onChange(of:)` de um parâmetro (aviso no Xcode 26) também no Inicio.
-  **Onde paramos (21/10, branch `fase2/exportar-importar`, 539 testes):** passos 1–7 e revisão concluídos; PR #28
-  aberto, **não mergeado**; CI do PR verde no Xcode 26; `.ipa` com exemplos gerado pelo "Run workflow" (run
-  39659696298, artefato `Estantes-exemplos-ipa`, baixado em `~/Downloads/Estantes-exemplos-2026-10-21/`; o binário
-  contém os exemplos). Aprendizado registrado pelo teacher. **Próximo: o Ricardo testa no iPhone** (Sideloadly por cima
-  do app atual): 1 carregar exemplos (3 estantes, 10 livros; tocar de novo não duplica) · 2 exportar e salvar em
-  Arquivos · 3 apagar uma estante · 4 importar com "Mesclar" (resumo "10 livros · 3 estantes · 5 categorias") e ver
-  a estante de volta · 5 "Substituir tudo" (as fotos de exemplo ficam) · 6 fechar e reabrir (dados em disco) ·
-  7 buscar um livro importado. Com tudo certo, marcar o item e o de baixo, mergear o #28 e seguir o checklist;
-  se algo falhar, `/diagnosticar` com o passo e o que apareceu na tela.
+  **Onde paramos (22/10, `main`, 539 testes):** 2.8 concluída. O Ricardo testou no iPhone o `.ipa` com exemplos
+  (run 39659696298, Sideloadly): os 7 passos funcionaram (carregar exemplos, exportar para Arquivos, importar com
+  "Mesclar" e "Substituir tudo", dados mantidos ao reabrir, busca). PR #28 mergeado.
+  Antes (21/10): passos 1–7 e revisão concluídos; CI do PR verde no Xcode 26; aprendizado registrado pelo teacher.
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
+  (2.9) A parte do iPhone está provada (22/10, teste da 2.8). **Pendências antes da Fase 3** (anotadas em 22/10,
+  ver na próxima sessão, cada uma começando pela explicação e esperando o OK):
+  a. **Menu ⋯ no simulador:** no iPhone, o texto de "Exportar biblioteca"/"Importar…" saiu quebrado. Abrir o
+     menu da tela inicial no simulador e capturar em escuro, claro e texto grande (`docs/capturas/Inicio/`);
+     achar a causa (texto longo? tamanho de fonte do aparelho?) e decidir a correção (`/decidir` se houver
+     alternativas). O `simctl` não toca na tela: abrir à mão ou criar um `-captura` que abra o menu.
+  b. **Modo escuro primeiro:** o usuário principal usa o app no escuro. Conferir todas as telas já estilizadas
+     no escuro, com prioridade sobre o claro.
+  **Próximo:** a e b; depois fechar este item (CI verde) e rodar `/fechar-fase`; só então a Fase 3.
 
 ## Identificação de livros e sumário (Fases 3 e 4)
 
