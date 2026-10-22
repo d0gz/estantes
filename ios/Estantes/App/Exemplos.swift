@@ -1,10 +1,12 @@
-#if DEBUG
+#if DEBUG || EXEMPLOS
 import SwiftUI
 
-/// Dados de exemplo para previews e capturas do simulador. Só existe em DEBUG: o app de verdade nunca os vê.
+/// Dados de exemplo para previews, capturas do simulador e o item "Carregar dados de exemplo" do menu ⋯.
+/// Só existem em DEBUG e no `.ipa` gerado com a flag `EXEMPLOS` (opção `exemplos` do "Run workflow"):
+/// o `.ipa` normal não os compila.
 ///
-/// Fica em `App/` (e não na Apresentação) porque monta um repositório concreto (Core Data em memória):
-/// escolher implementação é papel da montagem. Os previews das telas usam `ComExemplos` daqui.
+/// Fica em `App/` (e não na Apresentação) porque escolher o que entra no banco é papel da montagem.
+/// Todos os ids são fixos: carregar de novo (mesmo depois de reabrir o app) mescla pelo UUID, sem duplicar.
 enum DadosDeExemplo {
     // Ids e datas fixos: as capturas abrem a pilha direto numa estante ou num livro.
     static let escritorio = Estante(
@@ -28,32 +30,38 @@ enum DadosDeExemplo {
     static let cursoMendesBranco = UUID(uuidString: "B0000000-0000-0000-0000-000000000002")!
     /// Com colaborador (prefácio), como na ficha CIP real.
     static let essenciaDaConstituicao = UUID(uuidString: "B0000000-0000-0000-0000-000000000004")!
+    private static let direitosFundamentais = UUID(uuidString: "B0000000-0000-0000-0000-000000000005")!
+    private static let cursoDeCivil = UUID(uuidString: "B0000000-0000-0000-0000-000000000006")!
+    private static let licoesPreliminares = UUID(uuidString: "B0000000-0000-0000-0000-000000000007")!
+    private static let teoriaPura = UUID(uuidString: "B0000000-0000-0000-0000-000000000008")!
 
     // Categorias: cores variadas, uma sem livros ("Ler depois") e livros com zero, uma e duas categorias.
-    static let constitucional = Categoria(nome: "Constitucional", cor: .vermelho)
-    static let processo = Categoria(nome: "Processo", cor: .verde)
-    static let civil = Categoria(nome: "Civil", cor: .laranja)
-    static let filosofia = Categoria(nome: "Filosofia", cor: .marrom)
-    static let lerDepois = Categoria(nome: "Ler depois", cor: .cinza)
+    static let constitucional = Categoria(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000001")!, nome: "Constitucional", cor: .vermelho)
+    static let processo = Categoria(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000002")!, nome: "Processo", cor: .verde)
+    static let civil = Categoria(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000003")!, nome: "Civil", cor: .laranja)
+    static let filosofia = Categoria(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000004")!, nome: "Filosofia", cor: .marrom)
+    static let lerDepois = Categoria(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000005")!, nome: "Ler depois", cor: .cinza)
+
+    /// O item "Carregar dados de exemplo": passa pela mesclagem da importação, como um arquivo de backup
+    /// (o que já estiver no aparelho fica), e depois grava as fotos, que o arquivo não traz.
+    static func carregar(importar: ImportarBiblioteca, repositorio: BibliotecaRepositorio) async throws {
+        try await importar.importar(conteudo, modo: .mesclar)
+        try await salvarFotos(repositorio)
+    }
 
     /// Biblioteca pequena, com livros reais de direito, para as telas terem conteúdo plausível:
     /// duas prateleiras numeradas, dois tomos da mesma obra, um livro sem prateleira e uma estante vazia.
-    static func preencher(_ repositorio: BibliotecaRepositorio) async throws {
-        for estante in [escritorio, sala, quarto] {
-            try await repositorio.salvar(estante)
-        }
-        for categoria in [constitucional, processo, civil, filosofia, lerDepois] {
-            try await repositorio.salvar(categoria)
-        }
-
-        let livros = [
+    static let conteudo = ConteudoDaBiblioteca(
+        estantes: [escritorio, sala, quarto],
+        categorias: [constitucional, processo, civil, filosofia, lerDepois],
+        livros: [
             Livro(id: cursoConstitucional, estanteId: escritorio.id, titulo: "Curso de direito constitucional positivo",
                   autores: ["Silva, José Afonso da"], editora: "Malheiros", ano: 2014, prateleira: "1ª de cima",
                   categoriaIds: [constitucional.id]),
-            Livro(estanteId: escritorio.id, titulo: "Direitos fundamentais e processo penal",
+            Livro(id: direitosFundamentais, estanteId: escritorio.id, titulo: "Direitos fundamentais e processo penal",
                   autores: ["Fernandes, Antonio Scarance"], ano: 2010, prateleira: "1ª de cima",
                   categoriaIds: [constitucional.id, processo.id]),
-            Livro(estanteId: escritorio.id, titulo: "Curso de direito civil brasileiro",
+            Livro(id: cursoDeCivil, estanteId: escritorio.id, titulo: "Curso de direito civil brasileiro",
                   autores: ["Diniz, Maria Helena"], editora: "Saraiva", ano: 2012, prateleira: "2ª de cima",
                   categoriaIds: [civil.id]),
             Livro(id: tratadoTomo48, estanteId: escritorio.id, titulo: "Tratado de direito privado",
@@ -64,9 +72,9 @@ enum DadosDeExemplo {
             Livro(id: tratadoTomo47, estanteId: escritorio.id, titulo: "Tratado de direito privado",
                   autores: ["Miranda, Pontes de"], editora: "Borsoi", local: "Rio de Janeiro",
                   volume: 47, volumeRotulo: "Tomo XLVII", parte: "Parte especial", ano: 1965, prateleira: "caixa azul"),
-            Livro(estanteId: escritorio.id, titulo: "Lições preliminares de direito",
+            Livro(id: licoesPreliminares, estanteId: escritorio.id, titulo: "Lições preliminares de direito",
                   autores: ["Reale, Miguel"], editora: "Saraiva", ano: 2002),
-            Livro(estanteId: sala.id, titulo: "Teoria pura do direito",
+            Livro(id: teoriaPura, estanteId: sala.id, titulo: "Teoria pura do direito",
                   autores: ["Kelsen, Hans"], editora: "Martins Fontes", ano: 1998, categoriaIds: [filosofia.id]),
             Livro(id: teoriaGeralDoProcesso, estanteId: sala.id, titulo: "Teoria geral do processo",
                   autores: ["Cintra, Antonio Carlos de Araújo", "Grinover, Ada Pellegrini", "Dinamarco, Cândido Rangel"],
@@ -80,9 +88,9 @@ enum DadosDeExemplo {
                   editora: "Liber Juris", local: "Rio de Janeiro", edicao: "2.ª ed.",
                   serie: "Coleção estudos políticos constitucionais", ano: 1988, categoriaIds: [constitucional.id]),
         ]
-        for livro in livros {
-            try await repositorio.salvar(livro)
-        }
+    )
+
+    fileprivate static func salvarFotos(_ repositorio: BibliotecaRepositorio) async throws {
         // Duas fotos da miniatura, uma de cada tipo; os outros livros ficam com a substituta.
         try await repositorio.salvarFotoMiniatura(
             fotoDeExemplo(fundo: UIColor(red: 0.55, green: 0.12, blue: 0.14, alpha: 1), texto: .white,
@@ -136,6 +144,18 @@ enum DadosDeExemplo {
                 .draw(in: CGRect(x: 30, y: 150, width: 540, height: 700), withAttributes: atributos)
         }
         return imagem.jpegData(compressionQuality: 0.8)!
+    }
+}
+
+#endif
+
+#if DEBUG
+extension DadosDeExemplo {
+    /// Banco vazio (previews e capturas): grava o conteúdo de uma vez, com as fotos. Só em DEBUG: o `.ipa` com
+    /// exemplos carrega pelo menu (`carregar`), nunca por aqui.
+    static func preencher(_ repositorio: BibliotecaRepositorio) async throws {
+        try await repositorio.substituirBiblioteca(por: conteudo)
+        try await salvarFotos(repositorio)
     }
 }
 

@@ -54,15 +54,15 @@ ios/Estantes/
     Entidades/      Livro, Estante, Categoria (+ CorCategoria), ItemSumario, Candidato, FichaExtraida, LinhaOCR
     Regras/         ISBN, ParserFichaCIP, ParserFolhaDeRosto, ParserSumario, NumeroRomano, Pontuacao, JaroWinkler, Normalizacao
     Busca/          Tokenizador, IndiceInvertido, BM25F, FiltroBusca, MotorDeBusca, ResultadoBusca
-    CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca
-    Portas/         BibliotecaRepositorio, CatalogoServico, OCRServico, LeitorCodigoBarras
+    CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca, BibliotecaIndexada
+    Portas/         BibliotecaRepositorio, CodificadorDeBiblioteca, CatalogoServico, OCRServico, LeitorCodigoBarras
   Dados/
     Persistencia/   PersistenceController, BibliotecaRepositorioCoreData (NSManagedObject <-> struct)
     Rede/           CatalogoSupabase
     Visao/          OCRVision, LeitorCodigoBarrasVision
     Exportacao/     BibliotecaExportadaV1 (Codable)
   Apresentacao/
-    Inicio/  Busca/  Estante/  Livro/  Categorias/  Scanner/  Sumario/  Confirmacao/  Componentes/
+    Inicio/  Busca/  Estante/  Livro/  Categorias/  Exportacao/  Scanner/  Sumario/  Confirmacao/  Componentes/
 ios/EstantesTests/
   Dominio/          testes puros e rápidos
   Dados/            Core Data em memória, ida e volta da exportação
@@ -357,7 +357,9 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   "Livro · item do sumário, p. N · Estante X · prateleira", com os chips de filtro sempre no cabeçalho.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
-  menu (⋯) no canto superior.
+  menu (⋯) no canto superior (2.8): "Exportar biblioteca" gera `Estantes-AAAA-MM-DD.json` e abre a folha de
+  compartilhar; "Importar…" abre o seletor de arquivos, mostra o resumo ("N livros · N estantes · N categorias") e
+  pergunta Mesclar / Substituir tudo; um alerta dá o resultado. Em `DEBUG || EXEMPLOS`, "Carregar dados de exemplo".
 
 - **Fundamentos do estilo (Estilo 0, decididos em 12/10):**
   - Referências: Apple Books (disposição dos livros: capas protagonistas, serifa, transição capa → detalhe), Bevel (forma e
@@ -739,7 +741,35 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   **Onde paramos (20/10, branch `fase2/busca-interface`, 490 testes):** 2.7 concluída; PR aberto. **Próximo: 2.8
   (exportar/importar)**, numa branch nova depois do merge, pelo `/decidir`.
 - [ ] Exportar/importar (mesclar/substituir), com categorias e sumário + testes XCTest (exportar → importar → comparar)
-- [ ] Simulador iOS 16 e CI verde (Sideloadly no iPhone adiado até haver aparelho)
+  (2.8, `/decidir` de 21/10, Histórico de 21/10): regra pura `Mesclagem` + `substituirBiblioteca` atômico na porta;
+  `CodificadorDeBiblioteca` (porta) implementado por `BibliotecaExportadaV1` (Dados); menu ⋯ com Exportar
+  (folha de compartilhar do UIKit, T2), Importar (`fileImporter` + confirmação Mesclar/Substituir tudo) e, só em `DEBUG || EXEMPLOS`,
+  "Carregar dados de exemplo"; CI com a opção `exemplos` no "Run workflow".
+  Passos: 1 `ConteudoDaBiblioteca` + `Mesclagem` ✅ · 2 `ValidacaoDaBiblioteca` ✅ (ids repetidos, categoria inexistente,
+  nome de categoria pela `NomeDeCategoria`, ISBN fora da forma gravada, sumário com erro na `ValidacaoSumario`; avisos
+  passam) · 3 porta `CodificadorDeBiblioteca` + `BibliotecaExportadaV1` ✅ (formato F1–F4: chaves = campos, ISO 8601 com
+  milissegundos, opcional vazio sem chave, saída ordenada) · 4 `substituirBiblioteca` ✅ (um contexto e um `save`;
+  grava antes e apaga depois; a `BibliotecaIndexada` descarta o índice) · 5 casos de uso ✅ (`conteudoInteiro()` como extensão da porta;
+  exportar → importar → comparar no Core Data) ·
+  6 tela e exemplos ✅ (`ExportacaoViewModel` próprio com os exemplos injetados pelas `Dependencias` (T1); folha de
+  compartilhar do UIKit (T2); ids fixos em todos os exemplos) · 7 CI ✅ (opção `exemplos` no "Run workflow" → artefato `Estantes-exemplos-ipa`).
+  Revisão final: aplicados P1 (`id` em cada leitura pendente), P2 (falha do seletor avisa), P3 (só apagar exportações
+  anteriores), P4 (`importar` valida de novo), P5 (comentário do instantâneo), P6 (auxiliar na `Mesclagem`), P7 (só
+  `preencher` para DEBUG), E1–E4 (E6 resolvido pelo P1). Recusados: P3 leitura assíncrona e log (backups de centenas de
+  KB), P7 build com `EXEMPLOS` a cada push (minutos de macOS; compilado à mão), P8 (rigidez coerente com a Q6), P9
+  (rever na Fase 5, com o .zip), P10 (sem mudança: o `.ipa` com exemplos usa o mesmo banco do normal).
+  **Dívidas:** o `testar.sh` não mostra quedas do processo de testes ("Fatal error", "Restarting after…"): só se nota
+  pela falta da linha "Executed"; o `onChange(of:)` de um parâmetro (aviso no Xcode 26) também no Inicio.
+  **Onde paramos (21/10, branch `fase2/exportar-importar`, 539 testes):** passos 1–7 e revisão concluídos; PR #28
+  aberto, **não mergeado**; CI do PR verde no Xcode 26; `.ipa` com exemplos gerado pelo "Run workflow" (run
+  39659696298, artefato `Estantes-exemplos-ipa`, baixado em `~/Downloads/Estantes-exemplos-2026-10-21/`; o binário
+  contém os exemplos). Aprendizado registrado pelo teacher. **Próximo: o Ricardo testa no iPhone** (Sideloadly por cima
+  do app atual): 1 carregar exemplos (3 estantes, 10 livros; tocar de novo não duplica) · 2 exportar e salvar em
+  Arquivos · 3 apagar uma estante · 4 importar com "Mesclar" (resumo "10 livros · 3 estantes · 5 categorias") e ver
+  a estante de volta · 5 "Substituir tudo" (as fotos de exemplo ficam) · 6 fechar e reabrir (dados em disco) ·
+  7 buscar um livro importado. Com tudo certo, marcar o item e o de baixo, mergear o #28 e seguir o checklist;
+  se algo falhar, `/diagnosticar` com o passo e o que apareceu na tela.
+- [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
 
 ## Identificação de livros e sumário (Fases 3 e 4)
 
@@ -1025,3 +1055,11 @@ Regras contra omissão:
 | 20/10 | Busca numa tela empurrada "Busca", com campo próprio (`TextField` + `@FocusState`) e "Cancelar"; no Inicio, só um botão com a aparência da barra. Revisa a decisão da manhã (`.searchable` no Inicio, resultados no lugar da grade) | No iOS 16, empurrar Filtros ou o Detalhe desliga o `.searchable` da tela raiz (visto no log) e ele volta inativo, sem "Cancelar"; remendos sobre o `isSearching` não seguravam os três casos. Descartados: `.searchable` dentro da tela Busca (o "Cancelar" continuaria sumindo) e busca em folha com pilha própria (laço do `navigationDestination(for:)` numa folha). Custo: o campo perde o vidro nativo do iOS 26 |
 | 20/10 | Telas empurradas com título grande têm a rolagem (`ScrollView` ou `List`) na tela desde o primeiro quadro, com carregando, vazio e erro dentro dela (Estante) ou por cima dela (Categorias, que usa `List`) | Na primeira entrada na Estante e em Categorias, rolar não encolhia o título e a barra ficava sem fundo sobre a lista (vindo da 2.4/2.5, visto só agora). Causa, por laço de captura com rolagem por código (verde com ida e volta ao Detalhe, vermelho no `main` e na branch): o iOS escolhe a rolagem que a barra acompanha quando a tela aparece, e a lista só surgia depois do "carregando". Descartado: esconder o "carregando" (a leitura pode demorar no aparelho). Sem teste de regressão: só um XCUITest alcançaria a barra. Detalhe e Inicio passaram no mesmo laço |
 | 20/10 | Na busca, categorias com escolha múltipla (OU) numa tela empurrada "Categorias", aberta pelo chip "Categorias ▾"; revisa a escolha única no `Menu` decidida no mesmo dia (Q18) | Pedido do Ricardo: buscar em mais de uma categoria. O `Menu` do iOS 16 fecha a cada toque (mantê-lo aberto é do 16.4, que o Xcode 14.2 não compila). Descartados: `Menu` com ✓ (abrir uma vez por categoria) e uma seção dentro de Filtros (esconderia um filtro à vista). OU como nas estantes (linha de 09/10); E daria lista vazia com duas categorias raras |
+| 21/10 | Importação grava o estado final da biblioteca num método atômico da porta (`substituirBiblioteca`, um contexto e um `save`), com a mesclagem calculada por regra pura no Domínio | Backup restaurado pela metade é o pior resultado; laço de `salvar` item a item descartado (falha no meio, centenas de gravações). Fecha, na importação, a limitação de concorrência da 2.2 |
+| 21/10 | Na mesclagem o arquivo vence por UUID; categorias de mesmo nome que surgirem se fundem na do arquivo | É uso de backup; "aparelho vence" não restauraria e "mais recente" pediria data de alteração no modelo e no JSON v1. Rejeitar o arquivo ou criar "Nome (2)" descartados |
+| 21/10 | JSON v1 sem fotos; livro que continua (mesmo UUID) mantém a foto, também no "substituir" | Fotos só no .zip (Fase 5); apagar a cada restauração perderia fotos no mesmo aparelho |
+| 21/10 | `.ipa` com exemplos por flag de compilação `EXEMPLOS` (opção do "Run workflow"), gravados em disco por um item do menu ⋯ que passa pela mesclagem; também em DEBUG | Em memória, os dados sumiriam a cada vez que o iOS fecha o app; carga automática no banco vazio impediria testar o estado vazio. O `.ipa` normal não compila os exemplos |
+| 21/10 | Teste no iPhone pelo Sideloadly a partir da 2.8 (revisa a linha de 08/10: "testes de fotos no simulador; Sideloadly adiado") | O Ricardo já tem o aparelho com o `.ipa` inicial; a folha de compartilhar e o app Arquivos só se provam de verdade no aparelho. As fotos continuam com a alternativa `PhotosPicker` |
+| 21/10 | Formato do JSON v1: chaves = nomes dos campos do Domínio, livro dentro da estante (sem `estanteId`); datas ISO 8601 com milissegundos; opcional vazio sem chave e listas obrigatórias; saída ordenada (`sortedKeys`, `categoriaIds` ordenados), sem `exportadoEm` | Congela o arquivo do backup: mudar depois quebra os backups já gravados. Descartados: tradução das chaves (mais uma tabela a manter), datas em segundos (ilegível), `null` explícito (arquivo maior). Saída ordenada: dois backups da mesma biblioteca saem iguais byte a byte |
+| 21/10 | Arquivo incoerente é rejeitado inteiro: ids repetidos, categoria inexistente, nome de categoria vazio ou repetido, ISBN fora da forma gravada, sumário com erro na `ValidacaoSumario` (avisos passam) | O app só grava dados que passam por essas regras, então o arquivo que falha foi editado fora dele. Normalizar o ISBN em silêncio e pular só os itens ruins descartados: regras novas sem caso real |
+| 21/10 | Exportar/importar num `ExportacaoViewModel` próprio, com os exemplos injetados pelas `Dependencias`; folha de compartilhar do UIKit no lugar do `ShareLink` (revisa a Q7 do /decidir) | O `InicioViewModel` não pode receber o codificador (camada Dados) como valor padrão, e seus testes mudariam todos. O `ShareLink` não abre por código depois de gerar o arquivo; gerar a cada carga do Inicio deixaria o arquivo velho |

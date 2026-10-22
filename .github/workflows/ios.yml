@@ -1,7 +1,8 @@
 name: iOS
 
 # Testes: a cada push/PR que mexa no app.
-# .ipa: só quando você clica em "Run workflow" (economiza minutos de macOS).
+# .ipa: só quando você clica em "Run workflow" (economiza minutos de macOS). Com a opção "exemplos", o .ipa
+# compila com a flag EXEMPLOS e ganha o item "Carregar dados de exemplo" no menu ⋯ (decidido em 21/10).
 on:
   push:
     branches: [main]
@@ -13,6 +14,11 @@ on:
       - "ios/**"
       - ".github/workflows/ios.yml"
   workflow_dispatch:
+    inputs:
+      exemplos:
+        description: "Incluir os dados de exemplo no .ipa"
+        type: boolean
+        default: false
 
 # Um push novo cancela a execução anterior do mesmo branch.
 concurrency:
@@ -94,6 +100,9 @@ jobs:
         run: xcodegen generate
 
       - name: Arquivar para iPhone (sem assinatura)
+        env:
+          # "$(inherited)" mantém as condições do Release; a flag só entra quando a opção foi marcada.
+          CONDICOES: ${{ inputs.exemplos && '$(inherited) EXEMPLOS' || '$(inherited)' }}
         run: |
           set -o pipefail
           xcodebuild archive \
@@ -105,6 +114,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS="$CONDICOES" \
             | tail -n 30
 
       - name: Empacotar o .ipa
@@ -118,6 +128,6 @@ jobs:
       - name: Publicar o artefato
         uses: actions/upload-artifact@v7
         with:
-          name: Estantes-ipa
+          name: ${{ inputs.exemplos && 'Estantes-exemplos-ipa' || 'Estantes-ipa' }}
           path: ${{ runner.temp }}/Estantes.ipa
           retention-days: 7

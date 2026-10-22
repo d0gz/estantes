@@ -570,4 +570,99 @@ final class BibliotecaRepositorioCoreDataTests: XCTestCase {
         let lido = try await reaberto.livro(id: livro.id)
         XCTAssertEqual(lido, livro)
     }
+
+    // MARK: Substituir a biblioteca inteira (importação, 2.8)
+
+    func testSubstituirDeixaOBancoIgualAoConteudo() async throws {
+        let sala = try await novaEstante("Sala")
+        let civil = Categoria(nome: "Civil", cor: .laranja)
+        try await repositorio.salvar(civil)
+        let sai = Livro(estanteId: sala.id, titulo: "Sai", categoriaIds: [civil.id], itensSumario: [
+            ItemSumario(nivel: 1, titulo: "Um"), ItemSumario(nivel: 1, titulo: "Dois"),
+        ], adicionadoEm: data)
+        let muda = Livro(estanteId: sala.id, titulo: "Muda", adicionadoEm: data)
+        try await repositorio.salvar(sai)
+        try await repositorio.salvar(muda)
+
+        let escritorio = Estante(nome: "Escritório", criadaEm: data)
+        let penal = Categoria(nome: "Penal", cor: .roxo)
+        let mudado = Livro(id: muda.id, estanteId: escritorio.id, titulo: "Mudou", categoriaIds: [penal.id],
+                           itensSumario: [ItemSumario(nivel: 1, titulo: "Único")], adicionadoEm: data)
+        let novo = Livro(estanteId: escritorio.id, titulo: "Novo", adicionadoEm: data)
+        try await repositorio.substituirBiblioteca(
+            por: ConteudoDaBiblioteca(estantes: [escritorio], categorias: [penal], livros: [mudado, novo])
+        )
+
+        let estantes = try await repositorio.estantes()
+        XCTAssertEqual(estantes, [escritorio])
+        let categorias = try await repositorio.categorias()
+        XCTAssertEqual(categorias, [penal])
+        let livros = try await repositorio.livros(naEstante: escritorio.id)
+        XCTAssertEqual(livros, [mudado, novo])
+        let itens = try await quantidade(de: ItemSumarioMO.nomeEntidade)
+        XCTAssertEqual(itens, 1)
+        let saiu = try await repositorio.livro(id: sai.id)
+        XCTAssertNil(saiu)
+    }
+
+    func testSubstituirMantemAFotoDoLivroQueContinua() async throws {
+        let sala = try await novaEstante("Sala")
+        let fica = Livro(estanteId: sala.id, titulo: "Fica", adicionadoEm: data)
+        let sai = Livro(estanteId: sala.id, titulo: "Sai", adicionadoEm: data)
+        try await repositorio.salvar(fica)
+        try await repositorio.salvar(sai)
+        try await repositorio.salvarFotoMiniatura(Data([1, 2, 3]), doLivro: fica.id)
+        try await repositorio.salvarFotoMiniatura(Data([4, 5, 6]), doLivro: sai.id)
+
+        var editado = fica
+        editado.titulo = "Fica, com outro título"
+        try await repositorio.substituirBiblioteca(por: ConteudoDaBiblioteca(estantes: [sala], livros: [editado]))
+
+        let foto = try await repositorio.fotoMiniatura(doLivro: fica.id)
+        XCTAssertEqual(foto, Data([1, 2, 3]))
+        let livros = try await quantidade(de: LivroMO.nomeEntidade)
+        XCTAssertEqual(livros, 1)
+    }
+
+    func testSubstituirComLivroEmEstanteForaDoConteudoLancaErroSemMudarNada() async throws {
+        let sala = try await novaEstante("Sala")
+        let antigo = Livro(estanteId: sala.id, titulo: "Antigo", adicionadoEm: data)
+        try await repositorio.salvar(antigo)
+        let sumida = UUID()
+
+        let escritorio = Estante(nome: "Escritório", criadaEm: data)
+        let conteudo = ConteudoDaBiblioteca(
+            estantes: [escritorio],
+            livros: [Livro(estanteId: escritorio.id, titulo: "Bom", adicionadoEm: data),
+                     Livro(estanteId: sumida, titulo: "Perdido", adicionadoEm: data)]
+        )
+        await esperarErro(.estanteNaoEncontrada(sumida)) {
+            try await self.repositorio.substituirBiblioteca(por: conteudo)
+        }
+
+        let estantes = try await repositorio.estantes()
+        XCTAssertEqual(estantes, [sala])
+        let livros = try await repositorio.todosOsLivros()
+        XCTAssertEqual(livros, [antigo])
+    }
+
+    func testSubstituirComCategoriaForaDoConteudoLancaErroSemMudarNada() async throws {
+        let sala = try await novaEstante("Sala")
+        let civil = Categoria(nome: "Civil", cor: .laranja)
+        try await repositorio.salvar(civil)
+        let sumida = UUID()
+
+        let conteudo = ConteudoDaBiblioteca(
+            estantes: [sala],
+            livros: [Livro(estanteId: sala.id, titulo: "Etiqueta perdida", categoriaIds: [sumida], adicionadoEm: data)]
+        )
+        await esperarErro(.categoriaNaoEncontrada(sumida)) {
+            try await self.repositorio.substituirBiblioteca(por: conteudo)
+        }
+
+        let categorias = try await repositorio.categorias()
+        XCTAssertEqual(categorias, [civil])
+        let livros = try await repositorio.todosOsLivros()
+        XCTAssertEqual(livros, [])
+    }
 }

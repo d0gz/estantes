@@ -108,19 +108,7 @@ final class BibliotecaRepositorioCoreData: BibliotecaRepositorio {
 
             let livroMO: LivroMO = try self.buscar(LivroMO.nomeEntidade, id: livro.id, em: contexto)
                 ?? LivroMO(context: contexto)
-            livroMO.preencher(com: livro)
-            livroMO.estante = estanteMO
-            livroMO.categorias = categoriasMO
-
-            // O sumário é substituído em bloco: apaga os itens antigos e grava os novos com a posição.
-            for itemMO in livroMO.itensSumario {
-                contexto.delete(itemMO)
-            }
-            for (posicao, item) in livro.itensSumario.enumerated() {
-                let itemMO = ItemSumarioMO(context: contexto)
-                itemMO.preencher(com: item, ordem: posicao)
-                itemMO.livro = livroMO
-            }
+            Self.preencher(livroMO, com: livro, estante: estanteMO, categorias: categoriasMO, em: contexto)
             try self.gravar(contexto)
         }
     }
@@ -216,6 +204,50 @@ final class BibliotecaRepositorioCoreData: BibliotecaRepositorio {
         }
     }
 
+    // MARK: Biblioteca inteira
+
+    /// Um contexto e um `save`: um erro no meio sai antes do `save`, e o contexto (novo, só desta operação)
+    /// é descartado sem gravar nada. Grava ou atualiza pelo id e só depois apaga o que saiu: apagar antes
+    /// uma estante levaria na cascata os livros que o conteúdo muda para outra.
+    func substituirBiblioteca(por conteudo: ConteudoDaBiblioteca) async throws {
+        try await emSegundoPlano { contexto in
+            let categoriasAntigas: [UUID: CategoriaMO] = try self.todos(CategoriaMO.nomeEntidade, em: contexto)
+            let estantesAntigas: [UUID: EstanteMO] = try self.todos(EstanteMO.nomeEntidade, em: contexto)
+            let livrosAntigos: [UUID: LivroMO] = try self.todos(LivroMO.nomeEntidade, em: contexto)
+
+            var categorias: [UUID: CategoriaMO] = [:]
+            for categoria in conteudo.categorias {
+                let categoriaMO = categoriasAntigas[categoria.id] ?? CategoriaMO(context: contexto)
+                categoriaMO.preencher(com: categoria)
+                categorias[categoria.id] = categoriaMO
+            }
+            var estantes: [UUID: EstanteMO] = [:]
+            for estante in conteudo.estantes {
+                let estanteMO = estantesAntigas[estante.id] ?? EstanteMO(context: contexto)
+                estanteMO.preencher(com: estante)
+                estantes[estante.id] = estanteMO
+            }
+            for livro in conteudo.livros {
+                guard let estanteMO = estantes[livro.estanteId] else {
+                    throw ErroPersistencia.estanteNaoEncontrada(livro.estanteId)
+                }
+                let categoriasMO = try Set(livro.categoriaIds.map { id -> CategoriaMO in
+                    guard let categoriaMO = categorias[id] else { throw ErroPersistencia.categoriaNaoEncontrada(id) }
+                    return categoriaMO
+                })
+                // O livro que continua é o mesmo objeto: a `fotoMiniatura` (fora do conteúdo) fica.
+                let livroMO = livrosAntigos[livro.id] ?? LivroMO(context: contexto)
+                Self.preencher(livroMO, com: livro, estante: estanteMO, categorias: categoriasMO, em: contexto)
+            }
+
+            let idsDosLivros = Set(conteudo.livros.map(\.id))
+            for (id, livroMO) in livrosAntigos where !idsDosLivros.contains(id) { contexto.delete(livroMO) }
+            for (id, estanteMO) in estantesAntigas where estantes[id] == nil { contexto.delete(estanteMO) }
+            for (id, categoriaMO) in categoriasAntigas where categorias[id] == nil { contexto.delete(categoriaMO) }
+            try self.gravar(contexto)
+        }
+    }
+
     // MARK: Auxiliares
 
     /// Roda `trabalho` na fila de um contexto de fundo novo e devolve o resultado com `await`.
@@ -234,6 +266,31 @@ final class BibliotecaRepositorioCoreData: BibliotecaRepositorio {
         pedido.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         pedido.fetchLimit = 1
         return try contexto.fetch(pedido).first
+    }
+
+    /// Todos os objetos de uma entidade, pelo `id`. Para a importação, que mexe na biblioteca inteira.
+    private func todos<T: NSManagedObject>(_ entidade: String, em contexto: NSManagedObjectContext) throws -> [UUID: T] {
+        let objetos = try contexto.fetch(NSFetchRequest<T>(entityName: entidade))
+        // KVC: `T` é genérico, e todas as entidades têm o atributo `id` (como no `buscar`).
+        return Dictionary(objetos.compactMap { objeto in (objeto.value(forKey: "id") as? UUID).map { ($0, objeto) } },
+                          uniquingKeysWith: { primeiro, _ in primeiro })
+    }
+
+    /// Campos, estante, categorias e sumário de um livro; usado por `salvar(_ livro:)` e pela importação.
+    /// O sumário é substituído em bloco: apaga os itens antigos e grava os novos com a posição.
+    private static func preencher(_ livroMO: LivroMO, com livro: Livro, estante: EstanteMO,
+                                  categorias: Set<CategoriaMO>, em contexto: NSManagedObjectContext) {
+        livroMO.preencher(com: livro)
+        livroMO.estante = estante
+        livroMO.categorias = categorias
+        for itemMO in livroMO.itensSumario {
+            contexto.delete(itemMO)
+        }
+        for (posicao, item) in livro.itensSumario.enumerated() {
+            let itemMO = ItemSumarioMO(context: contexto)
+            itemMO.preencher(com: item, ordem: posicao)
+            itemMO.livro = livroMO
+        }
     }
 
     /// Todas as categorias pedidas, ou erro se alguma não existir (em vez de perder a etiqueta calado).

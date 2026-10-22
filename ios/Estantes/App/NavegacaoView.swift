@@ -31,6 +31,7 @@ struct NavegacaoView: View {
         NavigationStack(path: $caminho) {
             InicioView(
                 viewModel: dependencias.fazerInicioViewModel(),
+                exportacao: dependencias.fazerExportacaoViewModel(),
                 abrirCategorias: { caminho.append(RotaDasCategorias()) },
                 acaoInicial: acaoInicial
             )

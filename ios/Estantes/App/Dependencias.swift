@@ -13,6 +13,8 @@ struct Dependencias {
     let biblioteca: BibliotecaIndexada
     /// Um só para o app: o cache das miniaturas vale entre telas (voltar à estante não relê as fotos).
     let miniaturas: CarregadorDeMiniaturas
+    /// O formato do arquivo de exportação (JSON v1).
+    let codificador: CodificadorDeBiblioteca = BibliotecaExportadaV1()
 
     init(repositorio base: BibliotecaRepositorio) {
         biblioteca = BibliotecaIndexada(base: base)
@@ -38,6 +40,25 @@ struct Dependencias {
     @MainActor
     func fazerInicioViewModel() -> InicioViewModel {
         InicioViewModel(repositorio: repositorio)
+    }
+
+    @MainActor
+    func fazerExportacaoViewModel() -> ExportacaoViewModel {
+        let importar = ImportarBiblioteca(repositorio: repositorio, codificador: codificador)
+        // Os exemplos só existem em DEBUG (simulador) e no `.ipa` com a flag `EXEMPLOS` (opção do "Run workflow").
+        // Fora deles, a ação é `nil` e o item nem aparece no menu.
+        #if DEBUG || EXEMPLOS
+        let carregarExemplos: (() async throws -> Void)? = { [repositorio] in
+            try await DadosDeExemplo.carregar(importar: importar, repositorio: repositorio)
+        }
+        #else
+        let carregarExemplos: (() async throws -> Void)? = nil
+        #endif
+        return ExportacaoViewModel(
+            exportar: ExportarBiblioteca(repositorio: repositorio, codificador: codificador),
+            importar: importar,
+            carregarExemplos: carregarExemplos
+        )
     }
 
     @MainActor
