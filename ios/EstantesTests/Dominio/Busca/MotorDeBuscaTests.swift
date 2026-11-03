@@ -162,10 +162,10 @@ final class MotorDeBuscaTests: XCTestCase {
         XCTAssertEqual(civil?.palavrasAusentes, ["prisoes", "tributario"])
     }
 
-    func testOUEscolheOItemDoSumarioComOsTermosPresentes() {
+    func testOUMostraOsItensComParteDosTermos() {
         // B não tem "civil", mas o item "Prisão" casa com o termo que ele tem.
         let resposta = motor.buscar("prisao civil")
-        XCTAssertEqual(item(resposta.resultados, de: livroB), "Prisão")
+        XCTAssertEqual(itens(resposta.resultados, de: livroB), ["Prisão"])
     }
 
     func testTermoUnicoSemResultadoContinuaVazio() {
@@ -333,22 +333,22 @@ final class MotorDeBuscaTests: XCTestCase {
 
     // MARK: - Item do sumário
 
-    private func item(_ resultados: [ResultadoBusca], de livro: Livro) -> String? {
-        resultados.first { $0.livro.id == livro.id }?.itemDoSumario?.titulo
+    private func itens(_ resultados: [ResultadoBusca], de livro: Livro) -> [String]? {
+        resultados.first { $0.livro.id == livro.id }?.itensDoSumario.map(\.titulo)
     }
 
     func testMostraOItemQueCasaComAConsulta() {
         let resultados = motor.buscar("prisao").resultados
 
-        XCTAssertEqual(item(resultados, de: livroA), "Prisão em flagrante")
-        XCTAssertEqual(item(resultados, de: livroB), "Prisão")
+        XCTAssertEqual(itens(resultados, de: livroA), ["Prisão em flagrante"])
+        XCTAssertEqual(itens(resultados, de: livroB), ["Prisão"])
     }
 
     func testItemPeloPrefixoDoUltimoTermo() {
-        XCTAssertEqual(item(motor.buscar("flagr").resultados, de: livroA), "Prisão em flagrante")
+        XCTAssertEqual(itens(motor.buscar("flagr").resultados, de: livroA), ["Prisão em flagrante"])
     }
 
-    func testItemQueCasaMaisTermosVence() {
+    func testItemSemTodosOsTermosFicaDeFora() {
         let livro = Livro(
             estanteId: estante1,
             titulo: "Processo penal",
@@ -359,10 +359,11 @@ final class MotorDeBuscaTests: XCTestCase {
         )
         let motor = MotorDeBusca(livros: [livro, livroC], categorias: [])
 
-        let escolhido = motor.buscar("prisao temporaria").resultados.first?.itemDoSumario
+        let mostrados = motor.buscar("prisao temporaria").resultados.first?.itensDoSumario
 
-        XCTAssertEqual(escolhido?.titulo, "Prisão temporária")
-        XCTAssertEqual(escolhido?.pagina, "42")
+        // "Prisão" não tem "temporária": no E, o item precisa de todas as palavras, como o livro.
+        XCTAssertEqual(mostrados?.map(\.titulo), ["Prisão temporária"])
+        XCTAssertEqual(mostrados?.map(\.pagina), ["42"])
     }
 
     func testItemComTermoFixoEPrefixoJuntos() {
@@ -378,12 +379,11 @@ final class MotorDeBuscaTests: XCTestCase {
         let motor = MotorDeBusca(livros: [livro, livroC], categorias: [])
 
         // Só o segundo tem o termo fixo "prisao" e uma expansão de "temporar".
-        XCTAssertEqual(item(motor.buscar("prisao temporar").resultados, de: livro), "Prisão temporária")
+        XCTAssertEqual(itens(motor.buscar("prisao temporar").resultados, de: livro), ["Prisão temporária"])
     }
 
-    func testItemComAMelhorExpansaoForaDaOrdemAlfabetica() {
-        // "pena" expande para "penal" (alfabeticamente primeiro) e "penas". "penal" está em todos
-        // os livros e vale pouco; "penas", só neste item, vale mais: o segundo item deve vencer.
+    func testQualquerExpansaoDoPrefixoCasaOItem() {
+        // "pena" expande para "penal" e "penas": cada item tem uma das duas, e os dois aparecem.
         let livro = Livro(
             estanteId: estante1,
             titulo: "Direito penal",
@@ -395,18 +395,24 @@ final class MotorDeBuscaTests: XCTestCase {
         let outros = ["Processo penal", "Execução penal"].map { Livro(estanteId: estante1, titulo: $0) }
         let motor = MotorDeBusca(livros: [livro] + outros, categorias: [])
 
-        XCTAssertEqual(item(motor.buscar("pena").resultados, de: livro), "Aplicação das penas")
+        XCTAssertEqual(itens(motor.buscar("pena").resultados, de: livro), ["Lei penal", "Aplicação das penas"])
     }
 
-    func testEmpateDeItensFicaComOPrimeiroDoSumario() {
+    // Bug do teste no iPhone (03/11): "coletivo" mostrava um item só e escondia os outros.
+    func testMostraTodosOsItensQueCasamNaOrdemDoSumario() {
+        // O item longo vem antes e tem nota menor que o curto: a ordem é a do sumário, não a da nota.
         let livro = Livro(
             estanteId: estante1,
             titulo: "Manual",
-            itensSumario: ["Recursos ordinários", "Recursos especiais"].map { ItemSumario(nivel: 1, titulo: $0) }
+            itensSumario: ["Recursos no processo civil e no penal", "Provas", "Recursos"].map {
+                ItemSumario(nivel: 1, titulo: $0)
+            }
         )
         let motor = MotorDeBusca(livros: [livro], categorias: [])
 
-        XCTAssertEqual(item(motor.buscar("recursos").resultados, de: livro), "Recursos ordinários")
+        XCTAssertEqual(
+            itens(motor.buscar("recursos").resultados, de: livro), ["Recursos no processo civil e no penal", "Recursos"]
+        )
     }
 
     func testSemItemQuandoOLivroCasaForaDoSumario() {
@@ -414,14 +420,14 @@ final class MotorDeBuscaTests: XCTestCase {
         let resultados = motor.buscar("processo").resultados
 
         XCTAssertEqual(ids(resultados), [livroB.id])
-        XCTAssertNil(resultados[0].itemDoSumario)
+        XCTAssertEqual(resultados[0].itensDoSumario, [])
     }
 
     func testListagemPorFiltroNaoTemItem() {
         let resultados = motor.buscar("", filtro: FiltroBusca(estanteIds: [estante1])).resultados
 
         XCTAssertFalse(resultados.isEmpty)
-        XCTAssertTrue(resultados.allSatisfy { $0.itemDoSumario == nil })
+        XCTAssertTrue(resultados.allSatisfy { $0.itensDoSumario.isEmpty })
     }
 
     // MARK: - Categorias
@@ -516,7 +522,8 @@ final class MotorDeBuscaTests: XCTestCase {
         let resultados = motor.buscar("art 1710").resultados
 
         XCTAssertEqual(ids(resultados), [tomo.id])
-        XCTAssertEqual(resultados.first?.itemDoSumario?.pagina, "15")
+        // O 1.709 tem "art", mas não "1710".
+        XCTAssertEqual(resultados.first?.itensDoSumario.map(\.pagina), ["15"])
     }
 
     func testPalavraSoDaParteAchaOTomo() {

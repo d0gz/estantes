@@ -74,7 +74,8 @@ Detalhe, folha "Editar sumário" e tela de item com "Próximo item"; 449 testes;
 interface: `BibliotecaIndexada` (actor decorador que mantém o índice), tela "Busca" própria com campo, chips, telas
 Filtros e Categorias; correção da rolagem na primeira entrada da Estante e de Categorias; 490 testes; PR #27
 mergeado) e 2.8 (exportar/importar + `.ipa` com exemplos pela opção `exemplos` do "Run workflow"; 539 testes;
-PR #28 mergeado; testada no iPhone em 22/10). **Próximo (antes da Fase 3):** ver no simulador o menu ⋯ (o texto de
+PR #28 mergeado; testada no iPhone em 22/10). **Em andamento:** 2.8b (todas as ocorrências do sumário na busca; bug do teste no iPhone, branch
+`fase2/sumario-ocorrencias`, Q1 em aberto: ver o "Onde paramos" da 2.8b no PLANO). **Depois (antes da Fase 3):** ver no simulador o menu ⋯ (o texto de
 Exportar/Importar quebrou no iPhone) e conferir as telas no modo escuro (o modo do usuário principal); depois fechar a
 2.9 e rodar `/fechar-fase`. Detalhes no "Onde paramos" do checklist do PLANO. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 

@@ -100,7 +100,7 @@ struct MotorDeBusca {
             }
             let todos = livros.values
                 .filter(filtroPreparado.aceita)
-                .map { ResultadoBusca(livro: $0, itemDoSumario: nil, nota: 0) }
+                .map { ResultadoBusca(livro: $0, itensDoSumario: [], nota: 0) }
             return RespostaBusca(resultados: MotorDeBusca.ordenar(todos), modo: .todosOsTermos, correcoes: [])
         }
 
@@ -143,13 +143,15 @@ struct MotorDeBusca {
         let conjuntoDeExpansoes = Set(expansoes)
 
         // O filtro vem depois do BM25F: aplicado antes, mudaria o IDF e a nota de quem continua.
-        func resultados(_ notas: [UUID: Double], ausentes: [UUID: [String]]) -> [ResultadoBusca] {
+        func resultados(_ notas: [UUID: Double], ausentes: [UUID: [String]], todosOsTermos: Bool) -> [ResultadoBusca] {
             MotorDeBusca.ordenar(
                 notas.compactMap { id, nota in
                     guard let livro = livros[id], filtroPreparado.aceita(livro) else { return nil }
-                    let item = melhorItem(de: livro, fixos: fixos, expansoes: conjuntoDeExpansoes, parametros: parametros)
+                    let itens = itensQueCasam(
+                        de: livro, fixos: fixos, expansoes: conjuntoDeExpansoes, todosOsTermos: todosOsTermos
+                    )
                     return ResultadoBusca(
-                        livro: livro, itemDoSumario: item, nota: nota, palavrasAusentes: ausentes[id] ?? []
+                        livro: livro, itensDoSumario: itens, nota: nota, palavrasAusentes: ausentes[id] ?? []
                     )
                 }
             )
@@ -163,7 +165,7 @@ struct MotorDeBusca {
                 notas[id] = notasDoTermo[id].map { nota + $0 }
             }
         }
-        let comTodos = resultados(notas, ausentes: [:])
+        let comTodos = resultados(notas, ausentes: [:], todosOsTermos: true)
         guard comTodos.isEmpty, !fixos.isEmpty else {
             return RespostaBusca(resultados: comTodos, modo: .todosOsTermos, correcoes: correcoes)
         }
@@ -188,7 +190,7 @@ struct MotorDeBusca {
             ausentes[id]?.sort { (palavras.firstIndex(of: $0) ?? 0) < (palavras.firstIndex(of: $1) ?? 0) }
         }
         return RespostaBusca(
-            resultados: resultados(notasParciais, ausentes: ausentes), modo: .parteDosTermos, correcoes: correcoes
+            resultados: resultados(notasParciais, ausentes: ausentes, todosOsTermos: false), modo: .parteDosTermos, correcoes: correcoes
         )
     }
 
@@ -213,35 +215,27 @@ struct MotorDeBusca {
         return melhores
     }
 
-    /// O item do sumário mostrado no resultado: o de maior nota BM25, com a mesma regra do livro
-    /// (termos fixos somados, a maior entre as expansões do último). Calculado só para os livros que
-    /// sobraram depois do filtro. No empate, o que vem antes no sumário; `nil` se nenhum item tem
-    /// os termos (o livro casou pelo título, autor...).
-    private func melhorItem(
+    /// Os itens do sumário mostrados no resultado, na ordem do sumário e sem limite: mostrar só o de
+    /// melhor nota escondia os outros (teste no iPhone, 03/11). Calculado só para os livros que sobraram
+    /// depois do filtro. A regra é a do livro: no E, o item precisa de cada termo fixo e de alguma
+    /// expansão do último; no OU de reserva, basta um deles. Vazio se nenhum item casa (o livro casou
+    /// pelo título, autor...).
+    private func itensQueCasam(
         de livro: Livro,
         fixos: [String],
         expansoes: Set<String>,
-        parametros: ParametrosBM25F
-    ) -> ItemSumario? {
-        var melhor: (id: UUID, nota: Double)?
-        for item in indice.itensSumario(doLivro: livro.id) {
+        todosOsTermos: Bool
+    ) -> [ItemSumario] {
+        let ids = Set(indice.itensSumario(doLivro: livro.id).filter { item in
             // Só as expansões que o item tem: um prefixo curto pode ter centenas, e um item tem
             // poucos termos. Percorrer os termos do item custa O(tamanho do item), não O(expansões).
-            let notaDoUltimo = item.frequencias.keys
-                .filter(expansoes.contains)
-                .map { BM25F.notaDoItem(item, termos: [$0], indice: indice, parametros: parametros) }
-                .max() ?? 0
-            let nota = fixos.reduce(notaDoUltimo) { soma, termo in
-                soma + BM25F.notaDoItem(item, termos: [termo], indice: indice, parametros: parametros)
-            }
-            // `>` e não `>=`: no empate fica o primeiro. Partir de 0 faz item sem os termos
-            // (nota 0) nunca vencer; se nenhum vence, o resultado é `nil`.
-            if nota > (melhor?.nota ?? 0) {
-                melhor = (item.id, nota)
-            }
-        }
-        guard let id = melhor?.id else { return nil }
-        return livro.itensSumario.first { $0.id == id }
+            let temOUltimo = item.frequencias.keys.contains(where: expansoes.contains)
+            let temFixo = { (termo: String) in item.frequencias[termo] != nil }
+            return todosOsTermos
+                ? temOUltimo && fixos.allSatisfy(temFixo)
+                : temOUltimo || fixos.contains(where: temFixo)
+        }.map(\.id))
+        return livro.itensSumario.filter { ids.contains($0.id) }
     }
 
     /// Menos palavras ausentes primeiro (só difere no OU: quem tem 2 de 3 termos vem antes de quem tem

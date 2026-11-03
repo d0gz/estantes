@@ -31,14 +31,14 @@ struct ConsultaDeReferencia {
     }
 }
 
-/// O que aconteceu com uma consulta: onde o livro esperado ficou e qual item o motor mostrou.
+/// O que aconteceu com uma consulta: onde o livro esperado ficou e quais itens o motor mostrou.
 struct MedicaoDeConsulta {
     let consulta: ConsultaDeReferencia
     /// Posição pessimista, a partir de 1; `nil` quando o livro não voltou.
     let posicao: Int?
     let nota: Double?
-    /// O item do sumário mostrado no resultado do livro esperado.
-    let itemMostrado: ItemSumario?
+    /// Os itens do sumário mostrados no resultado do livro esperado.
+    let itensMostrados: [ItemSumario]
 
     /// 1/posição; 0 quando o livro não voltou.
     var rankReciproco: Double {
@@ -48,7 +48,7 @@ struct MedicaoDeConsulta {
     /// `nil` quando a consulta não espera item ou o livro ficou fora do top 3 (aí o item não é visto).
     var itemCerto: Bool? {
         guard let esperado = consulta.itemEsperado, let posicao = posicao, posicao <= 3 else { return nil }
-        return itemMostrado?.numeracao == esperado || itemMostrado?.titulo == esperado
+        return itensMostrados.contains { $0.numeracao == esperado || $0.titulo == esperado }
     }
 }
 
@@ -109,7 +109,7 @@ enum MetricasDeBusca {
             consulta: consulta,
             posicao: posicao(de: livroEsperado, em: resultados),
             nota: resultado?.nota,
-            itemMostrado: resultado?.itemDoSumario
+            itensMostrados: resultado?.itensDoSumario ?? []
         )
     }
 

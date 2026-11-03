@@ -189,7 +189,8 @@ final class ConsultasDeReferenciaTests: XCTestCase {
         var texto = "[referencia] #\(numero) \(tipo) \(consulta.caso.rawValue) \"\(consulta.texto)\" → "
             + "\(consulta.esperado): \(posicao) (nota \(nota))"
         if let esperado = consulta.itemEsperado {
-            let mostrado = medicao.itemMostrado.map { $0.numeracao ?? $0.titulo } ?? "nenhum"
+            let mostrados = medicao.itensMostrados.map { $0.numeracao ?? $0.titulo }
+            let mostrado = mostrados.isEmpty ? "nenhum" : mostrados.joined(separator: " | ")
             let marca = medicao.itemCerto == true ? "✓" : "✗"
             texto += " · item \(marca) esperado \"\(esperado)\", mostrado \"\(mostrado)\""
         }

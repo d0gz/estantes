@@ -193,7 +193,7 @@ struct ResultadosDaBuscaView<Cabecalho: View>: View {
                 }
                 .padding(.bottom, Espaco.pequeno)
             }
-            if let item = LinhaDoResultado.item(resultado.itemDoSumario) {
+            if let item = LinhaDoResultado.item(resultado.itensDoSumario.first) {
                 Label(item, systemImage: "list.bullet.indent")
                     .font(.subheadline)
                     .foregroundColor(.primary)

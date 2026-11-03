@@ -766,6 +766,27 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   (run 39659696298, Sideloadly): os 7 passos funcionaram (carregar exemplos, exportar para Arquivos, importar com
   "Mesclar" e "Substituir tudo", dados mantidos ao reabrir, busca). PR #28 mergeado.
   Antes (21/10): passos 1–7 e revisão concluídos; CI do PR verde no Xcode 26; aprendizado registrado pelo teacher.
+- [ ] **2.8b — todas as ocorrências do sumário na busca** (bug do teste no iPhone, 03/11; vem antes da 2.9)
+  Foto local (fora do git): `avaliacao/fotos/bug-encontrado-teste-manual-foto/corrigirSumarioBug.jpg`. Ao buscar
+  "coletivo", o Tomo XLVIII mostrava um item só ("2. Figurantes coletivos, p. 3") e escondia os outros: o motor
+  escolhia o de melhor nota BM25 (`melhorItem`). Branch `fase2/sumario-ocorrencias`.
+  Decidido no /decidir de 03/11: mostrar **todos** os itens que casam, na **ordem do sumário**, sem limite, um por
+  linha no estilo do item de hoje, com o ícone só no 1º (Q2, Q3, Q5); na referência, o item certo basta **estar na
+  lista** (Q4). Linhas do Histórico propostas (gravar quando a Q1 fechar): "todos os itens, ordem do sumário, sem
+  limite" (revisa a linha 325 deste PLANO) e "item certo na lista" (revisa a de 09/10).
+  **Q1 em aberto — que itens entram:** "todas as palavras" (E) falhou na referência #19 ("tratado direito privado
+  dissidios coletivos": "tratado direito privado" está no título, então nenhum item tem as 5 palavras). "Dispensar
+  as palavras que o livro tem fora do sumário" quebra a busca da foto ("coletivo" está no subtítulo do Tomo XLVIII)
+  e "art 1710" (as pontas dos artigos ficam no subtítulo). Recomendação na mesa: **dentro de cada livro, os itens
+  com o maior número de palavras da consulta** (sem olhar campo nem E/OU). Custo: em "direito coletivo", os itens
+  só com "coletivo" somem se algum tiver as duas. Alternativa: qualquer palavra (lista ruidosa).
+  **Onde paramos (03/11, branch `fase2/sumario-ocorrencias`, 540 testes, 1 vermelho):** feitos a troca de
+  `itemDoSumario` por `itensDoSumario: [ItemSumario]`, `itensQueCasam` (hoje com E/OU por item), os testes do motor
+  em forma de lista e `MedicaoDeConsulta.itensMostrados` com `itemCerto` por `contains`. O vermelho é o piso da
+  referência (`testMetricasNaoCaemAbaixoDoPiso`, item certo 0,833, por causa da #19); ele depende da Q1.
+  **Próximo:** fechar a Q1 → ajustar `itensQueCasam` (teste da #19 no `MotorDeBuscaTests` antes) → passo 4 do plano
+  (`LinhaDoResultado.itens` e `rodape` da `ResultadosDaBuscaView`) → captura no simulador (escuro) → PLANO e
+  Histórico → revisores → teacher → PR. Plano completo: `~/.claude/plans/verifique-de-forma-objetiva-temporal-wadler.md`.
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
   (2.9) A parte do iPhone está provada (22/10, teste da 2.8). **Pendências antes da Fase 3** (anotadas em 22/10,
   ver na próxima sessão, cada uma começando pela explicação e esperando o OK):

@@ -10,7 +10,7 @@ final class MetricasDeBuscaTests: XCTestCase {
     }
 
     private func resultado(_ livro: Livro, _ nota: Double, item: ItemSumario? = nil) -> ResultadoBusca {
-        ResultadoBusca(livro: livro, itemDoSumario: item, nota: nota)
+        ResultadoBusca(livro: livro, itensDoSumario: item.map { [$0] } ?? [], nota: nota)
     }
 
     private func consulta(item: String? = nil, tipo: ConsultaDeReferencia.Tipo = .ajuste) -> ConsultaDeReferencia {
@@ -20,10 +20,10 @@ final class MetricasDeBuscaTests: XCTestCase {
     private func medicao(
         posicao: Int?,
         item: String? = nil,
-        mostrado: ItemSumario? = nil,
+        mostrados: [ItemSumario] = [],
         tipo: ConsultaDeReferencia.Tipo = .ajuste
     ) -> MedicaoDeConsulta {
-        MedicaoDeConsulta(consulta: consulta(item: item, tipo: tipo), posicao: posicao, nota: nil, itemMostrado: mostrado)
+        MedicaoDeConsulta(consulta: consulta(item: item, tipo: tipo), posicao: posicao, nota: nil, itensMostrados: mostrados)
     }
 
     // MARK: - Posição
@@ -87,10 +87,17 @@ final class MetricasDeBuscaTests: XCTestCase {
 
     func testItemCasaPelaNumeracaoOuPeloTitulo() {
         let item = ItemSumario(nivel: 1, numeracao: "Art. 1.710", titulo: "Da sub-rogação")
-        XCTAssertEqual(medicao(posicao: 1, item: "Art. 1.710", mostrado: item).itemCerto, true)
-        XCTAssertEqual(medicao(posicao: 1, item: "Da sub-rogação", mostrado: item).itemCerto, true)
-        XCTAssertEqual(medicao(posicao: 1, item: "Art. 1.711", mostrado: item).itemCerto, false)
-        XCTAssertEqual(medicao(posicao: 1, item: "Art. 1.710", mostrado: nil).itemCerto, false)
+        XCTAssertEqual(medicao(posicao: 1, item: "Art. 1.710", mostrados: [item]).itemCerto, true)
+        XCTAssertEqual(medicao(posicao: 1, item: "Da sub-rogação", mostrados: [item]).itemCerto, true)
+        XCTAssertEqual(medicao(posicao: 1, item: "Art. 1.711", mostrados: [item]).itemCerto, false)
+        XCTAssertEqual(medicao(posicao: 1, item: "Art. 1.710", mostrados: []).itemCerto, false)
+    }
+
+    // A busca mostra todos os itens que casam (03/11): basta o esperado estar entre eles.
+    func testItemCertoBastaEstarNaLista() {
+        let itens = ["Prisão em flagrante", "Prisão preventiva"].map { ItemSumario(nivel: 1, titulo: $0) }
+        XCTAssertEqual(medicao(posicao: 1, item: "Prisão preventiva", mostrados: itens).itemCerto, true)
+        XCTAssertEqual(medicao(posicao: 1, item: "Fiança", mostrados: itens).itemCerto, false)
     }
 
     func testItemSoContaComLivroNoTop3() {
@@ -100,8 +107,8 @@ final class MetricasDeBuscaTests: XCTestCase {
 
         let item = ItemSumario(nivel: 1, titulo: "Prisão")
         let avaliacao = AvaliacaoDaBusca(medicoes: [
-            medicao(posicao: 1, item: "Prisão", mostrado: item),
-            medicao(posicao: 2, item: "Fiança", mostrado: item),
+            medicao(posicao: 1, item: "Prisão", mostrados: [item]),
+            medicao(posicao: 2, item: "Fiança", mostrados: [item]),
             medicao(posicao: 9, item: "Prisão")
         ])
         XCTAssertEqual(avaliacao.itemCerto, 0.5)
