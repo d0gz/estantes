@@ -11,14 +11,12 @@ enum CampoBusca: CaseIterable {
     case sumario
 }
 
-/// Os termos de um item do sumário, guardados para escolher o item mostrado no resultado
+/// Os termos de um item do sumário, guardados para escolher os itens mostrados no resultado
 /// sem tokenizar de novo na hora da busca.
 struct ItemSumarioIndexado: Equatable {
     let id: UUID
     /// Termo → quantas vezes aparece na numeração e no título do item.
     let frequencias: [String: Int]
-    /// Total de termos do item (com repetições).
-    let tamanho: Int
 }
 
 /// Índice invertido da biblioteca, em memória: do termo para os livros que o contêm.
@@ -34,6 +32,7 @@ struct IndiceInvertido {
         /// As palavras antes do singular, para descontar de `palavras` na remoção.
         let palavras: Set<String>
         let itensSumario: [ItemSumarioIndexado]
+        let termosDoTitulo: Set<String>
     }
 
     /// Termo → livro → campo → frequência. Só aparecem os campos onde o termo ocorre.
@@ -44,8 +43,6 @@ struct IndiceInvertido {
     private var palavras: [String: Int] = [:]
     /// Somas mantidas a cada inclusão e remoção: as médias saem sem recontar a biblioteca.
     private var somaDosTamanhos: [CampoBusca: Int] = [:]
-    private var somaDosTamanhosDosItens = 0
-    private var quantidadeDeItens = 0
 
     // MARK: - Alteração
 
@@ -98,15 +95,13 @@ struct IndiceInvertido {
         let itens = zip(livro.itensSumario, termosDosItens).map { item, termos in
             ItemSumarioIndexado(
                 id: item.id,
-                frequencias: termos.reduce(into: [:]) { $0[$1, default: 0] += 1 },
-                tamanho: termos.count
+                frequencias: termos.reduce(into: [:]) { $0[$1, default: 0] += 1 }
             )
         }
-        somaDosTamanhosDosItens += itens.reduce(0) { $0 + $1.tamanho }
-        quantidadeDeItens += itens.count
 
         documentos[livro.id] = Documento(
-            tamanhos: tamanhos, termos: termosDoLivro, palavras: palavrasDoLivro, itensSumario: itens
+            tamanhos: tamanhos, termos: termosDoLivro, palavras: palavrasDoLivro, itensSumario: itens,
+            termosDoTitulo: Set((palavrasPorCampo[.titulo] ?? []).map(Singular.forma))
         )
     }
 
@@ -129,8 +124,6 @@ struct IndiceInvertido {
         for (campo, tamanho) in documento.tamanhos {
             somaDosTamanhos[campo, default: 0] -= tamanho
         }
-        somaDosTamanhosDosItens -= documento.itensSumario.reduce(0) { $0 + $1.tamanho }
-        quantidadeDeItens -= documento.itensSumario.count
     }
 
     // MARK: - Consulta (o que o BM25F usa)
@@ -195,9 +188,9 @@ struct IndiceInvertido {
         documentos[id]?.itensSumario ?? []
     }
 
-    /// Tamanho médio de um item do sumário, sobre todos os itens da biblioteca.
-    var tamanhoMedioDosItens: Double {
-        guard quantidadeDeItens > 0 else { return 0 }
-        return Double(somaDosTamanhosDosItens) / Double(quantidadeDeItens)
+    /// Os termos do título do livro (no singular, como entraram no índice). O motor não os conta ao escolher os
+    /// itens do sumário mostrados; vazio para um livro que não está no índice.
+    func termosDoTitulo(doLivro id: UUID) -> Set<String> {
+        documentos[id]?.termosDoTitulo ?? []
     }
 }

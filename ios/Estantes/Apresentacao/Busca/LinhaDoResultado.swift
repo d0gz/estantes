@@ -1,11 +1,12 @@
 import Foundation
 
 /// Os textos que a linha de um resultado da busca acrescenta à linha do livro, em duas partes: onde está o assunto
-/// (item do sumário e página, o motivo da busca) e onde está o livro (estante e prateleira, mais discreto).
+/// (itens do sumário e páginas, o motivo da busca) e onde está o livro (estante e prateleira, mais discreto).
 enum LinhaDoResultado {
-    /// "§ 5.108 Conceito, p. 12"; `nil` sem item (o livro casou pelo título, autor...).
-    static func item(_ item: ItemSumario?) -> String? {
-        item.map(textoDoItem)
+    /// Um texto por item, na ordem recebida (a do sumário): "§ 5.108 Conceito, p. 12". Vazio sem itens (o livro
+    /// casou pelo título, autor...).
+    static func itens(_ itens: [ItemSumario]) -> [String] {
+        itens.map(textoDoItem)
     }
 
     /// "Escritório · 2ª de cima"; parte ausente sai junto com o separador, e sem nenhuma, `nil`.

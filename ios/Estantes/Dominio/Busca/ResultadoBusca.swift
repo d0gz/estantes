@@ -4,8 +4,8 @@ import Foundation
 /// a tela resolve pelo `livro.estanteId`, e renomear uma estante não exige reindexar nada.
 struct ResultadoBusca: Equatable {
     let livro: Livro
-    /// O item do sumário que mais casa com a consulta (com a página), ou `nil`.
-    let itemDoSumario: ItemSumario?
+    /// Os itens do sumário que casam com a consulta (com a página); vazio se nenhum casa.
+    let itensDoSumario: [ItemSumario]
     /// Nota BM25F. Vale 0 na listagem só por filtro (consulta vazia), que não tem ranking.
     let nota: Double
     /// No OU de reserva, as palavras da consulta que o livro não tem, como o usuário as escreveu

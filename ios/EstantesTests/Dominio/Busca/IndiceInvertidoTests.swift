@@ -141,7 +141,17 @@ final class IndiceInvertidoTests: XCTestCase {
         XCTAssertEqual(indice.ocorrencias(de: "contrato"), [:])
         XCTAssertEqual(indice.ocorrencias(de: "direito"), [id: [.titulo: 1]])
         XCTAssertEqual(indice.tamanhoMedio(de: .sumario), 0)
-        XCTAssertEqual(indice.tamanhoMedioDosItens, 0)
+    }
+
+    // O motor não conta as palavras do título ao escolher os itens do sumário (2.8b): o índice diz quais são,
+    // como as gravou (no singular), para não haver um segundo caminho de tokenização.
+    func testGuardaOsTermosDoTitulo() {
+        var indice = IndiceInvertido()
+        let penal = livro(titulo: "Prisões preventivas")
+        indice.adicionar(penal, nomesDasCategorias: [:])
+
+        XCTAssertEqual(indice.termosDoTitulo(doLivro: penal.id), ["prisao", "preventiva"])
+        XCTAssertEqual(indice.termosDoTitulo(doLivro: UUID()), [])
     }
 
     func testGuardaOsItensDoSumarioNaOrdem() {
@@ -152,23 +162,19 @@ final class IndiceInvertidoTests: XCTestCase {
         let itens = indice.itensSumario(doLivro: penal.id)
         XCTAssertEqual(itens.map(\.id), penal.itensSumario.map(\.id))
         XCTAssertEqual(itens[0].frequencias, ["prisao": 2, "preventiva": 1])
-        XCTAssertEqual(itens[0].tamanho, 3)
         XCTAssertEqual(itens[1].frequencias, ["recurso": 1])
-        XCTAssertEqual(indice.tamanhoMedioDosItens, 2) // (3 + 1) / 2
         XCTAssertEqual(indice.ocorrencias(de: "prisao"), [penal.id: [.sumario: 2]])
     }
 
-    func testRemoverDesfazSomasDosItensSemMexerNosOutrosLivros() {
+    func testRemoverDesfazOSumarioSemMexerNosOutrosLivros() {
         var indice = IndiceInvertido()
         let civil = livro(titulo: "Direito civil", sumario: ["Contratos em espécie"]) // item com 2 termos
         let penal = livro(titulo: "Direito penal", sumario: ["Crimes", "Penas e medidas"]) // 1 e 2 termos
         indice.adicionar(civil, nomesDasCategorias: [:])
         indice.adicionar(penal, nomesDasCategorias: [:])
-        XCTAssertEqual(indice.tamanhoMedioDosItens, 5.0 / 3.0)
 
         indice.remover(penal.id)
 
-        XCTAssertEqual(indice.tamanhoMedioDosItens, 2)
         XCTAssertEqual(indice.tamanhoMedio(de: .sumario), 2)
         XCTAssertEqual(indice.itensSumario(doLivro: penal.id), [])
         XCTAssertEqual(indice.ocorrencias(de: "contrato"), [civil.id: [.sumario: 1]])
@@ -187,7 +193,6 @@ final class IndiceInvertidoTests: XCTestCase {
         XCTAssertEqual(indice.ocorrencias(de: "penal"), [penal.id: [.titulo: 1]])
         XCTAssertEqual(indice.tamanhoMedio(de: .titulo), 2)
         XCTAssertEqual(indice.tamanhoMedio(de: .sumario), 1)
-        XCTAssertEqual(indice.tamanhoMedioDosItens, 1)
     }
 
     func testReindexarParaLivroMaiorAtualizaTamanhos() {
@@ -199,7 +204,6 @@ final class IndiceInvertidoTests: XCTestCase {
 
         XCTAssertEqual(indice.tamanho(de: .titulo, noLivro: id), 3)
         XCTAssertEqual(indice.tamanhoMedio(de: .titulo), 3)
-        XCTAssertEqual(indice.tamanhoMedioDosItens, 3)
         XCTAssertEqual(indice.ocorrencias(de: "penal"), [id: [.titulo: 1]])
     }
 
@@ -213,19 +217,16 @@ final class IndiceInvertidoTests: XCTestCase {
 
         XCTAssertEqual(indice.totalDeLivros, 1)
         XCTAssertEqual(indice.ocorrencias(de: "civil"), [civil.id: [.titulo: 1]])
-        XCTAssertEqual(indice.tamanhoMedioDosItens, 1)
     }
 
-    func testItemDoSumarioSemTermosContaNaMedia() {
+    func testItemDoSumarioSemTermosFicaSemFrequencias() {
         var indice = IndiceInvertido()
         let penal = livro(titulo: "Processo penal", sumario: ["De", "Prisão preventiva"])
         indice.adicionar(penal, nomesDasCategorias: [:])
 
         let itens = indice.itensSumario(doLivro: penal.id)
         XCTAssertEqual(itens.count, 2)
-        XCTAssertEqual(itens[0].tamanho, 0)
         XCTAssertEqual(itens[0].frequencias, [:])
-        XCTAssertEqual(indice.tamanhoMedioDosItens, 1) // (0 + 2) / 2
     }
 
     func testTermoEmVariosLivrosEVariosCampos() {
@@ -268,7 +269,6 @@ final class IndiceInvertidoTests: XCTestCase {
 
         XCTAssertEqual(indice.totalDeLivros, 0)
         XCTAssertEqual(indice.tamanhoMedio(de: .titulo), 0)
-        XCTAssertEqual(indice.tamanhoMedioDosItens, 0)
         XCTAssertEqual(indice.itensSumario(doLivro: UUID()), [])
     }
 
@@ -286,7 +286,6 @@ final class IndiceInvertidoTests: XCTestCase {
         XCTAssertEqual(indice.tamanho(de: .sumario, noLivro: tratado.id), 4)
         let indexado = indice.itensSumario(doLivro: tratado.id).first
         XCTAssertEqual(indexado?.frequencias["1710"], 1)
-        XCTAssertEqual(indexado?.tamanho, 4)
     }
 
     func testParteEntraNoCampoSubtitulo() {

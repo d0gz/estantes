@@ -100,7 +100,7 @@ struct MotorDeBusca {
             }
             let todos = livros.values
                 .filter(filtroPreparado.aceita)
-                .map { ResultadoBusca(livro: $0, itemDoSumario: nil, nota: 0) }
+                .map { ResultadoBusca(livro: $0, itensDoSumario: [], nota: 0) }
             return RespostaBusca(resultados: MotorDeBusca.ordenar(todos), modo: .todosOsTermos, correcoes: [])
         }
 
@@ -147,9 +147,9 @@ struct MotorDeBusca {
             MotorDeBusca.ordenar(
                 notas.compactMap { id, nota in
                     guard let livro = livros[id], filtroPreparado.aceita(livro) else { return nil }
-                    let item = melhorItem(de: livro, fixos: fixos, expansoes: conjuntoDeExpansoes, parametros: parametros)
+                    let itens = itensQueCasam(de: livro, fixos: fixos, expansoes: conjuntoDeExpansoes)
                     return ResultadoBusca(
-                        livro: livro, itemDoSumario: item, nota: nota, palavrasAusentes: ausentes[id] ?? []
+                        livro: livro, itensDoSumario: itens, nota: nota, palavrasAusentes: ausentes[id] ?? []
                     )
                 }
             )
@@ -213,35 +213,44 @@ struct MotorDeBusca {
         return melhores
     }
 
-    /// O item do sumário mostrado no resultado: o de maior nota BM25, com a mesma regra do livro
-    /// (termos fixos somados, a maior entre as expansões do último). Calculado só para os livros que
-    /// sobraram depois do filtro. No empate, o que vem antes no sumário; `nil` se nenhum item tem
-    /// os termos (o livro casou pelo título, autor...).
-    private func melhorItem(
-        de livro: Livro,
-        fixos: [String],
-        expansoes: Set<String>,
-        parametros: ParametrosBM25F
-    ) -> ItemSumario? {
-        var melhor: (id: UUID, nota: Double)?
-        for item in indice.itensSumario(doLivro: livro.id) {
+    /// Os itens do sumário mostrados no resultado, na ordem do sumário e sem limite: mostrar só o de
+    /// melhor nota escondia os outros (teste no iPhone, 03/11). Ficam os itens com o maior número de
+    /// palavras da consulta que algum item do livro alcança. "Todas as palavras" falhava quando parte da
+    /// consulta está no título ("tratado direito privado dissidios coletivos"), e "qualquer palavra"
+    /// listaria todo item com "direito". As palavras do título não contam (o "direito" do título fazia um
+    /// cabeçalho genérico esconder o "§ 5.153 Dissídios coletivos"), a não ser que todas estejam nele. Vale
+    /// igual no E e no OU de reserva. Calculado só para os livros que sobraram depois do filtro. Vazio se
+    /// nenhum item tem os termos (o livro casou pelo título, autor...).
+    private func itensQueCasam(de livro: Livro, fixos: [String], expansoes: Set<String>) -> [ItemSumario] {
+        let (fixosContados, contaOUltimo) = palavrasQueContam(livro: livro, fixos: fixos, expansoes: expansoes)
+        let contagens = indice.itensSumario(doLivro: livro.id).map { item -> (id: UUID, palavras: Int) in
             // Só as expansões que o item tem: um prefixo curto pode ter centenas, e um item tem
             // poucos termos. Percorrer os termos do item custa O(tamanho do item), não O(expansões).
-            let notaDoUltimo = item.frequencias.keys
-                .filter(expansoes.contains)
-                .map { BM25F.notaDoItem(item, termos: [$0], indice: indice, parametros: parametros) }
-                .max() ?? 0
-            let nota = fixos.reduce(notaDoUltimo) { soma, termo in
-                soma + BM25F.notaDoItem(item, termos: [termo], indice: indice, parametros: parametros)
-            }
-            // `>` e não `>=`: no empate fica o primeiro. Partir de 0 faz item sem os termos
-            // (nota 0) nunca vencer; se nenhum vence, o resultado é `nil`.
-            if nota > (melhor?.nota ?? 0) {
-                melhor = (item.id, nota)
-            }
+            let temOUltimo = contaOUltimo && item.frequencias.keys.contains(where: expansoes.contains)
+            let fixosNoItem = fixosContados.filter { item.frequencias[$0] != nil }.count
+            return (item.id, fixosNoItem + (temOUltimo ? 1 : 0))
         }
-        guard let id = melhor?.id else { return nil }
-        return livro.itensSumario.first { $0.id == id }
+        guard let maximo = contagens.map(\.palavras).max(), maximo > 0 else { return [] }
+        let ids = Set(contagens.filter { $0.palavras == maximo }.map(\.id))
+        return livro.itensSumario.filter { ids.contains($0.id) }
+    }
+
+    /// As palavras da consulta que contam para os itens do livro: todas menos as do título; se todas estão no
+    /// título, todas contam. Só o título: o subtítulo traz a matéria ("Contrato coletivo do trabalho") e as
+    /// pontas dos artigos, que são o assunto procurado.
+    private func palavrasQueContam(
+        livro: Livro,
+        fixos: [String],
+        expansoes: Set<String>
+    ) -> (fixos: [String], contaOUltimo: Bool) {
+        let doTitulo = indice.termosDoTitulo(doLivro: livro.id)
+        let fixosForaDoTitulo = fixos.filter { !doTitulo.contains($0) }
+        // Percorre o título (poucos termos), e não as expansões (um prefixo curto tem centenas).
+        let ultimoNoTitulo = doTitulo.contains(where: expansoes.contains)
+        if fixosForaDoTitulo.isEmpty && ultimoNoTitulo {
+            return (fixos, true)
+        }
+        return (fixosForaDoTitulo, !ultimoNoTitulo)
     }
 
     /// Menos palavras ausentes primeiro (só difere no OU: quem tem 2 de 3 termos vem antes de quem tem
