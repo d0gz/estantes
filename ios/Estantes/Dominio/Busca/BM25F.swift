@@ -84,29 +84,6 @@ enum BM25F {
         return notas
     }
 
-    /// BM25 de um campo só, para escolher o item do sumário mostrado no resultado. Usa o IDF do
-    /// livro inteiro, o `k1`, o `b` do sumário e o tamanho médio dos itens da biblioteca.
-    static func notaDoItem(
-        _ item: ItemSumarioIndexado,
-        termos: [String],
-        indice: IndiceInvertido,
-        parametros: ParametrosBM25F = .padrao
-    ) -> Double {
-        let fator = fatorDeTamanho(
-            b: parametros.b[.sumario, default: 0],
-            tamanho: item.tamanho,
-            media: indice.tamanhoMedioDosItens
-        )
-        return Set(termos).sorted().reduce(0) { nota, termo in
-            guard let tf = item.frequencias[termo] else { return nota }
-            let idfDoTermo = idf(
-                totalDeLivros: indice.totalDeLivros,
-                livrosComOTermo: indice.quantidadeDeLivros(contendo: termo)
-            )
-            return nota + idfDoTermo * saturar(Double(tf) / fator, k1: parametros.k1)
-        }
-    }
-
     /// (1 − b) + b · tamanho / média: 1 para um campo do tamanho médio, maior para um mais longo.
     /// Média 0 só acontece quando nenhum livro tem o campo; aí não há tf a normalizar e vale 1.
     private static func fatorDeTamanho(b: Double, tamanho: Int, media: Double) -> Double {

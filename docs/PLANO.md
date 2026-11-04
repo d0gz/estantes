@@ -322,7 +322,9 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   e o IDF é calculado uma vez por termo, sobre o livro inteiro.
   - Descartado: somar um BM25 por campo. Um termo presente em vários campos satura várias vezes,
     e o livro ganha nota demais.
-  - O item do sumário mostrado no resultado é o de melhor nota BM25 entre os itens daquele livro.
+  - Os itens do sumário mostrados no resultado (03/11, 2.8b; antes era só o de melhor nota BM25): todos os que têm o
+    maior número de palavras da consulta que algum item daquele livro alcança, na ordem do sumário e sem limite. As
+    palavras do título do livro não contam, a não ser que todas estejam nele. A regra vale igual no E e no OU.
   - Pesos e parâmetros ficam em constantes (`ParametrosBM25F.padrao`), ajustados com um **conjunto de
     consultas de referência**: 20–30 fichas reais e 15–20 consultas, cada uma com o livro esperado,
     medidas num teste XCTest (top 1/top 3 e MRR). Mudar um peso mostra o efeito em todas as consultas
@@ -346,7 +348,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 - **Filtros** combináveis: autor, editora, faixa de anos, estante, prefixo de CDDir e categoria (chips coloridas).
   Na tela (2.7): autor, editora e anos na tela Filtros; estantes nos chips; categorias na tela Categorias; o prefixo de
   CDDir fica sem interface até haver livros com o dado (Fases 4/5). O `volumeRotulo` aparece na linha pela `LinhaDoLivro`.
-- **Resultado**: livro · item do sumário · página · estante · prateleira.
+- **Resultado**: livro · itens do sumário que casam, com a página · estante · prateleira.
 
 ### Interface
 
@@ -354,7 +356,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 - Estantes em grade; estado vazio com livros esmaecidos na cor `superficie` (`#AED3FC`), frase e um botão só (ver "Inicio" abaixo).
 - Topo: botão com a aparência da barra de busca, que empurra a tela "Busca" (revisto em 20/10; antes `.searchable`, ver
   2.7 no checklist); o último livro escaneado entra na Fase 3. Na "Busca", título, autor e assunto →
-  "Livro · item do sumário, p. N · Estante X · prateleira", com os chips de filtro sempre no cabeçalho.
+  "Livro · itens do sumário, p. N · Estante X · prateleira", com os chips de filtro sempre no cabeçalho.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
   menu (⋯) no canto superior (2.8): "Exportar biblioteca" gera `Estantes-AAAA-MM-DD.json` e abre a folha de
@@ -528,8 +530,10 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     "Desmarcar todas"), porque o `Menu` do iOS 16 fecha a cada toque; vale OU ("qualquer uma", como as estantes e a
     linha de 09/10); rótulo "Categorias", o nome com uma, "Categorias (2)" com mais. Chip de filtro (E1): cápsula `tertiarySystemFill`
     desmarcado; `superficie` marcado, texto `.primary`, ✓ nas estantes e ícone `.fill` em "Filtros (n)".
-  - Resultado: a `LinhaDoLivro` da Estante + chips de categoria (só leitura) + duas linhas (E3): item do sumário e
-    página em `.primary` com `list.bullet.indent` (o motivo da busca) e estante · prateleira em `textoSecundario` com
+  - Resultado: a `LinhaDoLivro` da Estante + chips de categoria (só leitura) + duas linhas (E3): itens do sumário e
+    página em `.primary` com `list.bullet.indent` (o motivo da busca; desde a 2.8b todos os que casam, um por linha, o
+    ícone só no 1º, decorativo, e `Espaco.pequeno` entre os itens; o VoiceOver lê o bloco como um elemento só,
+    `.accessibilityElement(children: .combine)`, revisão E4/P4 de 03/11) e estante · prateleira em `textoSecundario` com
     `books.vertical`; no OU, "sem: …" em `.caption`.
   - Avisos (E4): faixa com ícone, sem cartão — `wand.and.stars` na correção (com "Buscar exatamente" no `destaque`) e
     `text.magnifyingglass` no OU, em `textoSecundario`.
@@ -717,7 +721,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
     erro e esconde o voltar, pedido do Ricardo), **Categorias** (várias, OU) e o Detalhe. Busca a cada tecla pelo
     `.task(id: chave)`; a volta do Detalhe pede nova busca pela `chave` (`pedirNovaBusca`), sem correr em paralelo.
   - Linha: a `LinhaDoLivro` da Estante (com o volume/`volumeRotulo` do `textoDoVolume`) + chips de categoria (só
-    leitura) + item do sumário e página / estante · prateleira (`LinhaDoResultado.item` e `.lugar`) + "sem: …" no OU.
+    leitura) + itens do sumário e página / estante · prateleira (`LinhaDoResultado.itens` e `.lugar`) + "sem: …" no OU.
   - Estados: dica sem texto nem filtro; "Nenhum livro encontrado para "…"" (texto buscado guardado no estado) ou
     "Nenhum livro passa nos filtros."; avisos de correção ("Buscar exatamente", `corrigir: false` até o texto mudar) e
     de OU. **Editora fora da barra de busca** (só no filtro): campo a mais no BM25F, com ruído ("Livraria Freitas
@@ -772,21 +776,23 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   escolhia o de melhor nota BM25 (`melhorItem`). Branch `fase2/sumario-ocorrencias`.
   Decidido no /decidir de 03/11: mostrar **todos** os itens que casam, na **ordem do sumário**, sem limite, um por
   linha no estilo do item de hoje, com o ícone só no 1º (Q2, Q3, Q5); na referência, o item certo basta **estar na
-  lista** (Q4). Linhas do Histórico propostas (gravar quando a Q1 fechar): "todos os itens, ordem do sumário, sem
-  limite" (revisa a linha 325 deste PLANO) e "item certo na lista" (revisa a de 09/10).
-  **Q1 em aberto — que itens entram:** "todas as palavras" (E) falhou na referência #19 ("tratado direito privado
-  dissidios coletivos": "tratado direito privado" está no título, então nenhum item tem as 5 palavras). "Dispensar
-  as palavras que o livro tem fora do sumário" quebra a busca da foto ("coletivo" está no subtítulo do Tomo XLVIII)
-  e "art 1710" (as pontas dos artigos ficam no subtítulo). Recomendação na mesa: **dentro de cada livro, os itens
-  com o maior número de palavras da consulta** (sem olhar campo nem E/OU). Custo: em "direito coletivo", os itens
-  só com "coletivo" somem se algum tiver as duas. Alternativa: qualquer palavra (lista ruidosa).
-  **Onde paramos (03/11, branch `fase2/sumario-ocorrencias`, 540 testes, 1 vermelho):** feitos a troca de
-  `itemDoSumario` por `itensDoSumario: [ItemSumario]`, `itensQueCasam` (hoje com E/OU por item), os testes do motor
-  em forma de lista e `MedicaoDeConsulta.itensMostrados` com `itemCerto` por `contains`. O vermelho é o piso da
-  referência (`testMetricasNaoCaemAbaixoDoPiso`, item certo 0,833, por causa da #19); ele depende da Q1.
-  **Próximo:** fechar a Q1 → ajustar `itensQueCasam` (teste da #19 no `MotorDeBuscaTests` antes) → passo 4 do plano
-  (`LinhaDoResultado.itens` e `rodape` da `ResultadosDaBuscaView`) → captura no simulador (escuro) → PLANO e
-  Histórico → revisores → teacher → PR. Plano completo: `~/.claude/plans/verifique-de-forma-objetiva-temporal-wadler.md`.
+  lista** (Q4). Três linhas no Histórico (03/11).
+  **Q1 (que itens entram), fechada em três rodadas:** "todas as palavras" (E) falhou na referência #19 ("tratado
+  direito privado dissidios coletivos": parte da consulta está no título); "dispensar as palavras que o livro tem fora
+  do sumário" quebraria a busca da foto ("coletivo" está no subtítulo do Tomo XLVIII) e "art 1710"; "maior número de
+  palavras" puro mostrava só o cabeçalho genérico "Parte VII" (3 palavras, com o "direito" do título) e escondia o
+  "§ 5.153 Dissídios coletivos" (2). Ficou: maior número de palavras, sem contar as do título (salvo se todas estão
+  nele). Estilo (E1): `Espaco.pequeno` entre os itens, porque um item que quebra a linha se confundia com o seguinte.
+  E2: removidos o `BM25F.notaDoItem`, o `IndiceInvertido.tamanhoMedioDosItens` e o `tamanho` do item indexado (só
+  serviam ao item único) e os 3 testes deles. Capturas `docs/capturas/Busca/Busca_1.4{,-escuro,-textogrande}.png`.
+  **Aprendido:** apagar um campo de struct mudou o layout do `MotorDeBusca`, e o build incremental (com duas execuções
+  do `testar.sh` ao mesmo tempo) deixou testes com o layout antigo: queda `EXC_BAD_ACCESS` no `motor.getter`. Correção:
+  apagar o `DerivedData/Estantes-*`. Nunca rodar dois `testar.sh` juntos.
+  Revisão: aplicados P1 (o índice guarda os termos do título, `termosDoTitulo(doLivro:)`, e o motor não tokeniza de
+  novo), P2 (`palavrasQueContam`, nomes positivos), P4 (ícone `accessibilityHidden`) e E1–E4 (textos do PLANO e do
+  CLAUDE.md); recusados P3 (só dois parâmetros) e P5 (lista estática, `id: \.offset` basta).
+  **Onde paramos (03/11, branch `fase2/sumario-ocorrencias`, 541 testes verdes):** lógica, tela, capturas, PLANO e
+  revisão feitos. **Próximo:** teacher → PR → CI; depois a 2.9.
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
   (2.9) A parte do iPhone está provada (22/10, teste da 2.8). **Pendências antes da Fase 3** (anotadas em 22/10,
   ver na próxima sessão, cada uma começando pela explicação e esperando o OK):
@@ -1036,7 +1042,7 @@ Regras contra omissão:
 | 09/10 | `parte` soma no campo `subtitulo` e `numeracao` no `sumario` (sem campos novos no BM25F); `volumeRotulo` e `serie` fora do índice | Mesmo papel, mesmo peso: um campo novo seria mais um peso a ajustar no passo 6. Revisitar se uma consulta de referência pedir |
 | 09/10 | Conjunto de referência em Swift no alvo de testes (UUIDs fixos), não JSON; métricas também no alvo de testes, com empate pessimista | O `Livro` ainda muda até a 2.8: o compilador acusa campo renomeado. O app nunca calcula MRR. Empate decidido por título/UUID não é mérito de relevância |
 | 09/10 | Peso do sumário no BM25F 1,0 → 0,5 (candidato A); o 0,25 (B) foi descartado | Conserta "processo penal" sem perder nenhuma consulta. O 0,25 só ganhava na "prisao caut" (caso misto, regra do prefixo), na ponta da grade, sem consulta que medisse o risco |
-| 09/10 | Na varredura, o item certo é restrição (não se aceita troca que o piore); pisos congelados como teste de *snapshot* | `b` do sumário = 0 subia o MRR mas mostrava o item errado (o `notaDoItem` usa o mesmo `b`). Regra criada depois de ver o resultado, registrada como tal |
+| 09/10 | Na varredura, o item certo é restrição (não se aceita troca que o piore); pisos congelados como teste de *snapshot* | `b` do sumário = 0 subia o MRR mas mostrava o item errado (o `notaDoItem` usa o mesmo `b`). Regra criada depois de ver o resultado, registrada como tal (revista em 03/11: o item certo basta estar na lista; o `notaDoItem` saiu) |
 | 09/10 | Plural por regra mínima no `Tokenizador` (índice e consulta), com vocabulário de palavras escritas para o prefixo; RSLP descartado | "prisoes" não achava "prisão". O RSLP corta derivações e junta conceitos ("constitucional" × "constituição"); só o texto do índice muda, nunca o gravado |
 | 09/10 | `volume`, `volumeRotulo` e pontas dos artigos no campo `subtitulo` | "tratado 48" e "arts 1710 1779" achavam nada; mesmo papel da `parte` (folha de rosto), sem peso novo. Revisa a linha de 09/10 que deixava `volumeRotulo` fora |
 | 09/10 | Correção de digitação por distância de edição (OSA), só para termo desconhecido; trigramas descartados; não espera a Fase 5 | Termo desconhecido já daria lista vazia, então corrigir não muda consulta que funciona. Vocabulário pequeno dispensa índice de trigramas; a Fase 5 é de sinônimos |
@@ -1090,3 +1096,6 @@ Regras contra omissão:
 | 21/10 | Formato do JSON v1: chaves = nomes dos campos do Domínio, livro dentro da estante (sem `estanteId`); datas ISO 8601 com milissegundos; opcional vazio sem chave e listas obrigatórias; saída ordenada (`sortedKeys`, `categoriaIds` ordenados), sem `exportadoEm` | Congela o arquivo do backup: mudar depois quebra os backups já gravados. Descartados: tradução das chaves (mais uma tabela a manter), datas em segundos (ilegível), `null` explícito (arquivo maior). Saída ordenada: dois backups da mesma biblioteca saem iguais byte a byte |
 | 21/10 | Arquivo incoerente é rejeitado inteiro: ids repetidos, categoria inexistente, nome de categoria vazio ou repetido, ISBN fora da forma gravada, sumário com erro na `ValidacaoSumario` (avisos passam) | O app só grava dados que passam por essas regras, então o arquivo que falha foi editado fora dele. Normalizar o ISBN em silêncio e pular só os itens ruins descartados: regras novas sem caso real |
 | 21/10 | Exportar/importar num `ExportacaoViewModel` próprio, com os exemplos injetados pelas `Dependencias`; folha de compartilhar do UIKit no lugar do `ShareLink` (revisa a Q7 do /decidir) | O `InicioViewModel` não pode receber o codificador (camada Dados) como valor padrão, e seus testes mudariam todos. O `ShareLink` não abre por código depois de gerar o arquivo; gerar a cada carga do Inicio deixaria o arquivo velho |
+| 03/11 | A busca mostra todos os itens do sumário que casam com a consulta, na ordem do sumário e sem limite (2.8b) | Teste no iPhone ("coletivo"): o item de melhor nota escondia os outros, e o usuário não achava o trecho. Descartados: melhor nota primeiro (as páginas ficam fora de ordem) e "3 + mais N" (esconde atrás de um toque). Revisa a regra da seção Busca ("o item mostrado é o de melhor nota BM25"); o `notaDoItem` saiu |
+| 03/11 | Entram os itens com o maior número de palavras da consulta que algum item do livro alcança; as palavras do título do livro não contam, a não ser que todas estejam nele | "Todas as palavras" não mostrava nada quando parte da consulta está no título (referência #19); dispensar as palavras de qualquer campo fora do sumário quebrava "coletivo" (está no subtítulo) e "art 1710"; contar o título fazia o cabeçalho genérico com "direito" esconder o "§ 5.153 Dissídios coletivos". Custo aceito: em "direito coletivo" num livro sem essas palavras no título, os itens só com "coletivo" somem se algum tiver as duas |
+| 03/11 | Conjunto de referência: o item certo precisa estar entre os itens mostrados | Com a lista não existe mais "o" item mostrado. Conferência mais fraca, aceita de propósito; continua só com o livro no top 3. Revisa a linha de 09/10 (item certo como restrição) |

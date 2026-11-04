@@ -137,34 +137,6 @@ final class BM25FTests: XCTestCase {
         )
     }
 
-    func testNotaDoItemNoExemplo() {
-        // Itens: A tem 1 (2 termos), B tem 3 (1 termo cada), C tem 1 (1 termo): média 6/5 = 1,2.
-        // Item de A: fator 0,25 + 0,75 · 2/1,2 = 1,5 → tf' 0,6667 → 0,4700 · 0,6667/1,8667
-        let item = exemplo.itensSumario(doLivro: livroA.id)[0]
-        XCTAssertEqual(BM25F.notaDoItem(item, termos: ["prisao"], indice: exemplo), 0.1679, accuracy: precisao)
-    }
-
-    func testItemComOTermoVenceItemSemEItemMaisCurtoVence() {
-        let penal = livro(titulo: "Processo penal",
-                          sumario: ["Prisão", "Prisão preventiva domiciliar", "Recursos"])
-        let indice = montarIndice([penal])
-        let itens = indice.itensSumario(doLivro: penal.id)
-        let notas = itens.map { BM25F.notaDoItem($0, termos: ["prisao"], indice: indice) }
-
-        XCTAssertGreaterThan(notas[0], notas[1]) // mais curto vence
-        XCTAssertGreaterThan(notas[1], 0)
-        XCTAssertEqual(notas[2], 0) // sem o termo
-    }
-
-    func testItemSemTermosTemNotaZero() {
-        let penal = livro(titulo: "Processo penal", sumario: ["De", "Prisão"])
-        let indice = montarIndice([penal])
-        let vazio = indice.itensSumario(doLivro: penal.id)[0]
-
-        XCTAssertEqual(vazio.tamanho, 0)
-        XCTAssertEqual(BM25F.notaDoItem(vazio, termos: ["prisao"], indice: indice), 0)
-    }
-
     // MARK: - Cada campo, com parâmetros próprios
 
     /// Livro com o texto só no campo pedido; o resto vazio.
@@ -217,8 +189,5 @@ final class BM25FTests: XCTestCase {
         // Com k1 = 0 a saturação vale 1: cada termo contribui exatamente com o seu IDF.
         XCTAssertEqual(notas[livroB.id] ?? 0, 0.4700, accuracy: precisao)
         XCTAssertEqual(notas[livroA.id] ?? 0, 0.4700 + 0.9808, accuracy: precisao)
-
-        let item = exemplo.itensSumario(doLivro: livroA.id)[0]
-        XCTAssertTrue(BM25F.notaDoItem(item, termos: ["prisao"], indice: exemplo, parametros: extremos).isFinite)
     }
 }

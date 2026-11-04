@@ -147,8 +147,8 @@ final class ConsultasDeReferenciaTests: XCTestCase {
 
     private static func melhor(_ a: AvaliacaoDaBusca, que b: AvaliacaoDaBusca) -> Bool {
         let tolerancia = 1e-9
-        // O `b` do sumário também escolhe o item mostrado (`notaDoItem`): subir o MRR mostrando o item
-        // errado não é ganho.
+        // Desde 03/11 os itens mostrados não dependem dos pesos (todos os que casam), mas o item só conta com o
+        // livro no top 3: subir o MRR tirando do top 3 um livro com o item certo não é ganho.
         if (a.itemCerto ?? 0) < (b.itemCerto ?? 0) - tolerancia { return false }
         if a.mrr > b.mrr + tolerancia { return true }
         return abs(a.mrr - b.mrr) <= tolerancia && a.top1 > b.top1 + tolerancia

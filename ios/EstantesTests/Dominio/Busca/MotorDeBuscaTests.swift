@@ -344,6 +344,42 @@ final class MotorDeBuscaTests: XCTestCase {
         XCTAssertEqual(itens(resultados, de: livroB), ["Prisão"])
     }
 
+    // Referência #19: a obra pelo título e o assunto pelo sumário. Nenhum item tem as 5 palavras; o que tem
+    // mais delas (2) aparece, e os que têm 1 ficam de fora (Q1 de 03/11).
+    func testMostraOsItensComMaisPalavrasDaConsulta() {
+        let tomo = Livro(
+            estanteId: estante1,
+            titulo: "Tratado de direito privado",
+            itensSumario: ["Figurantes coletivos", "Acordos em dissídios coletivos", "Direito de greve"].map {
+                ItemSumario(nivel: 1, titulo: $0)
+            }
+        )
+        let motor = MotorDeBusca(livros: [tomo, livroC], categorias: [])
+
+        XCTAssertEqual(
+            itens(motor.buscar("tratado direito privado dissidios coletivos").resultados, de: tomo),
+            ["Acordos em dissídios coletivos"]
+        )
+    }
+
+    // Referência #19: "direito" está no título; contado, faria o cabeçalho genérico (3 palavras) esconder o
+    // parágrafo "Dissídios coletivos" (2). As palavras do título não contam (Q1 de 03/11).
+    func testPalavrasDoTituloNaoContamParaOItem() {
+        let tomo = Livro(
+            estanteId: estante1,
+            titulo: "Tratado de direito privado",
+            itensSumario: ["Ações do direito do trabalho e acordos em dissídios coletivos", "Dissídios coletivos"].map {
+                ItemSumario(nivel: 1, titulo: $0)
+            }
+        )
+        let motor = MotorDeBusca(livros: [tomo, livroC], categorias: [])
+
+        XCTAssertEqual(
+            itens(motor.buscar("tratado direito privado dissidios coletivos").resultados, de: tomo),
+            ["Ações do direito do trabalho e acordos em dissídios coletivos", "Dissídios coletivos"]
+        )
+    }
+
     func testItemPeloPrefixoDoUltimoTermo() {
         XCTAssertEqual(itens(motor.buscar("flagr").resultados, de: livroA), ["Prisão em flagrante"])
     }

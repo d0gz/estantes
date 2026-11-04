@@ -179,7 +179,7 @@ struct ResultadosDaBuscaView<Cabecalho: View>: View {
         .cartao()
     }
 
-    /// Os chips do livro, o item do sumário (o motivo da busca, em destaque) e, mais discreto, onde o livro está;
+    /// Os chips do livro, os itens do sumário (o motivo da busca, em destaque) e, mais discreto, onde o livro está;
     /// no OU, o que faltou.
     @ViewBuilder
     private func rodape(_ resultado: ResultadoBusca) -> some View {
@@ -193,10 +193,25 @@ struct ResultadosDaBuscaView<Cabecalho: View>: View {
                 }
                 .padding(.bottom, Espaco.pequeno)
             }
-            if let item = LinhaDoResultado.item(resultado.itensDoSumario.first) {
-                Label(item, systemImage: "list.bullet.indent")
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
+            let itens = LinhaDoResultado.itens(resultado.itensDoSumario)
+            if !itens.isEmpty {
+                // Todos os itens que casam, sem limite (03/11); o ícone uma vez só, e os itens alinhados ao texto
+                // do primeiro. O espaço entre itens é maior que o entre linhas, para separar o item que quebra a
+                // linha do seguinte. O VoiceOver lê o bloco como um elemento.
+                Label {
+                    VStack(alignment: .leading, spacing: Espaco.pequeno) {
+                        ForEach(Array(itens.enumerated()), id: \.offset) { _, item in
+                            Text(item)
+                        }
+                    }
+                } icon: {
+                    // Decorativo: sem isto, o `.combine` faz o VoiceOver ler o nome do símbolo antes dos itens.
+                    Image(systemName: "list.bullet.indent")
+                        .accessibilityHidden(true)
+                }
+                .font(.subheadline)
+                .foregroundColor(.primary)
+                .accessibilityElement(children: .combine)
             }
             if let lugar = LinhaDoResultado.lugar(
                 estante: busca.nomeDaEstante(resultado.livro.estanteId), prateleira: resultado.livro.prateleira
