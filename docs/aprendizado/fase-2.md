@@ -3226,3 +3226,84 @@ Invertendo 2 e 3 você poderia reaproveitar uma categoria que logo em seguida se
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.8b — Todas as ocorrências do sumário na busca (2026-11-03)
+
+### O que foi feito
+Um bug visto no iPhone: buscando "coletivo", o Tomo XLVIII mostrava só um item do sumário ("2. Figurantes coletivos, p. 3"), o de maior nota BM25, e escondia os outros. Agora a linha do resultado lista todos os itens que casam, na ordem do sumário. `ResultadoBusca.itemDoSumario: ItemSumario?` virou `itensDoSumario: [ItemSumario]`; a regra de quais itens entram está em `MotorDeBusca.itensQueCasam` e `palavrasQueContam`; `IndiceInvertido.termosDoTitulo(doLivro:)` é novo; `LinhaDoResultado.itens(_:)` e `ResultadosDaBuscaView` mostram a lista. Código morto saiu (`BM25F.notaDoItem`, `tamanhoMedioDosItens`, `ItemSumarioIndexado.tamanho`, 3 testes). Resultado: 541 testes verdes e piso da referência de volta a 1,0.
+
+### Conceitos envolvidos
+
+**1. Ranquear livros não é o mesmo que escolher o que mostrar dentro do livro.** O BM25F ordena *livros*. Dentro de um livro, a pergunta é outra: "quais pedaços justificam este resultado?". Usar a nota BM25 de um item para escolher *um* só mistura as duas perguntas. O PLANO dizia "o item mostrado é o de melhor nota", e a decisão estava coerente com a especificação; o teste real mostrou que a especificação era a falha. Moral: um requisito pode estar corretamente implementado e ainda assim errado.
+
+**2. Ordenar por nota ou pela posição no sumário (Q2).** Mostrar vários itens por nota deixaria as páginas fora de ordem (p. 40, p. 3, p. 12). O sumário é uma sequência com significado próprio (a ordem do livro), então a lista preserva essa ordem. O item longo de nota menor pode vir antes do curto: era exatamente o teste do ciclo vermelho → verde.
+
+**3. Regra de seleção como conjunto de palavras, e como ela foi derrubada três vezes.** O núcleo é: dada uma consulta com palavras P = {p1..pn}, cada item cobre um subconjunto de P. Qual critério decide quem entra? Cada tentativa caiu contra um caso real:
+
+| Rodada | Regra | Caso que derrubou |
+| --- | --- | --- |
+| 1 | Item só entra se tem *todas* as palavras (E por item) | Referência #19, "tratado direito privado dissidios coletivos": o livro é achado, mas nenhum item tem as 5 palavras ("tratado direito privado" está no título). O item certo caiu para 0,833 (5 de 6 consultas) |
+| 2 | Ignorar as palavras que o livro tem fora do sumário (aprovada, mas revertida antes de codar) | Quebraria a própria busca da foto: "coletivo" também está no subtítulo do Tomo XLVIII ("Contrato coletivo do trabalho…"), e "art 1710" (as pontas dos artigos ficam no subtítulo) |
+| 3 | Itens com o *maior número* de palavras da consulta, puro | Na #19, mostrou só "Parte VII — Ações do direito do trabalho e acôrdos em dissídios coletivos…" (3 palavras, contando o "direito" do título) e escondeu "§ 5.153 Dissídios coletivos" (2 palavras) |
+| Final | Maior número de palavras que *algum item do livro* alcança, **sem contar as palavras do título**, salvo se todas as palavras estão no título | Custo aceito: em "direito coletivo" (sem essas palavras no título), itens só com "coletivo" somem se algum item tiver as duas |
+
+Na regra final, "palavras que contam" = palavras da consulta menos as que aparecem no título do livro (se sobrar alguma). Na #19, "tratado direito privado" é do título, então só "dissidios coletivos" conta: "Parte VII" e "§ 5.153" alcançam 2, ambos entram. Vale igual para o E e para o OU de reserva.
+
+**4. Testar a regra contra dados antes de fechá-la.** O conjunto de referência (consultas reais com o item esperado) é um teste de regressão de relevância. Rodar com `RELATORIO=1` mostrou *qual* consulta falhava, e cada rodada acima foi falsificada por uma entrada concreta. Isso é método científico aplicado à busca: formule a hipótese (regra), procure o contraexemplo.
+
+**5. Um só caminho de tokenização (P1 do revisor).** `termosDoTitulo(doLivro:)` lê do índice termos que o índice guardou *no singular na inclusão*. A alternativa (tokenizar o título de novo no motor) criaria dois caminhos que precisam concordar sempre: plural, acento, caixa. Quando duas partes do código precisam "tokenizar igual", faça uma só tokenizar e a outra consultar. É o princípio DRY aplicado a *comportamento*, não a texto.
+
+**6. Estrutura de dados e custo.** `itensQueCasam` percorre os itens do livro uma vez (O(m), m = itens do livro) para contar palavras por item, acha o máximo e filtra. Isso roda só para os livros da página de resultados, não para o catálogo inteiro, então o custo é pequeno. P2 do revisor: percorrer o título (não as expansões da consulta) evita contar a mesma palavra duas vezes por causa de variações.
+
+**7. Layout de struct (ABI) e build incremental, a queda `EXC_BAD_ACCESS`.** Ao apagar o campo `tamanho` de uma struct, mudou o *layout em memória* (offsets dos campos, tamanho total) de `MotorDeBusca`. O build incremental recompilou só um arquivo de teste; os outros objetos continuaram com o layout antigo e liam endereços errados. Sintoma: `EXC_BAD_ACCESS` em `MotorDeBuscaTests.motor.getter`, "Early unexpected exit… signal bus", visível no relatório `.ips`. Havia ainda a causa agravante: dois `testar.sh` ao mesmo tempo, escrevendo no mesmo DerivedData. Correção: apagar `DerivedData/Estantes-*`. Em Swift, structs sem ABI estável *dentro do mesmo módulo* são recompiladas em conjunto; quando a ferramenta de build erra a dependência, o resultado é memória lida com a forma antiga. Diagnóstico: o crash some quando se limpa o build.
+
+**8. O app do simulador não abre no macOS.** "Você não pode usar esta versão do aplicativo Estantes com esta versão do macOS": o `.app` é compilado para `iphonesimulator` (arquitetura e SDK de iOS), não para macOS. Roda só dentro do simulador (ou no aparelho, assinado).
+
+**9. Acessibilidade na lista.** O ícone `list.bullet.indent` é decorativo: `.accessibilityHidden(true)`. O conjunto do `Label` usa `.accessibilityElement(children: .combine)` para o VoiceOver ler os itens como um bloco só e não como linhas soltas.
+
+### Por que assim
+- **Todos, sem limite (Q3):** "3 + mais N" esconderia informação atrás de um toque, exatamente o defeito que se queria corrigir.
+- **Ícone só no 1º item (Q5):** repetir o ícone em cada linha polui; um marcador no início basta para dizer "isto vem do sumário".
+- **`VStack(spacing: Espaco.pequeno)` (E1):** com `Espaco.minimo`, um item que quebra de linha se confundia com o seguinte. O espaço entre itens precisa ser maior que o entrelinha.
+- **Referência: o item certo basta estar na lista (Q4):** a medição de relevância passa de "o item mostrado é o certo" para "o certo está entre os mostrados" (`itemCerto` por `contains`). A conferência fica mais fraca, aceita de propósito; a linha de 09/10 do PLANO foi revisada. Registrar a perda de rigor é melhor que escondê-la.
+- **Lista vazia no lugar de `nil`:** um tipo com "0, 1 ou vários" elementos dispensa o opcional e o `if let`. O mesmo tipo expressa "sem itens".
+- **Branch própria (Q6):** o bug pertence à 2.8 mas tem escopo e revisão próprios.
+- **Remoção do código morto (E2):** o que ficou sem uso (`notaDoItem` etc.) custa leitura e testes. Se voltar a ser preciso, o git guarda.
+
+### Alternativas descartadas
+- E por item (rodada 1), dispensar palavras do livro fora do sumário (rodada 2), maior contagem pura (rodada 3): ver a tabela.
+- Ordenar por nota BM25: páginas fora de ordem.
+- "3 + mais N": esconde atrás de um toque.
+- Ícone em todos os itens: poluição visual.
+- Recusados na revisão: P3 e P5 (o registro das razões está no PLANO).
+
+### Padrões e boas práticas
+- **Refatorar primeiro, comportamento depois:** o tipo virou lista de 0 ou 1 elemento *sem mudar comportamento* (539 testes verdes); só então vieram os ciclos vermelho → verde. Assim, qualquer vermelho depois é culpa da mudança de comportamento, não do tipo. NÃO faça isso quando a refatoração for maior que a mudança que ela prepara.
+- **TDD com dados reais:** a #19 nasceu vermelha (`[]`) e guiou a regra.
+- **Um caminho de tokenização.**
+- **Remover código morto assim que ele aparece.**
+- **Uma execução de testes por vez** (ver armadilhas).
+
+### Armadilhas
+- Dois `xcodebuild` no mesmo DerivedData: estado corrompido e quedas que parecem bug do código. Rode um de cada vez.
+- Remover ou reordenar campos de struct com build incremental: queda `EXC_BAD_ACCESS` ou "signal bus" sem relação aparente com a mudança. Diagnóstico: abra o `.ips` (relatório de queda), veja se o frame está em código que você não mexeu; apague `DerivedData/Estantes-*`.
+- Regra de seleção que parece simples ("maior contagem") falha em casos de borda; teste contra dados reais antes de fechá-la.
+- Acoplar a regra de exibição ao ranking: mudanças na nota passam a mexer no que o usuário vê.
+- Lembrar o custo aceito da regra final: em "direito coletivo", itens só com "coletivo" somem se algum tiver as duas palavras. É uma troca consciente, não um bug.
+
+### Para ir além
+- Manning, Raghavan e Schütze, *Introduction to Information Retrieval*, caps. 6 e 8 (ponderação de termos e avaliação de relevância com conjuntos de referência).
+- Michael Feathers, *Working Effectively with Legacy Code* (refatorar sob testes de caracterização).
+- Documentação do Xcode sobre DerivedData e relatórios de queda (`.ips`) para diagnóstico de crashes.
+
+### Perguntas
+1. Com suas palavras: por que o item mostrado deixou de ser o de melhor nota BM25? Qual é a diferença entre "ranquear livros" e "escolher o que mostrar dentro de um livro"?
+2. Aplicação: a consulta é "direito coletivo" e o título do livro contém "direito". Quais são as "palavras que contam"? Um item só com "coletivo" entra ou não, se outro item tem "coletivo" e "direito"? E se nenhum item tivesse "direito"?
+3. Raciocínio: explique por que a regra "só o E por item" fez a referência #19 cair para 0,833 e como a regra final a conserta. Depois: por que apagar um campo de struct pôde causar `EXC_BAD_ACCESS` num teste que nem usa esse campo?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
