@@ -770,7 +770,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   (run 39659696298, Sideloadly): os 7 passos funcionaram (carregar exemplos, exportar para Arquivos, importar com
   "Mesclar" e "Substituir tudo", dados mantidos ao reabrir, busca). PR #28 mergeado.
   Antes (21/10): passos 1–7 e revisão concluídos; CI do PR verde no Xcode 26; aprendizado registrado pelo teacher.
-- [ ] **2.8b — todas as ocorrências do sumário na busca** (bug do teste no iPhone, 03/11; vem antes da 2.9)
+- [x] **2.8b — todas as ocorrências do sumário na busca** (bug do teste no iPhone, 03/11; vem antes da 2.9)
   Foto local (fora do git): `avaliacao/fotos/bug-encontrado-teste-manual-foto/corrigirSumarioBug.jpg`. Ao buscar
   "coletivo", o Tomo XLVIII mostrava um item só ("2. Figurantes coletivos, p. 3") e escondia os outros: o motor
   escolhia o de melhor nota BM25 (`melhorItem`). Branch `fase2/sumario-ocorrencias`.
@@ -791,11 +791,14 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   Revisão: aplicados P1 (o índice guarda os termos do título, `termosDoTitulo(doLivro:)`, e o motor não tokeniza de
   novo), P2 (`palavrasQueContam`, nomes positivos), P4 (ícone `accessibilityHidden`) e E1–E4 (textos do PLANO e do
   CLAUDE.md); recusados P3 (só dois parâmetros) e P5 (lista estática, `id: \.offset` basta).
-  **Onde paramos (03/11, branch `fase2/sumario-ocorrencias`, 541 testes verdes):** lógica, tela, capturas, PLANO e
-  revisão feitos. **Próximo:** teacher → PR → CI; depois a 2.9.
+  **Onde paramos (03/11, `main`, 541 testes):** 2.8b concluída. Aprendizado registrado pelo teacher; CI do PR verde
+  no Xcode 26 (run 41760437271); PR #30 mergeado. Opcional: repetir a busca "coletivo" no iPhone com o `.ipa` de
+  exemplos (deve mostrar os 4 itens do Tomo XLVIII).
+  **Próximo:** a 2.9 (pendências a e b abaixo), depois `/fechar-fase`.
 - [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
   (2.9) A parte do iPhone está provada (22/10, teste da 2.8). **Pendências antes da Fase 3** (anotadas em 22/10,
-  ver na próxima sessão, cada uma começando pela explicação e esperando o OK):
+  ver na próxima sessão, cada uma começando pela explicação e esperando o OK; bugs novos do teste no iPhone ficam
+  em fotos em `avaliacao/fotos/bug-encontrado-teste-manual-foto/`, só no Mac):
   a. **Menu ⋯ no simulador:** no iPhone, o texto de "Exportar biblioteca"/"Importar…" saiu quebrado. Abrir o
      menu da tela inicial no simulador e capturar em escuro, claro e texto grande (`docs/capturas/Inicio/`);
      achar a causa (texto longo? tamanho de fonte do aparelho?) e decidir a correção (`/decidir` se houver
