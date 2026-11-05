@@ -11,8 +11,17 @@ enum Cor {
     static let sobreDestaque = Color(uiColor: Paleta.sobreDestaque)
     static let textoSecundario = Color(uiColor: Paleta.textoSecundario)
     static let perigo = Color(uiColor: Paleta.perigo)
+    static let dica = Color(uiColor: Paleta.dica)
+    static let sobreCategoria = Color(uiColor: Paleta.sobreCategoria)
     /// Fundo de campos e chips de filtro: o cinza dos campos de busca do sistema (segue modo e "Aumentar contraste").
     static let campo = Color(uiColor: .tertiarySystemFill)
+}
+
+extension Text {
+    /// A dica dentro de um campo vazio (`prompt:` do `TextField`), na cor legível da paleta.
+    static func dica(_ texto: String) -> Text {
+        Text(texto).foregroundColor(Cor.dica)
+    }
 }
 
 /// As mesmas cores em `UIColor`, com o tom claro e o escuro. Em código, e não num catálogo de cores, para o hex
@@ -33,6 +42,11 @@ enum Paleta {
     static let sobreDestaque = UIColor(claro: 0xFFFFFF, escuro: 0x1C1C1E)
     /// Substitui o `.secondary` do sistema, que dá 3,4:1 no branco e 2,9:1 sobre a `superficie`.
     static let textoSecundario = UIColor(claro: 0x4A5A62, escuro: 0xC9D6DC)
+    /// Dica dentro do campo vazio. A do sistema dá só 2,4:1 no escuro; e o `textoSecundario` (11:1) passaria por
+    /// texto digitado.
+    static let dica = UIColor(claro: 0x66666B, escuro: 0xA0A0A6)
+    /// O ✓ em cima da cor viva de uma categoria. Preto nos dois modos: o branco dá cerca de 1,4:1 no amarelo.
+    static let sobreCategoria = UIColor.black
     /// Ações destrutivas e erros. Os tons de alto contraste do vermelho da Apple: o `systemRed` (`#FF3B30`) dá só
     /// 3,6:1 no branco.
     static let perigo = UIColor(claro: 0xD70015, escuro: 0xFF6961)

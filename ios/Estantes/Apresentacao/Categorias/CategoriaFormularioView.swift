@@ -65,7 +65,7 @@ struct CategoriaFormularioView: View {
     private var formulario: some View {
         Form {
             Section {
-                TextField("Nome", text: $viewModel.nome, prompt: Text("Nome (ex.: Direito tributário)"))
+                TextField("Nome", text: $viewModel.nome, prompt: Text.dica("Nome (ex.: Direito tributário)"))
                     .submitLabel(.done)
             } footer: {
                 if let problema = viewModel.problemaDoNome {
@@ -122,8 +122,7 @@ struct CategoriaFormularioView: View {
                     if escolhida {
                         Image(systemName: "checkmark")
                             .font(.body.weight(.bold))
-                            .foregroundColor(.white)
-                            .shadow(color: .black.opacity(0.35), radius: 1)
+                            .foregroundColor(Cor.sobreCategoria)
                     }
                 }
                 .padding(3)

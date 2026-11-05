@@ -1,7 +1,7 @@
 #if DEBUG || EXEMPLOS
 import SwiftUI
 
-/// Dados de exemplo para previews, capturas do simulador e o item "Carregar dados de exemplo" do menu ⋯.
+/// Dados de exemplo para previews, capturas do simulador e o item "Carregar exemplos" do menu ⋯.
 /// Só existem em DEBUG e no `.ipa` gerado com a flag `EXEMPLOS` (opção `exemplos` do "Run workflow"):
 /// o `.ipa` normal não os compila.
 ///
@@ -42,7 +42,7 @@ enum DadosDeExemplo {
     static let filosofia = Categoria(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000004")!, nome: "Filosofia", cor: .marrom)
     static let lerDepois = Categoria(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000005")!, nome: "Ler depois", cor: .cinza)
 
-    /// O item "Carregar dados de exemplo": passa pela mesclagem da importação, como um arquivo de backup
+    /// O item "Carregar exemplos": passa pela mesclagem da importação, como um arquivo de backup
     /// (o que já estiver no aparelho fica), e depois grava as fotos, que o arquivo não traz.
     static func carregar(importar: ImportarBiblioteca, repositorio: BibliotecaRepositorio) async throws {
         try await importar.importar(conteudo, modo: .mesclar)

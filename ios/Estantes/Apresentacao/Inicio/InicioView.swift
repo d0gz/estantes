@@ -95,12 +95,12 @@ struct InicioView: View {
                         Button {
                             Task { await exportacao.exportarBiblioteca() }
                         } label: {
-                            Label("Exportar biblioteca", systemImage: "square.and.arrow.up")
+                            Label("Exportar", systemImage: "square.and.arrow.up")
                         }
                         Button {
                             escolhendoArquivo = true
                         } label: {
-                            Label("Importar…", systemImage: "square.and.arrow.down")
+                            Label("Importar", systemImage: "square.and.arrow.down")
                         }
                         if exportacao.podeCarregarExemplos {
                             Divider()
@@ -109,7 +109,7 @@ struct InicioView: View {
                                     if await exportacao.carregarExemplos() { await viewModel.carregar() }
                                 }
                             } label: {
-                                Label("Carregar dados de exemplo", systemImage: "books.vertical")
+                                Label("Carregar exemplos", systemImage: "books.vertical")
                             }
                         }
                     } label: {
@@ -124,6 +124,7 @@ struct InicioView: View {
             // Ao voltar da estante, a contagem de livros pode ter mudado.
             .aoVoltar { await viewModel.carregar() }
             .alert(tituloDoPedido, isPresented: pedidoAberto) {
+                // A dica fica na cor do sistema: o `.alert` é do UIKit e não usa a `Cor.dica`.
                 TextField("Nome da estante", text: $nomeDigitado)
                 Button("Cancelar", role: .cancel) {}
                 // Sem `.disabled`: no iOS 16 o alerta esconde o botão desabilitado e não o reavalia enquanto se digita
