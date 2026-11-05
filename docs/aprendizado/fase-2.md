@@ -3365,7 +3365,7 @@ Encurtaram-se os textos do menu ⋯ ("Exportar", "Importar", "Carregar exemplos"
 - Cor translúcida: o contraste depende do que está embaixo.
 - Telas sem captura (fim das telas longas, item do sumário, foto ampliada) foram conferidas a olho: é uma conferência mais fraca, e deve ser registrada como tal.
 - O contraste não mede tudo: tamanhos de acessibilidade (Dynamic Type) quebram layout (E4), e isso é outro eixo.
-- CI em Xcode 26 pode renderizar diferente do Xcode 14; a CI desta tarefa ainda não tinha terminado no registro.
+- CI em Xcode 26 pode renderizar diferente do Xcode 14; a CI desta tarefa terminou verde no Xcode 26 (run 41954110381).
 
 ### Para ir além
 - W3C, *WCAG 2.2*: critérios 1.4.3 (Contrast Minimum) e 1.4.11 (Non-text Contrast), e a definição de "relative luminance".
@@ -3378,3 +3378,61 @@ Encurtaram-se os textos do menu ⋯ ("Exportar", "Importar", "Carregar exemplos"
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+## Tarefa 2.9b — Auditoria dos testes: teste de mutação à mão (2026-11-04)
+
+### O que foi feito
+Antes de fechar a Fase 2, um auditor leu os 543 testes: nenhum tautológico, 10 fracos. "Fraco" tem definição operacional: **o teste que continuaria verde com uma implementação errada óbvia**. Reforçamos os testes em `CategoriaFormularioViewModelTests`, `FiltroBuscaTests`, `MotorDeBuscaTests`, `MetricasDeBuscaTests`, `SingularTests`, `RascunhoSumarioTests` e `ValidacaoSumarioTests`, e renomeamos um em `BibliotecaExportadaV1Tests`. Total: 548 testes. Nenhum código de produção mudou.
+
+### Conceitos envolvidos
+**Teste de mutação.** Um teste só vale se *puder falhar*. A técnica: introduz-se um defeito plausível no código (um "mutante": `<=` vira `<`, `contains` vira `hasPrefix`) e roda-se a suíte. Se algum teste fica vermelho, o mutante foi "morto"; se tudo continua verde, há uma lacuna. Ferramentas automáticas existem (Stryker, PIT, Mull para LLVM); aqui fizemos **à mão**, que é viável para dez suspeitos.
+
+**Por que "verde com o código certo" não prova nada.** Um teste novo que passa contra a implementação correta é indistinguível de um teste que passaria contra qualquer implementação. A prova está no vermelho contra o mutante. Esse é o mesmo espírito do ciclo vermelho → verde do CLAUDE.md, aplicado depois do fato.
+
+**Análise de valor-limite.** Vários casos são fronteira: T5/T6 (top3 com `< 3` em vez de `<= 3`: faltava um caso na posição exatamente 3) e T7 (o limite de erros aceitos muda entre 8 e 9 letras; testar 8 e 9 pega `>=` contra `>`). Erros de "um a mais/um a menos" moram nas fronteiras.
+
+**Dados que separam hipóteses.** T8 e T10 mostram um padrão: se os valores de entrada fazem hipóteses diferentes darem a mesma resposta, o teste não as distingue. Na escada `[1,2,3]`, o nível do item, a posição + 1 e o nível do anterior + 1 coincidem; com `[1,1,1]` dão 1, 3 e 2. Em `ValidacaoSumario`, `10,50,20` não separa "comparar com a anterior" de "comparar com a maior já vista"; `50,20,30` separa (30 > 20, mas 30 < 50).
+
+```mermaid
+flowchart LR
+  A[Teste novo] --> B{Passa com o código certo?}
+  B -- sim --> C[Não prova nada ainda]
+  C --> D[Aplica mutante: implementação errada óbvia]
+  D --> E{Falhou?}
+  E -- sim --> F[Teste útil]
+  E -- não --> G[Mudar os dados do teste]
+```
+
+### Por que assim
+- **Mutantes aplicados de verdade**, não imaginados: a lacuna dos testes antigos ficou confirmada (nenhum falhou sob as mutações), e cada caso novo reprovou, exceto o T4 na primeira tentativa.
+- **T1** (cor sugerida): a cor era sempre a mesma nos testes existentes, então uma cor fixa passaria. O caso novo com repositório vazio exige a primeira da paleta (vermelho), e o outro caso exige a seguinte: a saída depende do que existe.
+- **T2/T3** (editora "contém", CDDir "começa com"): um par de casos, um que só `contains` aceita ("editores", no fim do nome) e outro que só `hasPrefix` aceita ("41.2" recusado, pois está no meio de "341.2").
+- **T9** só foi renomeado: o contrato é "a data perde o que passa de milissegundos", sem promessa de arredondar. O nome antigo prometia arredondamento; teste que mente no nome é dívida.
+- **T10** é um teste escrito pelo Ricardo, alterado com autorização dele.
+
+### Alternativas descartadas
+- Ferramenta automática de mutação: não há uma madura para Swift/Xcode 14 neste ambiente, e o custo de configurar supera o ganho para 10 casos.
+- Medir cobertura de linhas: cobertura diz que a linha *executou*, não que o resultado foi *conferido*. Teste fraco costuma ter cobertura de 100%.
+
+### Padrões e boas práticas
+- **Um teste, uma hipótese que ele elimina.** Ao escrever, pergunte "qual implementação errada isto reprova?". Se não souber responder, o teste é decoração.
+- **Dados escolhidos para discriminar**, não valores "bonitos" em sequência (1, 2, 3).
+- Não use mutação à mão em larga escala: não escala; vale para os pontos de maior risco.
+
+### Armadilhas
+- **O erro do T4, e a lição.** O auditor sugeriu "cpc2015s", "lei8s" e "1710s", e eu os adotei sem verificar. Passaram **mesmo sem a guarda de "só letras"**, porque a última regra de `Singular` só corta o "s" depois de **vogal**; esses termos terminam em consoante + "s" e já eram preservados por outro motivo. Trocamos por "art2os" e "cpc2015as" (vogal + "s"), que reprovaram sem a guarda ("art2o" ≠ "art2os"). Moral: sugestão de revisor também se verifica; a mutação pegou o erro de quem sugeriu e de quem aceitou.
+- **T7 e o exemplo "prcesos".** Evitado porque o plural muda o termo (remove o "s") *antes* da correção; o teste mediria duas regras misturadas. Daí "prucessu" e "privencau", sem plural.
+- Teste que passa por motivo errado: se o motivo não é o que você pensa, a mutação mostra.
+
+### Para ir além
+- Y. Jia e M. Harman, *An Analysis and Survey of the Development of Mutation Testing*, IEEE TSE, 2011.
+- Gerard Meszaros, *xUnit Test Patterns*: capítulo sobre "Fragile/Obscure Test" e "Test Smells".
+
+### Perguntas
+1. Com suas palavras: por que um teste novo passar contra o código certo não prova que ele é bom? O que a mutação acrescenta?
+2. Aplicação: para `Singular.forma`, escolha um termo de teste que reprove um mutante que corte o "s" de qualquer palavra com mais de 3 letras. Explique que mutante cada termo do T4 mata.
+3. Raciocínio: no T10 com `50, 20, 30`, qual é o aviso esperado e por que `10, 50, 20` não separava as duas implementações? Invente um terceiro conjunto que também separe.
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+(Ricardo optou por consolidar o guia da fase sem responder às entradas em aberto.)

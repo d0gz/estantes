@@ -822,7 +822,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
      `prompt:`: é isso que o VoiceOver lê agora, em vez do exemplo.
   **Onde paramos (04/11, branch `fase2/fechamento`, 543 testes):** 2.9 concluída; CI verde no Xcode 26 (run 41954110381);
   aprendizado registrado pelo teacher; PR #32 aberto.
-  **Próximo:** mergear o PR #32 e rodar `/fechar-fase`; depois a discussão da Fase 3
+  **Próximo:** `/fechar-fase` feito (guia em `docs/guias/fase-2.md`, 548 testes); agora a discussão da Fase 3
   (`/decidir`, Opus, em sessão própria; ver o aviso em "Checklists", abaixo); só então a Fase 3. Sem bloquear nada disso:
   conferir o menu ⋯ no iPhone no próximo `.ipa`.
 

@@ -62,8 +62,9 @@ nunca recalculado como o código calcula. Um teste e uma implementação por vez
 - `docs/guias/fase-N.md` — guia consolidado de cada fase (só Markdown, sem PDF)
 
 ## Fase atual
-Fase 2 — App. (Atualize esta linha ao abrir uma nova fase.)
-Concluídas: 2.1 (entidades, porta e `ValidacaoSumario`), 2.2 (Core Data e repositório) e 2.3 (motor de busca:
+Fase 3 — Identificação de livros e sumário, **ainda não iniciada**: começa pela discussão indicada abaixo. (Atualize esta
+linha ao abrir uma nova fase.)
+Fase 2 fechada (tag `fase-2`, guia em `docs/guias/fase-2.md`). Concluídas: 2.1 (entidades, porta e `ValidacaoSumario`), 2.2 (Core Data e repositório) e 2.3 (motor de busca:
 passos 1–6, 2.3b obras em vários volumes e 2.3i sondas — plural, volume/artigos no índice, correção de digitação,
 OU de reserva, peso do sumário 0,25; 224 testes; PR #22 mergeado), 2.4 (telas principais: lógica 2.4a–e e estilo de
 todas as telas; 361 testes; PR #23 mergeado em 16/10), 2.5 (categorias: paleta de 10 com hex congelados, chip e
@@ -76,9 +77,8 @@ Filtros e Categorias; correção da rolagem na primeira entrada da Estante e de 
 mergeado) e 2.8 (exportar/importar + `.ipa` com exemplos pela opção `exemplos` do "Run workflow"; 539 testes;
 PR #28 mergeado; testada no iPhone em 22/10) e 2.8b (todas as ocorrências do sumário na busca, bug do teste no
 iPhone: itens com mais palavras da consulta, sem contar o título, na ordem do sumário; 541 testes; PR #30 mergeado).
-2.9 (fechamento: textos curtos no menu ⋯, conferência do modo escuro, tokens `dica` e `sobreCategoria`; 543 testes;
-PR #32).
-**Próximo (antes da Fase 3):** rodar `/fechar-fase`. Detalhes no "Onde paramos" do checklist do PLANO. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
+2.9 (fechamento: textos curtos no menu ⋯, conferência do modo escuro, tokens `dica` e `sobreCategoria`; PR #32 mergeado) e auditoria dos
+testes no `/fechar-fase` (548 testes; PR #33).
 **A Fase 3 não começa antes de uma discussão própria** (`/decidir`, Opus, depois do `/fechar-fase`): arquitetura, telas
 novas, fluxo de dados, uso ou não do LexML, OCR da Apple + Gemini. Até lá, o que o PLANO diz da Fase 3 está sujeito a revisão.
 
