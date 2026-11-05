@@ -68,6 +68,13 @@ final class MetricasDeBuscaTests: XCTestCase {
         XCTAssertEqual(avaliacao.mrr, 0.4375, accuracy: 1e-12)
     }
 
+    func testTop3IncluiAPosicao3() {
+        let avaliacao = AvaliacaoDaBusca(medicoes: [
+            medicao(posicao: 1), medicao(posicao: 2), medicao(posicao: 3), medicao(posicao: 4), medicao(posicao: nil)
+        ])
+        XCTAssertEqual(avaliacao.top3, 0.6, accuracy: 1e-12)
+    }
+
     func testSondasFicamForaDasMedias() {
         let avaliacao = AvaliacaoDaBusca(medicoes: [medicao(posicao: 1), medicao(posicao: nil, tipo: .sonda)])
         XCTAssertEqual(avaliacao.top1, 1)
@@ -106,6 +113,7 @@ final class MetricasDeBuscaTests: XCTestCase {
         XCTAssertNil(medicao(posicao: 1).itemCerto)  // a consulta não espera item
 
         let item = ItemSumario(nivel: 1, titulo: "Prisão")
+        XCTAssertEqual(medicao(posicao: 3, item: "Prisão", mostrados: [item]).itemCerto, true)
         let avaliacao = AvaliacaoDaBusca(medicoes: [
             medicao(posicao: 1, item: "Prisão", mostrados: [item]),
             medicao(posicao: 2, item: "Fiança", mostrados: [item]),

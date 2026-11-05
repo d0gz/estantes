@@ -19,6 +19,15 @@ final class CategoriaFormularioViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.nome, "")
     }
 
+    /// Sem categorias, a sugerida é a vermelha, a primeira da paleta: o resultado muda com o que já existe.
+    func testNovaSemCategoriasComecaNaPrimeiraCorDaPaleta() async {
+        let viewModel = CategoriaFormularioViewModel(modo: .nova, repositorio: BibliotecaRepositorioEmMemoria())
+
+        await viewModel.carregar()
+
+        XCTAssertEqual(viewModel.cor, .vermelho)
+    }
+
     /// Na edição a cor é a da categoria, não a sugerida (aqui seria a laranja).
     func testEdicaoComecaComONomeEACorDaCategoria() async {
         let viewModel = CategoriaFormularioViewModel(

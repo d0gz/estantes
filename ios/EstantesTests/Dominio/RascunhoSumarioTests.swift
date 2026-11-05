@@ -187,6 +187,15 @@ final class RascunhoSumarioTests: XCTestCase {
         XCTAssertEqual(rascunhoEmEscada.nivelMaximo(id: idC), 3)
     }
 
+    /// Aqui o nível do anterior + 1 (2) difere do nível do próprio item (1) e da posição + 1 (3).
+    func testNivelMaximoNaoDependeDaPosicaoNemDoNivelDoItem() {
+        var rascunho = rascunhoABC
+        XCTAssertEqual(rascunho.nivelMaximo(id: idC), 2)
+
+        rascunho.aumentarNivel(id: idC)
+        XCTAssertEqual(rascunho.itens.map(\.nivel), [1, 1, 2])
+    }
+
     func testAumentarNivelSobeUmAteOLimite() {
         var rascunho = rascunhoABC
 

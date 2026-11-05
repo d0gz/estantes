@@ -106,6 +106,15 @@ final class ValidacaoSumarioTests: XCTestCase {
            XCTAssertEqual(resultado.avisos, [.paginaMenorQueAnterior(indice: 2)])
        }
 
+    /// Com a maior página já vista, o 30 também geraria aviso (é menor que 50); com a anterior (20), não.
+    func testNaoComparaComAMaiorPaginaJaVista() {
+        let itens = [item(1, pagina: "50"), item(1, pagina: "20"), item(1, pagina: "30")]
+
+        let resultado = ValidacaoSumario.validar(itens)
+
+        XCTAssertEqual(resultado.avisos, [.paginaMenorQueAnterior(indice: 1)])
+    }
+
     // MARK: Página por sequência (2.3b)
 
     func testRomanosDoPrefacioSeguidosDeArabicosNaoGeramAviso() {

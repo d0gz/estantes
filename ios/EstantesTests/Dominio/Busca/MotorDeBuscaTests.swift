@@ -102,6 +102,13 @@ final class MotorDeBuscaTests: XCTestCase {
         XCTAssertEqual(motor.buscar("10407 comentada").correcoes, [])
     }
 
+    /// O limite de erros muda entre 8 e 9 letras. "prucessu" (8) está a 2 de "processo", e "privencau" (9) está a 2 de
+    /// "prevencao": só a segunda é corrigida.
+    func testAceitaDoisErrosSoAPartirDeNoveLetras() {
+        XCTAssertEqual(motor.buscar("prucessu").correcoes, [])
+        XCTAssertEqual(motor.buscar("privencau").correcoes, [Correcao(digitado: "privencau", usado: "prevencao")])
+    }
+
     func testCorrigirFalseDesliga() {
         let resposta = motor.buscar("procesos penal", corrigir: false)
         XCTAssertEqual(comTodos(resposta), [])

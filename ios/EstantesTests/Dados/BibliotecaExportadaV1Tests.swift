@@ -103,7 +103,7 @@ final class BibliotecaExportadaV1Tests: XCTestCase {
     }
 
     /// F2: a data vai com milissegundos; o que passa disso se perde (e só isso).
-    func testDataComMaisQueMilissegundosVoltaArredondadaAoMilissegundo() throws {
+    func testDataVoltaSemOQuePassaDeMilissegundos() throws {
         let original = Date(timeIntervalSince1970: 1_792_594_603.738_4)
         let conteudo = ConteudoDaBiblioteca(estantes: [Estante(id: idEscritorio, nome: "Escritório", criadaEm: original)])
 

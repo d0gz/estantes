@@ -97,6 +97,8 @@ final class FiltroBuscaTests: XCTestCase {
 
     func testEditoraContemSemAcentoNemMaiusculas() {
         XCTAssertTrue(FiltroBusca(editora: "malheiros").aceita(livroCompleto))
+        // Trecho do fim do nome: é "contém", não "começa com".
+        XCTAssertTrue(FiltroBusca(editora: "editores").aceita(livroCompleto))
         XCTAssertFalse(FiltroBusca(editora: "saraiva").aceita(livroCompleto))
         XCTAssertFalse(FiltroBusca(editora: "malheiros").aceita(livroSemDados))
     }
@@ -142,6 +144,8 @@ final class FiltroBuscaTests: XCTestCase {
         XCTAssertTrue(FiltroBusca(prefixoCDDir: "341 .2").aceita(livroCompleto))
         XCTAssertFalse(FiltroBusca(prefixoCDDir: "341.3").aceita(livroCompleto))
         XCTAssertFalse(FiltroBusca(prefixoCDDir: "341.21").aceita(livroCompleto))
+        // Trecho do meio do código: é "começa com", não "contém".
+        XCTAssertFalse(FiltroBusca(prefixoCDDir: "41.2").aceita(livroCompleto))
     }
 
     func testCDDirExcluiLivroSemCodigo() {
