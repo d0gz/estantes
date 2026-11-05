@@ -59,7 +59,8 @@ final class SingularTests: XCTestCase {
     }
 
     func testTermosCurtosNumerosEMistosNaoMudam() {
-        for termo in ["as", "os", "mes", "res", "1710", "8078", "cpc2015", "xlviii", "s"] {
+        // "art2os" e "cpc2015as" têm vogal + "s" no fim: só a guarda de "só letras" impede o corte do "s".
+        for termo in ["as", "os", "mes", "res", "1710", "8078", "cpc2015", "xlviii", "s", "art2os", "cpc2015as"] {
             XCTAssertEqual(Singular.forma(termo), termo, termo)
         }
     }
