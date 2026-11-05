@@ -805,7 +805,8 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
      alternativas). O `simctl` não toca na tela: abrir à mão ou criar um `-captura` que abra o menu.
   b. **Modo escuro primeiro:** o usuário principal usa o app no escuro. Conferir todas as telas já estilizadas
      no escuro, com prioridade sobre o claro.
-  **Próximo:** a e b; depois fechar este item (CI verde) e rodar `/fechar-fase`; só então a Fase 3.
+  **Próximo:** a e b; depois fechar este item (CI verde) e rodar `/fechar-fase`; depois a discussão da Fase 3
+  (`/decidir`, Opus, em sessão própria; ver o aviso em "Checklists", abaixo); só então a Fase 3.
 
 ## Identificação de livros e sumário (Fases 3 e 4)
 
@@ -950,6 +951,11 @@ Regras contra omissão:
   (produção, capa), endereço da editora, ano do copyright, datas de vida do autor, números de controle e de chamada.
 
 ### Checklists
+
+> **Sujeito a revisão (04/11):** o Ricardo anunciou mudanças para a Fase 3. Elas serão discutidas depois do
+> `/fechar-fase` da Fase 2 e **antes de iniciar a Fase 3**. Assuntos: arquitetura da Fase 3 (com a criação de novas
+> telas), fluxo de dados, uso ou não do LexML e uso do OCR da Apple + Gemini. Nada foi decidido ainda: o checklist abaixo
+> e as seções de identificação e sumário continuam como estavam, mas não comece por eles antes dessa discussão.
 
 - Fase 3:
   - [ ] Script/teste local: Vision nas fotos → `avaliacao/ocr/*.json`

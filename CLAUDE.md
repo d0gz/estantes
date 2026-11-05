@@ -79,6 +79,8 @@ iPhone: itens com mais palavras da consulta, sem contar o título, na ordem do s
 **Próximo (antes da Fase 3):** ver no simulador o menu ⋯ (o texto de
 Exportar/Importar quebrou no iPhone) e conferir as telas no modo escuro (o modo do usuário principal); depois fechar a
 2.9 e rodar `/fechar-fase`. Detalhes no "Onde paramos" do checklist do PLANO. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
+**A Fase 3 não começa antes de uma discussão própria** (`/decidir`, Opus, depois do `/fechar-fase`): arquitetura, telas
+novas, fluxo de dados, uso ou não do LexML, OCR da Apple + Gemini. Até lá, o que o PLANO diz da Fase 3 está sujeito a revisão.
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que
