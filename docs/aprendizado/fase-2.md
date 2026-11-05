@@ -3307,3 +3307,74 @@ Na regra final, "palavras que contam" = palavras da consulta menos as que aparec
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+---
+
+## Tarefa 2.9 — Fechamento da Fase 2: menu ⋯ e conferência do modo escuro (2026-11-04)
+
+### O que foi feito
+Encurtaram-se os textos do menu ⋯ ("Exportar", "Importar", "Carregar exemplos"), a discussão da Fase 3 foi anotada como bloqueio (`docs/PLANO.md`, `CLAUDE.md`), e as telas foram conferidas no modo escuro: 31 capturas com `simctl ui appearance dark`, com o contraste WCAG medido nos pixels. A medição gerou duas correções em `Cor.swift`: o token `dica` (placeholder dos campos) e o token `sobreCategoria` (✓ sobre a cor da categoria). `PaletaTests` ganhou 2 testes (543 no total, 2 pulados de sempre).
+
+### Conceitos envolvidos
+**Contraste WCAG.** A razão é `(L1 + 0,05) / (L2 + 0,05)`, onde L é a luminância relativa (cada canal sRGB é linearizado, e depois se pondera: 0,2126 R + 0,7152 G + 0,0722 B; o verde pesa mais porque o olho é mais sensível a ele). A razão vai de 1:1 a 21:1. Pisos: 4,5:1 para texto normal (critério 1.4.3) e 3:1 para componentes gráficos e ícones (1.4.11). Texto decorativo ou ilustração não tem piso obrigatório.
+
+**Medir nos pixels.** O script Swift pega o fundo como a cor mais comum da região (o fundo é a maior área) e a frente como o pixel mais distante em luminância. É uma aproximação: o anti-aliasing do texto cria pixels intermediários, mas o pior contraste está no centro dos traços, que a regra "mais distante" captura.
+
+**Cor dinâmica.** `UIColor(claro:escuro:)` resolve a cor conforme o `UIUserInterfaceStyle` do `traitCollection`. Por isso o teste precisa *resolver* a cor em cada modo antes de medir (`resolver(cor, modo)`).
+
+**Translucidez.** `Cor.campo` é `tertiarySystemFill`, uma cor com alfa. O que o olho vê é o composto sobre o que está atrás (a barra). O fundo "real" de um campo depende, portanto, de onde ele está. Foi isso que derrubou a primeira dica.
+
+**Vermelho → verde com mutação.** O token já existia, então a cor foi trocada de propósito pela errada para o teste reprovar: a dica fraca reprovou nos fundos escuros, o ✓ branco reprovou 13 combinações. Um teste que nunca viu vermelho não prova nada.
+
+### Tabela de achados
+| # | Onde | Medida | Decisão |
+| --- | --- | --- | --- |
+| E1 | dica (placeholder) dos campos | 2,4–2,5:1 | Corrigido: token `dica`, `prompt` com cor |
+| E2 | barras da ilustração do estado vazio | 1,6:1 | Mantido: a cor clara foi testada e o Ricardo preferiu a escura; decorativa, sem piso obrigatório |
+| E3 | ✓ branco nas cores claras | 1,43:1 no amarelo | Corrigido, contra a recomendação inicial de deixar: preto, token `sobreCategoria` |
+| E4 | chips e títulos quebram no meio da palavra | nos tamanhos de acessibilidade | Adiado para a Fase 5 |
+
+### Por que assim
+- **A conta caiu ao medir.** A primeira dica (`#6E6E73` / `#98989F`) dava 4,9:1 nos formulários, mas no campo da Busca deu 4,33:1 no escuro e 4,07:1 no claro: o fundo é `Cor.campo` translúcido sobre a barra (`#343436` / `#E6E6E7`). O teste estava verde porque só cobria fundos de formulário. Correção: `#66666B` / `#A0A0A6` (4,58:1 e 4,78:1 medidos) e os dois fundos entram no teste. **Lição: um teste de contraste só prova os pares da lista.**
+- **Fundos do teste como literais medidos**, e não `UIColor.secondarySystem…`: o valor esperado vem de fonte independente (a captura). Limite assumido: o teste não percebe mudança do fundo num iOS novo, nem tela que deixe de usar o token (P3 recusado de propósito).
+- **`sobreCategoria` virou token.** Com `.black` fixo na tela, o teste mediria uma cor que a tela podia nem usar. O token garante que teste e tela falam do mesmo valor.
+- **✓ sempre preto**, em vez de regra preto/branco por cor: o preto já passa 3:1 em todas (pior caso: índigo no claro, cerca de 3,7:1), sem regra nova para manter. Piso de 3:1 porque é ícone (1.4.11).
+- **A dica não usa `textoSecundario` (11:1)**: pareceria texto digitado, e a dica precisa parecer vazia. Contraste alto demais também é defeito, pois apaga a distinção entre dica e conteúdo.
+- **`Text.dica(_:)`** (P1 do revisor): uma função só para o `prompt:`, em vez de repetir `.foregroundColor(Cor.dica)` em cada campo.
+- **Alerta "Nova estante"**: `.alert` é UIKit e o `prompt` não aceita estilo; a dica ali fica do sistema.
+- **Menu ⋯ sem investigar a causa**: decisão do Ricardo, sem foto do defeito. Textos curtos resolvem o sintoma. O SwiftUI não abre `Menu` por código e o `simctl` não toca na tela, então duas capturas falharam (o menu já tinha fechado). A conferência final é a olho no próximo `.ipa`.
+- **Falso alarme das categorias sumidas**: eram categorias que o próprio Ricardo tinha apagado. Perguntou-se, em vez de supor um bug.
+
+### Alternativas descartadas
+- Cor clara nas barras da ilustração (E2): testada, o Ricardo preferiu a escura; é decorativa.
+- Regra preto/branco por categoria: mais código, nenhum ganho acima do piso.
+- Reaproveitar `textoSecundario` como dica: ver acima.
+- Investigar a quebra do menu sem foto: trabalho às cegas.
+- Revisão: aplicados P1, P2 (só na Busca), P4, P5, P7/E2, E3, E4, E5; recusados P3, P6, E1.
+
+### Padrões e boas práticas
+- **Design tokens**: cada cor semântica tem um nome (`dica`, `sobreCategoria`) e um só lugar de definição, com teste. Não use quando a cor for única e local, pois vira cerimônia.
+- **Teste como lista de pares**: bom para regressão, cego para o que não está na lista. Documente de onde vêm os fundos.
+- **Medir antes de recomendar**: a recomendação inicial (deixar o ✓ branco) foi superada por uma decisão informada do Ricardo; os números sustentaram a escolha.
+- **Dívida declarada**: E4 foi adiado para a Fase 5 com registro, não esquecido.
+
+### Armadilhas
+- Medir só um contexto: a mesma cor passa num fundo e reprova noutro. Liste todos os fundos reais.
+- Cor translúcida: o contraste depende do que está embaixo.
+- Telas sem captura (fim das telas longas, item do sumário, foto ampliada) foram conferidas a olho: é uma conferência mais fraca, e deve ser registrada como tal.
+- O contraste não mede tudo: tamanhos de acessibilidade (Dynamic Type) quebram layout (E4), e isso é outro eixo.
+- CI em Xcode 26 pode renderizar diferente do Xcode 14; a CI desta tarefa ainda não tinha terminado no registro.
+
+### Para ir além
+- W3C, *WCAG 2.2*: critérios 1.4.3 (Contrast Minimum) e 1.4.11 (Non-text Contrast), e a definição de "relative luminance".
+- Apple, *Human Interface Guidelines*: Color e Accessibility (contraste e modo escuro).
+
+### Perguntas
+1. Com suas palavras: por que a dica passou nos formulários e reprovou no campo da Busca, se a cor era a mesma? O que isso diz sobre o que um teste de contraste prova?
+2. Aplicação: se o app ganhar uma nova cor de categoria (por exemplo, um amarelo mais claro), o que aconteceria com `testSobreCategoria…`? E se a tela do ✓ passasse a usar `.white` direto, o teste perceberia?
+3. Raciocínio: por que usar `textoSecundario` (11:1) na dica seria um problema, mesmo passando com folga em qualquer piso? Em que caso o piso de 3:1, e não 4,5:1, é o correto?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->

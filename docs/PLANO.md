@@ -795,7 +795,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
   no Xcode 26 (run 41760437271); PR #30 mergeado. Opcional: repetir a busca "coletivo" no iPhone com o `.ipa` de
   exemplos (deve mostrar os 4 itens do Tomo XLVIII).
   **Próximo:** a 2.9 (pendências a e b abaixo), depois `/fechar-fase`.
-- [ ] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
+- [x] Simulador iOS 16, CI verde e `.ipa` no iPhone pelo Sideloadly (aparelho disponível desde 21/10)
   (2.9) A parte do iPhone está provada (22/10, teste da 2.8). **Pendências antes da Fase 3** (anotadas em 22/10,
   ver na próxima sessão, cada uma começando pela explicação e esperando o OK; bugs novos do teste no iPhone ficam
   em fotos em `avaliacao/fotos/bug-encontrado-teste-manual-foto/`, só no Mac):
@@ -820,7 +820,9 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
      têm captura: o Ricardo as conferiu **a olho** no simulador, no escuro, e aprovou.
      Nos Filtros, os campos ganharam título próprio ("Autor", "Editora", "Ano inicial", "Ano final") para a dica ir no
      `prompt:`: é isso que o VoiceOver lê agora, em vez do exemplo.
-  **Próximo:** fechar este item (CI verde) e rodar `/fechar-fase`; depois a discussão da Fase 3
+  **Onde paramos (04/11, branch `fase2/fechamento`, 543 testes):** 2.9 concluída; CI verde no Xcode 26 (run 41954110381);
+  aprendizado registrado pelo teacher; PR #32 aberto.
+  **Próximo:** mergear o PR #32 e rodar `/fechar-fase`; depois a discussão da Fase 3
   (`/decidir`, Opus, em sessão própria; ver o aviso em "Checklists", abaixo); só então a Fase 3. Sem bloquear nada disso:
   conferir o menu ⋯ no iPhone no próximo `.ipa`.
 

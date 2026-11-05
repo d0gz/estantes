@@ -76,9 +76,9 @@ Filtros e Categorias; correção da rolagem na primeira entrada da Estante e de 
 mergeado) e 2.8 (exportar/importar + `.ipa` com exemplos pela opção `exemplos` do "Run workflow"; 539 testes;
 PR #28 mergeado; testada no iPhone em 22/10) e 2.8b (todas as ocorrências do sumário na busca, bug do teste no
 iPhone: itens com mais palavras da consulta, sem contar o título, na ordem do sumário; 541 testes; PR #30 mergeado).
-**Próximo (antes da Fase 3):** ver no simulador o menu ⋯ (o texto de
-Exportar/Importar quebrou no iPhone) e conferir as telas no modo escuro (o modo do usuário principal); depois fechar a
-2.9 e rodar `/fechar-fase`. Detalhes no "Onde paramos" do checklist do PLANO. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
+2.9 (fechamento: textos curtos no menu ⋯, conferência do modo escuro, tokens `dica` e `sobreCategoria`; 543 testes;
+PR #32).
+**Próximo (antes da Fase 3):** rodar `/fechar-fase`. Detalhes no "Onde paramos" do checklist do PLANO. Ordem das tarefas em `docs/PLANO.md` (Checklist da Fase 2).
 **A Fase 3 não começa antes de uma discussão própria** (`/decidir`, Opus, depois do `/fechar-fase`): arquitetura, telas
 novas, fluxo de dados, uso ou não do LexML, OCR da Apple + Gemini. Até lá, o que o PLANO diz da Fase 3 está sujeito a revisão.
 
