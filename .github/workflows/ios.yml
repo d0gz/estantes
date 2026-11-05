@@ -2,7 +2,7 @@ name: iOS
 
 # Testes: a cada push/PR que mexa no app.
 # .ipa: só quando você clica em "Run workflow" (economiza minutos de macOS). Com a opção "exemplos", o .ipa
-# compila com a flag EXEMPLOS e ganha o item "Carregar dados de exemplo" no menu ⋯ (decidido em 21/10).
+# compila com a flag EXEMPLOS e ganha o item "Carregar exemplos" no menu ⋯ (decidido em 21/10).
 on:
   push:
     branches: [main]

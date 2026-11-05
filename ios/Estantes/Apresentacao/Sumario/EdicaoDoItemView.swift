@@ -49,13 +49,13 @@ struct EdicaoDoItemView: View {
         Form {
             Section {
                 TextField(
-                    "Numeração", text: ligacao(\.numeracao), prompt: Text("Numeração (ex.: Capítulo II, § 5.108)")
+                    "Numeração", text: ligacao(\.numeracao), prompt: Text.dica("Numeração (ex.: Capítulo II, § 5.108)")
                 )
                     .focused($campoEmFoco, equals: .numeracao)
                     .submitLabel(.next)
                     .onSubmit { campoEmFoco = .titulo }
                 campoDoTitulo
-                TextField("Página", text: ligacao(\.pagina), prompt: Text("Página (ex.: 45, XI)"))
+                TextField("Página", text: ligacao(\.pagina), prompt: Text.dica("Página (ex.: 45, XI)"))
                     .keyboardType(.numbersAndPunctuation)
                     .focused($campoEmFoco, equals: .pagina)
                     .submitLabel(.next)
@@ -80,7 +80,7 @@ struct EdicaoDoItemView: View {
     /// Títulos jurídicos são longos: o campo cresce para baixo. O Return não quebra a linha, passa para a Página.
     private var campoDoTitulo: some View {
         let titulo = ligacao(\.titulo)
-        return TextField("Título", text: titulo, prompt: Text("Título"), axis: .vertical)
+        return TextField("Título", text: titulo, prompt: Text.dica("Título"), axis: .vertical)
             .focused($campoEmFoco, equals: .titulo)
             .onChange(of: titulo.wrappedValue) { novo in
                 guard novo.contains(where: \.isNewline) else { return }

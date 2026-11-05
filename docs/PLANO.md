@@ -359,9 +359,9 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
   "Livro · itens do sumário, p. N · Estante X · prateleira", com os chips de filtro sempre no cabeçalho.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
-  menu (⋯) no canto superior (2.8): "Exportar biblioteca" gera `Estantes-AAAA-MM-DD.json` e abre a folha de
-  compartilhar; "Importar…" abre o seletor de arquivos, mostra o resumo ("N livros · N estantes · N categorias") e
-  pergunta Mesclar / Substituir tudo; um alerta dá o resultado. Em `DEBUG || EXEMPLOS`, "Carregar dados de exemplo".
+  menu (⋯) no canto superior (2.8): "Exportar" gera `Estantes-AAAA-MM-DD.json` e abre a folha de
+  compartilhar; "Importar" abre o seletor de arquivos, mostra o resumo ("N livros · N estantes · N categorias") e
+  pergunta Mesclar / Substituir tudo; um alerta dá o resultado. Em `DEBUG || EXEMPLOS`, "Carregar exemplos".
 
 - **Fundamentos do estilo (Estilo 0, decididos em 12/10):**
   - Referências: Apple Books (disposição dos livros: capas protagonistas, serifa, transição capa → detalhe), Bevel (forma e
@@ -805,8 +805,24 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
      alternativas). O `simctl` não toca na tela: abrir à mão ou criar um `-captura` que abra o menu.
   b. **Modo escuro primeiro:** o usuário principal usa o app no escuro. Conferir todas as telas já estilizadas
      no escuro, com prioridade sobre o claro.
-  **Próximo:** a e b; depois fechar este item (CI verde) e rodar `/fechar-fase`; depois a discussão da Fase 3
-  (`/decidir`, Opus, em sessão própria; ver o aviso em "Checklists", abaixo); só então a Fase 3.
+  **Resultado (04/11, branch `fase2/fechamento`):**
+  a. Textos do menu encurtados, por decisão do Ricardo: "Exportar", "Importar", "Carregar exemplos". Sem foto, a causa
+     da quebra no iPhone não foi investigada. Conferido **a olho** pelo Ricardo no simulador (escuro, texto padrão e
+     de acessibilidade grande): inteiro. As duas capturas falharam (o menu já tinha fechado). Falta ver no próximo `.ipa`.
+  b. 31 modos `-captura` no escuro (`docs/capturas/<Tela>/<Tela>_3.0-escuro.png`), com contraste medido nos pixels.
+     E1 (corrigido): dica do campo vazio com 2,4:1; token `dica` (`#66666B`/`#A0A0A6`, teste em `PaletaTests`) nos
+     formulários do livro, da categoria e do item do sumário, nos Filtros e no campo da Busca. O alerta "Nova estante" fica com a do sistema.
+     E2 (mantido): barras da ilustração do estado vazio em 1,6:1; a cor clara foi testada, e o Ricardo preferiu a escura.
+     E3 (corrigido): ✓ da cor escolhida sempre preto, token `sobreCategoria` (o branco dava cerca de 1,4:1 no amarelo). O
+     preto fica acima de 3:1 em todas as cores, sem regra por cor; o `PaletaTests` confere cada uma.
+     E4 (adiado para a Fase 5): nos tamanhos de acessibilidade, chips e títulos quebram no meio da palavra.
+     O fim das telas longas (o `simctl` não rola), a tela do item do sumário e a foto ampliada (sem modo `-captura`) não
+     têm captura: o Ricardo as conferiu **a olho** no simulador, no escuro, e aprovou.
+     Nos Filtros, os campos ganharam título próprio ("Autor", "Editora", "Ano inicial", "Ano final") para a dica ir no
+     `prompt:`: é isso que o VoiceOver lê agora, em vez do exemplo.
+  **Próximo:** fechar este item (CI verde) e rodar `/fechar-fase`; depois a discussão da Fase 3
+  (`/decidir`, Opus, em sessão própria; ver o aviso em "Checklists", abaixo); só então a Fase 3. Sem bloquear nada disso:
+  conferir o menu ⋯ no iPhone no próximo `.ipa`.
 
 ## Identificação de livros e sumário (Fases 3 e 4)
 
@@ -983,6 +999,8 @@ Regras contra omissão:
 - Fase 5: sinônimos jurídicos na busca (ex.: "CDC" ↔ "Código de Defesa do Consumidor"), navegação
   pela hierarquia da CDDir; foto da lombada das estantes, exportação com fotos (.zip), revisão de
   acessibilidade e modo escuro, ícone. CloudKit só se pagar o Developer Program.
+  Na revisão de acessibilidade, entra o achado E4 da 2.9: nos tamanhos de acessibilidade, chips (Categorias, Estante) e
+  títulos de livro quebram no meio da palavra ("Constitucion/al").
 - Fase 6: Sideloadly (grátis, 7 dias) é o padrão; TestFlight/App Store exigem US$ 99/ano.
 
 ## Aprendizado

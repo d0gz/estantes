@@ -80,7 +80,7 @@ struct LivroFormularioView: View {
             Section {
                 ForEach(viewModel.rascunho.autores.indices, id: \.self) { posicao in
                     // A vírgula separa o sobrenome, que o cabeçalho do Detalhe usa (regra ABNT).
-                    TextField("Nome do autor", text: autor(posicao), prompt: Text("Sobrenome, Nome"))
+                    TextField("Nome do autor", text: autor(posicao), prompt: Text.dica("Sobrenome, Nome"))
                         .textContentType(.name)
                 }
                 .onDelete(perform: viewModel.apagarAutores)
@@ -99,9 +99,9 @@ struct LivroFormularioView: View {
             Section {
                 ForEach(viewModel.rascunho.colaboradores.indices, id: \.self) { posicao in
                     VStack(alignment: .leading) {
-                        TextField("Nome do colaborador", text: colaborador(posicao, \.nome), prompt: Text("Sobrenome, Nome"))
+                        TextField("Nome do colaborador", text: colaborador(posicao, \.nome), prompt: Text.dica("Sobrenome, Nome"))
                             .textContentType(.name)
-                        TextField("Papel", text: colaborador(posicao, \.papel), prompt: Text("ex.: prefácio, tradução"))
+                        TextField("Papel", text: colaborador(posicao, \.papel), prompt: Text.dica("ex.: prefácio, tradução"))
                             .font(.subheadline)
                     }
                 }
@@ -251,7 +251,7 @@ struct LivroFormularioView: View {
         quebraLinha: Bool = false
     ) -> some View {
         let texto = $viewModel.rascunho[dynamicMember: caminho]
-        let placeholder = Text(exemplo.map { "\(nome) (\($0))" } ?? nome)
+        let placeholder = Text.dica(exemplo.map { "\(nome) (\($0))" } ?? nome)
         VStack(alignment: .leading, spacing: Espaco.minimo) {
             rotulo(nome, visivel: !texto.wrappedValue.isEmpty)
             // Título e subtítulo jurídicos são longos: crescem para baixo em vez de cortar com "…".

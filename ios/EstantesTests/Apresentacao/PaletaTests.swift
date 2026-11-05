@@ -68,7 +68,38 @@ final class PaletaTests: XCTestCase {
         }
     }
 
+    /// A dica dentro do campo vazio é o único rótulo do campo enquanto ele não tem texto. Os fundos são cores medidas
+    /// nas capturas, porque os campos não usam a paleta: linhas do `Form` (no escuro, `#1C1C1E` numa tela empurrada e
+    /// `#2C2C2E` numa folha; no claro, branco) e o campo da Busca (`Cor.campo` sobre a barra: `#E6E6E7` e `#343436`, os
+    /// mais difíceis). A dica do sistema dá 2,4:1 no `#2C2C2E` e reprovaria.
+    func testDicaSobreOsFundosDosCamposNosDoisModos() {
+        let linhas: [(nome: String, cor: UIColor, modo: UIUserInterfaceStyle)] = [
+            ("linha branca", UIColor(claro: 0xFFFFFF, escuro: 0xFFFFFF), .light),
+            ("linha de tela empurrada", UIColor(claro: 0x1C1C1E, escuro: 0x1C1C1E), .dark),
+            ("linha de folha", UIColor(claro: 0x2C2C2E, escuro: 0x2C2C2E), .dark),
+            ("campo da Busca", UIColor(claro: 0xE6E6E7, escuro: 0xE6E6E7), .light),
+            ("campo da Busca", UIColor(claro: 0x343436, escuro: 0x343436), .dark),
+        ]
+        for linha in linhas {
+            let razao = Contraste.razao(resolver(Paleta.dica, linha.modo), resolver(linha.cor, linha.modo))
+            XCTAssertGreaterThanOrEqual(razao, piso, "dica × \(linha.nome) (\(nome(linha.modo)))")
+        }
+    }
+
     // MARK: Categorias
+
+    /// O ✓ da cor escolhida é ícone: piso de 3:1 sobre a cor viva de cada categoria, em todas as cores do enum.
+    func testSobreCategoriaEmCimaDaCorVivaDeCadaCorNosDoisModos() {
+        for cor in CorCategoria.allCases {
+            for modo in [UIUserInterfaceStyle.light, .dark] {
+                let razao = Contraste.razao(resolver(Paleta.sobreCategoria, modo), resolver(Paleta.categoria(cor).viva, modo))
+                XCTAssertGreaterThanOrEqual(
+                    razao, pisoSemTexto,
+                    "✓ × \(cor.rawValue) (\(nome(modo))): \(String(format: "%.2f", razao))"
+                )
+            }
+        }
+    }
 
     /// O texto do chip vai sobre o véu da cor (a 15%) em cima do cartão. Mede todas as cores do enum, então uma cor
     /// nova sem tom de texto bom reprova aqui sem ninguém lembrar de pôr o par numa lista. O contorno e o ícone ficam

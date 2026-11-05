@@ -18,17 +18,17 @@ struct FiltrosDaBuscaView: View {
     var body: some View {
         Form {
             Section("Autor") {
-                TextField("Ex.: Pontes de Miranda", text: texto(\.autor))
+                TextField("Autor", text: texto(\.autor), prompt: Text.dica("Ex.: Pontes de Miranda"))
                     .textInputAutocapitalization(.words)
             }
             Section("Editora") {
-                TextField("Ex.: Saraiva", text: texto(\.editora))
+                TextField("Editora", text: texto(\.editora), prompt: Text.dica("Ex.: Saraiva"))
                     .textInputAutocapitalization(.words)
             }
             Section {
-                TextField("De (ex.: 1950)", text: $anoInicial)
+                TextField("Ano inicial", text: $anoInicial, prompt: Text.dica("De (ex.: 1950)"))
                     .keyboardType(.numberPad)
-                TextField("Até (ex.: 1980)", text: $anoFinal)
+                TextField("Ano final", text: $anoFinal, prompt: Text.dica("Até (ex.: 1980)"))
                     .keyboardType(.numberPad)
             } header: {
                 Text("Ano de publicação")

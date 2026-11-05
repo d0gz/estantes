@@ -84,7 +84,7 @@ struct BuscaView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(Cor.textoSecundario)
                 .accessibilityHidden(true)
-            TextField(BuscaView.textoDoCampo, text: $busca.texto)
+            TextField(BuscaView.textoDoCampo, text: $busca.texto, prompt: .dica(BuscaView.textoDoCampo))
                 .focused($campoFocado)
                 .submitLabel(.search)
                 .onSubmit { campoFocado = false }
