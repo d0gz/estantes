@@ -895,7 +895,9 @@ Nada é enviado antes do toque em "Identificar livro". A internet só entra ness
 - **Estante na revisão:** já vem com a do último livro adicionado (por `adicionadoEm`, sem dado novo).
 - **Obrigatórios:** sem título ninguém salva; autor, editora e ano só são exigidos com `origem == manual`, e nos outros casos
   viram aviso (revisa 10/10: livro antigo sem ano obrigaria a inventar).
-- **Tipo do livro:** `Picker` no Formulário (padrão jurídico), Todos/Jurídico/Não jurídico na tela Filtros; nada no Detalhe nem na lista.
+- **Tipo do livro:** padrão `juridico` para livros já gravados e JSON sem o campo. Muda o prompt do Gemini, o passo do LexML (só
+  jurídico) e um filtro na busca. `Picker` no Formulário (padrão jurídico), Todos/Jurídico/Não jurídico na tela Filtros; nada no
+  Detalhe nem na lista.
 
 ### Câmera
 
@@ -906,7 +908,8 @@ ou com `xcrun simctl addmedia booted foto.jpg`.
 
 ### Imagens
 
-- **`PrepararPagina`, assim que a foto é tirada:** OCR do Vision na resolução cheia (a capa não passa por OCR) +
+- **`PrepararPagina`, assim que a foto é tirada:** OCR do Vision na resolução cheia (a capa não passa por OCR: vai reduzida
+  ao Gemini só como apoio, para confirmar o título) +
   `VNDetectBarcodesRequest` + ISBN achado no OCR (`ISBN.normalizar`, falta só achá-lo no texto) → cópia reduzida → a original é solta
   (~48 MB por foto de 12 MP descomprimida).
 - **Cópia em memória:** uma por página, no maior dos dois tamanhos (1200 px ou o do Gemini, a medir na 3.2), e a outra deriva
@@ -1057,7 +1060,8 @@ Regra pura no Domínio (`[eu escrevo]`), antes de abrir a revisão. Nada é corr
 
 ### Erros
 
-Em todos, as fotos reduzidas e o OCR continuam em memória. Fila de pendentes adiada.
+Em todos, as fotos reduzidas e o OCR continuam em memória. Fila de pendentes adiada. O `finishReason` de recitação ou segurança
+vira `recusa_do_modelo`; no 429, a função lê a resposta do Gemini para separar a cota do dia do limite por minuto.
 
 | Erro | Código (HTTP) | Mensagem | Opções |
 | --- | --- | --- | --- |
