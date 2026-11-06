@@ -1213,13 +1213,11 @@ alternativas reais no meio de uma parte: `/decidir`.
   - *Fronteira de teste:* a auditoria, nos testes alterados na fase: pega teste tautológico ou fraco; deixa passar o que nenhum teste cobre, que a mutação manual ajuda a achar.
   - *Fora:* funcionalidades novas.
 
-- Fase 4: Edge Functions `enriquecer-urn` (porta de `data/enriquecer_urn.py`, 5 s entre pedidos),
-  `identificar-livro` (Google Books, Gemini) e `estruturar-sumario` (Gemini); chaves como secrets;
-  limite de chamadas por dispositivo; pré-preenchimento do sumário pela `descricao`.
-  **Atenção (achado de 09/10):** no Supabase a `descricao` está cortada em 400 caracteres
-  (`MAX_DESCRICAO_CSV` em `data/extrair_livros_lexml.py`; 10.145 de 24.118). O pré-preenchimento precisa da
-  descrição inteira (reimportar a coluna ou ler a ficha `/urn`) e descartar o item cortado.
-  O leitor do `/urn` às vezes devolve a hierarquia da CDDir repetida ("… > DIREITO PRIVADO > DIREITO CIVIL").
+**Fase 4**
+
+A Fase 3 absorveu a Edge Function `identificar-livro`, o Gemini, as chaves como secrets e a `enriquecer-urn` (na 3.7). A `estruturar-sumario` saiu:
+o sumário vai no mesmo pedido do livro. O limite de chamadas por dispositivo saiu junto com o login. **A Fase 4 não tem conteúdo obrigatório**: só
+abre se o Ricardo escolher itens de "Adiado".
 
 ## Fases 5 e 6
 
