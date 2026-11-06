@@ -1,4 +1,4 @@
-# Estantes — app iOS de estantes virtuais para livros jurídicos
+# Estantes — app iOS de estantes virtuais para livros, jurídicos ou não
 
 ## Leia antes de qualquer tarefa
 - `docs/PLANO.md` — arquitetura, decisões já tomadas (com motivo) e checklist de cada fase.
@@ -12,11 +12,14 @@ Este projeto existe para **aprender**, não só para entregar um app. O dono do 
 padrões, funcionamento interno e, principalmente, **o porquê de cada escolha**.
 
 ## Stack
-- iOS: Swift 5, SwiftUI, **Core Data**, Vision (`VNDetectBarcodesRequest`, `VNRecognizeTextRequest`),
-  VisionKit (`VNDocumentCameraViewController`, para o sumário)
-- Backend: Supabase (Postgres + `pg_trgm` + `unaccent`, RPC `buscar_livro`, Edge Functions em TypeScript/Deno)
-- Dados: dataset LexML filtrado para registros do tipo "Livro"
-- Fallbacks: Google Books API → Gemini (chaves só nas Edge Functions, nunca no app)
+- iOS: Swift 5, SwiftUI, **Core Data**, Vision (`VNDetectBarcodesRequest`, `VNRecognizeTextRequest`,
+  `VNDetectRectanglesRequest`), AVFoundation (câmera da capa e da ficha ou folha de rosto),
+  VisionKit (`VNDocumentCameraViewController`, para o sumário); cliente do Supabase em `URLSession`
+  (o `supabase-swift` exige Xcode 26)
+- Backend: Supabase (Edge Function `identificar-livro` em TypeScript/Deno; Postgres + `pg_trgm` + `unaccent` e RPC
+  `buscar_livro` só para a parte opcional do LexML)
+- Identificação: OCR da Apple + Gemini, com revisão do usuário (chave só na Edge Function, nunca no app)
+- Dados: dataset LexML filtrado para registros do tipo "Livro" (parte opcional, só livros jurídicos)
 - CI: GitHub Actions, runner `macos-26` com Xcode 26 (testes em push no main e em PRs que mexem em `ios/`; `.ipa` sem assinatura no "Run workflow")
 - Instalação no iPhone: Sideloadly com Apple ID gratuito (o app vale 7 dias)
 
@@ -62,8 +65,8 @@ nunca recalculado como o código calcula. Um teste e uma implementação por vez
 - `docs/guias/fase-N.md` — guia consolidado de cada fase (só Markdown, sem PDF)
 
 ## Fase atual
-Fase 3 — Identificação de livros e sumário, **ainda não iniciada**: começa pela discussão indicada abaixo. (Atualize esta
-linha ao abrir uma nova fase.)
+Fase 3 — Identificação de livros e sumário: **replanejada em 06/11** (OCR da Apple + Gemini + revisão; LexML opcional; livros
+jurídicos e gerais). Próxima tarefa: 3.1 (tipo do livro), em "Checklists" no `docs/PLANO.md`. (Atualize esta linha ao abrir uma nova fase.)
 Fase 2 fechada (tag `fase-2`, guia em `docs/guias/fase-2.md`). Concluídas: 2.1 (entidades, porta e `ValidacaoSumario`), 2.2 (Core Data e repositório) e 2.3 (motor de busca:
 passos 1–6, 2.3b obras em vários volumes e 2.3i sondas — plural, volume/artigos no índice, correção de digitação,
 OU de reserva, peso do sumário 0,25; 224 testes; PR #22 mergeado), 2.4 (telas principais: lógica 2.4a–e e estilo de
@@ -79,8 +82,6 @@ PR #28 mergeado; testada no iPhone em 22/10) e 2.8b (todas as ocorrências do su
 iPhone: itens com mais palavras da consulta, sem contar o título, na ordem do sumário; 541 testes; PR #30 mergeado).
 2.9 (fechamento: textos curtos no menu ⋯, conferência do modo escuro, tokens `dica` e `sobreCategoria`; PR #32 mergeado) e auditoria dos
 testes no `/fechar-fase` (548 testes; PR #33).
-**A Fase 3 não começa antes de uma discussão própria** (`/decidir`, Opus, depois do `/fechar-fase`): arquitetura, telas
-novas, fluxo de dados, uso ou não do LexML, OCR da Apple + Gemini. Até lá, o que o PLANO diz da Fase 3 está sujeito a revisão.
 
 ## Regras de trabalho
 1. **Explique antes de fazer.** Antes de cada mudança relevante, diga em poucas linhas o que

@@ -7,29 +7,29 @@ registre o motivo em "Histórico de decisões", no fim.
 ## Objetivo
 
 App iOS que espelha as estantes físicas da casa em estantes virtuais, adiciona livros
-jurídicos por foto e permite **buscar por assunto** dentro dos livros já catalogados
+(jurídicos e gerais) por foto e permite **buscar por assunto** dentro dos livros já catalogados
 (título, sumário com página, CDDir e categorias). O objetivo principal é **aprender** cada
 camada, do repositório ao deploy; cada fase termina com um guia do subagente teacher.
 
 O app funciona offline (Core Data), inclusive a busca. A internet só entra para identificar
-um livro novo e, como reserva, para estruturar um sumário fotografado (Gemini).
+um livro novo: fotos e OCR vão a uma Edge Function, que chama o Gemini, e o usuário revisa antes de salvar.
 A busca é só na biblioteca do usuário, sem consultar o catálogo do servidor.
 
 ## Arquitetura
 
 ```
-iPhone (offline)                      Supabase (plano grátis)                Externos
-┌───────────────────────┐   livro    ┌─────────────────────────────┐
-│ Câmera + Vision       │   novo     │ RPC buscar_livro (Postgres)  │
-│  código de barras     │──────────▶│  lexml_livros (83.612 livros)│
-│  OCR capa + ficha     │            │  obras / edicoes (cache)     │
-├───────────────────────┤            ├─────────────────────────────┤  falhou   ┌──────────────┐
-│ SwiftUI + Core Data   │◀──────────▶│ Edge Functions               │─────────▶│ LexML /urn   │
-│  Estante, Livro,      │            │  enriquecer-urn              │          │ Google Books │
-│  Categoria, Sumário   │            │  identificar-livro (secrets) │          │ Gemini       │
-│  busca local (BM25F)  │            │  estruturar-sumario          │          └──────────────┘
-│  export/import JSON   │            └─────────────────────────────┘
-└───────────────────────┘
+iPhone                                  Supabase (plano grátis)                   Externo
+┌───────────────────────────┐           ┌─────────────────────────────────┐       ┌───────────┐
+│Scanner                    │ fotos     │Edge Function identificar-livro  │ pedido│Gemini     │
+│ AVFoundation, VisionKit   │ reduzidas │ chave do Gemini em secret       │ ─────▶│ API nativa│
+│ Vision: OCR, cód. barras  │ + OCR     │ recusa > 20 pág. ou 15 MB       │ ◀─────│           │
+│                           │ ────────▶ │ prompt e esquema por tipo       │ JSON  │           │
+│SwiftUI + Core Data        │ ◀──────── │                                 │       │           │
+│ Estante, Livro, Categoria,│ ficha +   │                                 │       │           │
+│ Sumário; revisão          │ sumário   │3.7, opcional, só jurídicos:     │       ├───────────┤
+│ busca local (BM25F)       │           │ RPC buscar_livro (lexml_livros) │ ─────▶│ LexML /urn│
+│ export/import JSON        │           │ Edge Function enriquecer-urn    │       │           │
+└───────────────────────────┘           └─────────────────────────────────┘       └───────────┘
 ```
 
 ## Arquitetura do código (decidida em 03/10)
@@ -51,18 +51,18 @@ função do estado, e o ViewModel faz o papel que o controller tinha no MVC.
 ios/Estantes/
   App/              EstantesApp, Dependencias (montagem)
   Dominio/
-    Entidades/      Livro, Estante, Categoria (+ CorCategoria), ItemSumario, Candidato, FichaExtraida, LinhaOCR
-    Regras/         ISBN, ParserFichaCIP, ParserFolhaDeRosto, ParserSumario, NumeroRomano, Pontuacao, JaroWinkler, Normalizacao
+    Entidades/      Livro, Estante, Categoria (+ CorCategoria), ItemSumario, TipoDeLivro, PaginaCapturada, LivroExtraido, LinhaOCR
+    Regras/         ISBN, NumeroDePagina, ValidacaoSumario, FluxoDeCaptura, ValidacaoDaExtracao, RascunhoLivro, RascunhoSumario, Normalizacao
     Busca/          Tokenizador, IndiceInvertido, BM25F, FiltroBusca, MotorDeBusca, ResultadoBusca
-    CasosDeUso/     IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca, BibliotecaIndexada
-    Portas/         BibliotecaRepositorio, CodificadorDeBiblioteca, CatalogoServico, OCRServico, LeitorCodigoBarras
+    CasosDeUso/     PrepararPagina, IdentificarLivro, ExportarBiblioteca, ImportarBiblioteca, BibliotecaIndexada
+    Portas/         BibliotecaRepositorio, CodificadorDeBiblioteca, OCRServico, LeitorCodigoBarras, RedutorDeImagem, ExtratorDeLivro, CatalogoServico (3.7)
   Dados/
     Persistencia/   PersistenceController, BibliotecaRepositorioCoreData (NSManagedObject <-> struct)
-    Rede/           CatalogoSupabase
-    Visao/          OCRVision, LeitorCodigoBarrasVision
+    Rede/           ExtratorSupabase, CatalogoSupabase (3.7)
+    Visao/          OCRVision, LeitorCodigoBarrasVision, redutor ImageIO
     Exportacao/     BibliotecaExportadaV1 (Codable)
   Apresentacao/
-    Inicio/  Busca/  Estante/  Livro/  Categorias/  Exportacao/  Scanner/  Sumario/  Confirmacao/  Componentes/
+    Inicio/  Busca/  Estante/  Livro/  Categorias/  Exportacao/  Scanner/  Sumario/  Componentes/
 ios/EstantesTests/
   Dominio/          testes puros e rápidos
   Dados/            Core Data em memória, ida e volta da exportação
@@ -71,7 +71,7 @@ ios/EstantesTests/
 
 ### Regras práticas
 
-- **Caso de uso só onde há orquestração real:** `IdentificarLivro`, `ExportarBiblioteca`,
+- **Caso de uso só onde há orquestração real:** `PrepararPagina`, `IdentificarLivro`, `ExportarBiblioteca`,
   `ImportarBiblioteca`. Ações simples (renomear estante, apagar livro) vão do ViewModel direto ao repositório.
 - **Um único ponto de conversão** `NSManagedObject` ↔ struct, dentro de `BibliotecaRepositorioCoreData`.
   Views e ViewModels nunca veem `NSManagedObject`. Sem `@FetchRequest`: o ViewModel recarrega o
@@ -92,8 +92,8 @@ ios/EstantesTests/
 
 ### Por que assim
 
-- As partes mais ricas do app são algoritmos puros (ISBN, ISBD, Jaro-Winkler, pontuação): no Dominio,
-  rodam em testes de milissegundos e servem ao conjunto de avaliação da Fase 3.
+- As partes mais ricas do app são algoritmos puros (ISBN, busca, regras do sumário, validação da extração): no
+  Dominio, rodam em testes de milissegundos, sem simulador, rede nem câmera.
 - Protocolos permitem trocar implementações: Supabase por um falso nos testes; Core Data por SwiftData
   no futuro, mexendo só no repositório.
 - Descartados: MVC (padrão do UIKit); Clean "de livro" com um caso de uso por ação e conversores em
@@ -142,7 +142,7 @@ ios/EstantesTests/
 - **Assuntos ficam fora** (só existem em `/busca/`). Usamos a **CDDir**.
   O assunto do livro chega por outras vias: CDDir, sumário e categorias do usuário.
 - **24.118 livros têm `descricao`**: em **19.936** ela é o sumário (`Sumário: ...`, itens separados
-  por ` -- `), que serve para pré-preencher o `ItemSumario` (Fase 4); em **4.182** é uma sinopse
+  por ` -- `), que serviria para pré-preencher o `ItemSumario` (adiado em 06/11); em **4.182** é uma sinopse
   (`Resumo: ...`), e 1.749 destas também trazem um "Sumário" no meio do texto.
 - Enriquecimento **sob demanda** (um pedido por livro escaneado), nunca em massa.
 - Não fundir registros por título + ano: há 1.683 pares repetidos (ex.: vários "Direito penal" de 2009).
@@ -195,7 +195,7 @@ create index edicoes_obra on edicoes (obra_id);
   no padrão do CLI (`AAAAMMDDHHMMSS_nome.sql`), aplicados com `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <arquivo>` (sem o
   `ON_ERROR_STOP`, um erro no meio desfaz a transação mas o `psql` termina como se tivesse dado certo).
   `SUPABASE_DB_URL` fica no `.env` (fora do Git) e usa o *Session pooler* (IPv4, porta 5432); a conexão
-  direta só tem IPv6. O CLI entra na Fase 4, com as Edge Functions; o nome no padrão evita renomear.
+  direta só tem IPv6. O CLI entra na 3.2, com as Edge Functions; o nome no padrão evita renomear.
 - Importar `livros_lexml.csv` (CSV, UTF-8 com BOM, CRLF, cabeçalho) com
   `./data/importar_lexml.sh [caminho do CSV]`. O JSONL fica fora do banco. Usa `\copy` (o arquivo sai
   do Mac pela conexão): o `COPY` comum lê o disco do servidor e exige `pg_read_server_files`, que o
@@ -229,7 +229,7 @@ create index edicoes_obra on edicoes (obra_id);
     em 7 ms; o recheck na tabela descarta 3.494 e leva ~80 ms); sem índice 582–757 ms (Parallel Seq Scan nas
     83.612 linhas). O tempo cresce com a frequência dos termos: "direito penal brasileiro" gera 14.645 candidatos.
   - O caso perdido ("Teoria Geral do Processo" + 4 autores, nota 0,27) só se resolve mandando o título já
-    extraído (Fase 3), não a capa inteira.
+    extraído (3.7), não a capa inteira.
 - Projeto grátis pausa após 7 dias sem uso: `supabase-keepalive.yml` faz ping 2x por semana, só com o
   cabeçalho `apikey` (serve para a chave `anon` legada e para a `sb_publishable_`, que não é JWT).
   Armadilha: o GitHub desativa workflows agendados após 60 dias sem commits no repositório.
@@ -252,7 +252,7 @@ create index edicoes_obra on edicoes (obra_id);
 | Entidade | Campos | Regras |
 | --- | --- | --- |
 | `Estante` | id (UUID), nome, criadaEm | `livros` com exclusão em cascata; a interface confirma quantos livros serão apagados e oferece movê-los |
-| `Livro` | id (UUID), titulo, subtitulo, autores, colaboradores (`[Colaborador]`: nome + papel em texto livre, 2.5b), editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoMiniatura (foto livre: capa, folha de rosto…; era `fotoCapa`), adicionadoEm; isbn13 sempre com 13 dígitos sem hífens, prefixo 978/979 e verificador válido (regra `ISBN`, 13/10: toda porta de entrada passa por ela); **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
+| `Livro` | id (UUID), tipo (`TipoDeLivro`: `juridico`, `geral`; Fase 3, padrão `juridico`), titulo, subtitulo, autores, colaboradores (`[Colaborador]`: nome + papel em texto livre, 2.5b), editora, local, edicao, ano, isbn13, paginas, cddir, cddirCaminho, urn, origem (lexml, googlebooks, gemini, manual), prateleira, fotoMiniatura (foto livre: capa, folha de rosto…; era `fotoCapa`), adicionadoEm; isbn13 sempre com 13 dígitos sem hífens, prefixo 978/979 e verificador válido (regra `ISBN`, 13/10: toda porta de entrada passa por ela); **obras em vários volumes (2.3b):** volume (Int?), volumeRotulo ("Tomo XLVIII", "Vol. 24"), parte, serie, artigosInicio/artigosFim (Int?, opcionais: "Arts. 1710-1779") | `estante` obrigatória (a chave fica no livro); `itensSumario` em cascata; `categorias` muitos-para-muitos |
 | `ItemSumario` | id (UUID), ordem, nivel, numeracao (opcional: "Capítulo II", "1.2.3", "Art. 1.710", "§ 5.108"), titulo, pagina (opcional, **texto** desde a 2.3b: "245", "XI"), origem (foto, lexml, gemini, manual) | pertence a um `Livro`; apagado junto com ele (cascata) |
 | `Categoria` | id (UUID), nome (único, sem diferenciar maiúsculas/acentos), cor (identificador da paleta) | muitos-para-muitos com `Livro`; apagar a categoria = **nullify** (os livros só perdem a etiqueta) |
 
@@ -275,7 +275,7 @@ create index edicoes_obra on edicoes (obra_id);
   `ValidacaoSumario` (Domínio) vale para todas: nível ≥ 1; o nível sobe no máximo 1 em relação ao item
   anterior; título não vazio; página menor que a anterior gera aviso, não erro. A entrada manual é
   item a item (2.6: tela de item com numeração, título, página e `Stepper` de nível; na lista, deslizar muda o nível e
-  arrastar reordena; ver "Sumário" na seção Interface); colar texto fica para a Fase 3, com o parser.
+  arrastar reordena; ver "Sumário" na seção Interface); colar texto foi adiado junto com o parser (06/11).
 - **Obras em vários volumes** (achado das fotos reais, 09/10): tratados e comentários vêm em tomos, cada
   um com folha de rosto própria ("Tomo XLVIII", "Arts. 1.710-1.779"). `volume` é o número (ordena e
   desempata no LexML); `volumeRotulo` é o texto impresso; `parte` é a divisão da obra, entre o título e o volume
@@ -288,10 +288,11 @@ create index edicoes_obra on edicoes (obra_id);
   Domínio converte romano/arábico em número; a `ValidacaoSumario` compara páginas só dentro da mesma
   sequência (passar de "XII" para "1" não gera aviso).
 - **CDD e assuntos da ficha CIP não viram campos do `Livro`** (continua a decisão de 03/10: categorias no lugar
-  de `assuntos`). Ficam na `FichaExtraida` e no gabarito; os assuntos viram sugestão de categorias na tela de
-  confirmação (Fase 3).
-- **Sem migração**: o modelo muda na 2.3b, antes das telas (2.4) e do export v1 (2.8); ainda não há dados
+  de `assuntos`). Ficam no `LivroExtraido` e no gabarito; a sugestão de categorias pelos assuntos foi adiada (06/11).
+- **Sem migração até a Fase 2**: o modelo muda na 2.3b, antes das telas (2.4) e do export v1 (2.8); ainda não há dados
   gravados em aparelho, então o `.xcdatamodeld` é editado direto e o JSON v1 já nasce com os campos novos.
+  **Com migração desde a Fase 3** (já há dados no iPhone): nova versão do modelo + migração leve + teste que abre um banco do
+  modelo antigo. No JSON v1, `tipo` é aditivo: sempre gravado, ausente = `juridico`, desconhecido rejeita o arquivo.
 - **Exportar/importar**: `.json` versionado `{"versao": 1, "categorias": [...], "estantes": [...]}`;
   cada livro leva `cddirCaminho`, `itensSumario` e os UUIDs das suas categorias. Via folha de
   compartilhar e seletor de arquivos; UUIDs permitem **mesclar** ou **substituir** (perguntar).
@@ -347,15 +348,15 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
     não pioraram. Resultado: 29 de ajuste, todas em 1º (top 1, top 3, MRR e item = 1,000); pisos top 1 ≥ 0,96, MRR ≥ 0,98.
 - **Filtros** combináveis: autor, editora, faixa de anos, estante, prefixo de CDDir e categoria (chips coloridas).
   Na tela (2.7): autor, editora e anos na tela Filtros; estantes nos chips; categorias na tela Categorias; o prefixo de
-  CDDir fica sem interface até haver livros com o dado (Fases 4/5). O `volumeRotulo` aparece na linha pela `LinhaDoLivro`.
+  CDDir fica sem interface até haver livros com o dado (3.7 ou Fase 5). O tipo do livro entra na tela Filtros (3.1). O `volumeRotulo` aparece na linha pela `LinhaDoLivro`.
 - **Resultado**: livro · itens do sumário que casam, com a página · estante · prateleira.
 
 ### Interface
 
-- Botão da câmera embaixo, centralizado.
+- Botão da câmera embaixo, centralizado (Fase 3; escondido sem estantes). O fluxo do scanner está em "Identificação de livros e sumário".
 - Estantes em grade; estado vazio com livros esmaecidos na cor `superficie` (`#AED3FC`), frase e um botão só (ver "Inicio" abaixo).
 - Topo: botão com a aparência da barra de busca, que empurra a tela "Busca" (revisto em 20/10; antes `.searchable`, ver
-  2.7 no checklist); o último livro escaneado entra na Fase 3. Na "Busca", título, autor e assunto →
+  2.7 no checklist); o último livro escaneado foi adiado (06/11). Na "Busca", título, autor e assunto →
   "Livro · itens do sumário, p. N · Estante X · prateleira", com os chips de filtro sempre no cabeçalho.
 - Tela do livro: escolher categorias e adicionar/editar/reordenar itens do sumário à mão.
 - Exportar/importar e a tela de categorias (criar, renomear, trocar cor, apagar com confirmação) num
@@ -726,7 +727,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
     "Nenhum livro passa nos filtros."; avisos de correção ("Buscar exatamente", `corrigir: false` até o texto mudar) e
     de OU. **Editora fora da barra de busca** (só no filtro): campo a mais no BM25F, com ruído ("Livraria Freitas
     Bastos" × o prefaciador Bastos; "Revista dos Tribunais") e peso sem medida (4 de 22 fichas). **CDDir sem interface**
-    até haver dado (Fases 4/5). "Último livro escaneado" fica para a Fase 3. Sem `[eu escrevo]`.
+    até haver dado (Fases 4/5). "Último livro escaneado" ficou para depois (adiado em 06/11). Sem `[eu escrevo]`.
   **Revisões do dia** (o desenho da manhã, depois do teste no simulador; detalhes no Histórico de 20/10):
   ~~`.searchable` no Inicio com os resultados no lugar da grade~~ → tela "Busca" (Q25–Q28: empurrar Filtros ou o
   Detalhe desligava o `.searchable`, visto no log) · ~~folha "Filtros"~~ → tela empurrada (Q21: tocar num campo da folha
@@ -822,118 +823,179 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
      `prompt:`: é isso que o VoiceOver lê agora, em vez do exemplo.
   **Onde paramos (04/11, branch `fase2/fechamento`, 543 testes):** 2.9 concluída; CI verde no Xcode 26 (run 41954110381);
   aprendizado registrado pelo teacher; PR #32 aberto.
-  **Próximo:** `/fechar-fase` feito (guia em `docs/guias/fase-2.md`, 548 testes); agora a discussão da Fase 3
-  (`/decidir`, Opus, em sessão própria; ver o aviso em "Checklists", abaixo); só então a Fase 3. Sem bloquear nada disso:
-  conferir o menu ⋯ no iPhone no próximo `.ipa`.
+  **Próximo:** `/fechar-fase` feito (guia em `docs/guias/fase-2.md`, 548 testes); discussão da Fase 3 feita em 06/11; agora a
+  3.1 ("Checklists", abaixo). Sem bloquear nada disso: conferir o menu ⋯ no iPhone no próximo `.ipa`.
 
 ## Identificação de livros e sumário (Fases 3 e 4)
+
+Replanejada em 06/11 (ver o Histórico). O caminho principal é **OCR da Apple + Gemini + revisão do usuário**. O LexML é uma
+parte opcional no fim da Fase 3, e os parsers por geometria foram adiados. O app aceita livros jurídicos e gerais.
 
 ### O que as fotos reais mostraram (09/10)
 
 Fotos de 4 livros (`avaliacao/fotos/`, fora do Git): **nenhum tem ISBN**; 3 são de 1954–1972 e só têm
 **folha de rosto** (sem ficha CIP); dois são tomos de obras em vários volumes. Os sumários usam âncoras
 jurídicas ("§ 5.108.", "Art. 1.710 —"), páginas em romanos e às vezes o formato "Título, 5" sem pontilhado.
-O plano anterior supunha ISBN/ficha na maioria dos livros e pedia a "contracapa".
 
-### Ordem das fontes (ordem de confiança)
+### Arquitetura
 
-1. **Código de barras** (EAN-13 = ISBN): `edicoes.isbn13` → senão Google Books.
-2. **Ficha CIP** (livros mais novos) → `ParserFichaCIP`.
-3. **Folha de rosto** → `ParserFolhaDeRosto`. A captura pede "folha de rosto", não "contracapa".
-4. **Capa** → maior texto = título.
-5. Os passos 2–4 mandam o título extraído a `buscar_livro` → pontuação → enriquecer a URN escolhida.
-6. **Gemini** só quando nenhum candidato passa do limiar: estrutura o texto do OCR e a busca é refeita.
-   Não inventa dados; sem confirmação, salva como "não verificado".
-7. **Edição manual**, sempre disponível.
+```
+ iPhone                                  Edge Function                 Gemini
+ ──────                                  ─────────────                 ──────
+ Tira a foto
+   PrepararPagina (OCR, código de barras, redução); a original é solta
+ Conferência → "Identificar livro"
+   IdentificarLivro ── um pedido por livro ──▶ valida o pedido
+                                               monta prompt + esquema ──▶ generateContent
+                                               interpreta a resposta  ◀── JSON ou finishReason
+   valida a extração ◀── livro + sumário ───── ou erro conhecido
+ Revisão → o usuário corrige e salva (Core Data)
+```
 
-### Extração algorítmica
+Nada é enviado antes do toque em "Identificar livro". A internet só entra nesse pedido; salvar, buscar e exportar continuam offline.
 
-Os parsers ficam no Domínio e recebem `[LinhaOCR]`: struct só com Foundation (texto, caixa com x/y/largura/
-altura normalizados 0–1, confiança), montada em `Dados/Visao` a partir do Vision. Nada de `CGRect` ou
-`VNRecognizedTextObservation` no Domínio; os testes usam o OCR gravado em JSON (ver Avaliação).
+### Fluxo passo a passo
 
-- **`ParserFichaCIP`**: cabeçalho "Sobrenome, Nome, datas"; "Título / responsabilidade" (depois do ";" vêm os
-  colaboradores: "prefácio de Aurélio Wander Bastos"); "— Local: Editora,
-  Ano"; série entre parênteses; assuntos numerados ("1. Direito civil"); CDD/CDU; ISBN. A coluna da esquerda
-  (número de chamada, controle) é separada pela coordenada x.
-- **`ParserFolhaDeRosto`** por geometria (altura da caixa ≈ tamanho da fonte; posição vertical):
-  - título = as maiores linhas; autor = linha curta no topo ou depois de "por";
-  - volume = (TOMO|VOLUME) + romano/arábico; edição = "N.ª EDIÇÃO" (+ REIMPRESSÃO);
-  - ano = 4 dígitos no terço inferior; editora = Editor/Editora/Livraria/Ltda/S.A.; local = lista de cidades;
-  - parte = texto de tamanho médio entre o título e o volume; subtítulo = matéria abaixo do volume (2.5b); entram na busca.
-- **Capa**: maior texto (altura da caixa) = candidato a título.
-- ISBN: reaproveitar `ISBN.normalizar` (`Dominio/Regras/ISBN.swift`, 13/10: dígito verificador, ISBN-10 → 13,
-  prefixo 978/979, que já descarta o EAN de produto no código de barras); falta só achar o ISBN no texto (regex).
-  Ano e conversão romano/arábico (regra da 2.3b, reaproveitada para volume e página).
-- Mandar a `buscar_livro` **só o título extraído**, nunca o texto inteiro: autor e editora no texto
-  derrubam a `similarity` abaixo do limiar (Fase 1, opção (c″)). Medir no conjunto de avaliação.
-- NLTagger (`.personalName`) e NLGazetteer (editoras jurídicas) como apoio para autor e editora.
+1. **Início:** botão da câmera → dois cartões, "Livro jurídico" e "Não jurídico". O botão fica escondido sem estantes, como o
+   "+" (o vazio tem uma ação só, 12/10). O Formulário manual continua pelo "+" da Estante.
+2. **Captura em três etapas** (regra `FluxoDeCaptura`), cada uma dizendo qual foto é, com ✕ e OK; depois de cada foto, a prévia,
+   para refazer ou continuar; dá para voltar uma etapa:
+   - **Foto da capa** (obrigatória);
+   - **Ficha catalográfica ou folha de rosto** (obrigatória, uma foto, nunca as duas);
+   - **Foto do sumário** (0 a 20 páginas, em digitalização contínua).
+3. **Preparação:** cada foto passa pelo `PrepararPagina` logo depois de tirada (ver "Imagens").
+4. **Conferência:** fotos por etapa, refazer/apagar, reordenar as páginas do sumário, estrela da foto do livro (a capa vem
+   marcada; vale qualquer foto) e o botão "Identificar livro".
+5. **Leitura:** foto do livro no centro, progresso e a etapa em texto. "Lendo as páginas…" só aparece se alguma página
+   ainda estiver em preparação; depois, "Identificando o livro…".
+6. **Validação da extração** (regra pura), antes de abrir a revisão.
+7. **Revisão:** `RascunhoLivro` preenchido + seção do sumário que abre a folha "Editar sumário" da 2.6, Estante e Prateleira.
+   Marca discreta nos campos vindos da IA até a primeira edição. `origem = gemini`, no livro e nos itens.
+8. **Salvar:** grava o livro e a foto do livro → "Livro salvo", com "Adicionar outro" (volta aos dois cartões) e "Ver livro".
 
-### Pontuação
+✕ e "Cancelar" com foto ou resultado perguntam "Descartar este livro?". Sumário pulado se completa só à mão, pela folha da 2.6.
 
-| Sinal | Peso | Comparação |
-| --- | --- | --- |
-| ISBN igual | decide | exato, dígito válido |
-| Título | alto | trigramas, sem acento |
-| Autor | médio | Jaro-Winkler após normalizar "Sobrenome, Nome" e iniciais |
-| Ano, editora | desempate | igualdade/proximidade |
-| Volume, edição | desempate | títulos iguais de obras em vários volumes |
+### Telas e textos
 
-Conferir no `lexml_livros` como o LexML registra os volumes (no título? um registro por tomo?) antes de
-fechar a pontuação. Buscar amplo (só título, ~10 candidatos), ordenar com todos os sinais. Alta: pré-seleciona.
-Média: top 3 + "nenhum desses". Baixa: Gemini.
+- **Direção visual:** câmera escura em tela cheia, cantos de enquadramento, botão de captura grande no centro e indicador
+  da etapa no topo. Escuro primeiro. Lógica primeiro, depois estilo tela a tela ("Forma de trabalho nas telas").
+- **Dica da ficha ou folha de rosto:** "Procure a ficha catalográfica no verso da folha de rosto: um quadro com autor,
+  título e ISBN. Se o livro não tiver, fotografe a folha de rosto."
+- **Dica do sumário:** "Pode se chamar índice ou tábua das matérias."
+- **Limite do sumário:** na 20.ª página o botão de adicionar desliga: "Limite de 20 páginas. O restante pode ser digitado depois."
+- **Revisão, página lida** (`pagina_identificacao`). O Gemini só vê a foto e não sabe se existe ficha em outra página:
+  - `ficha`: nada;
+  - `folha_de_rosto`: "Lido da folha de rosto. Se o livro tiver ficha catalográfica, ela costuma trazer o ISBN e a coleção." + "Trocar foto";
+  - `outra`: "Esta foto não parece ser a ficha nem a folha de rosto." + "Trocar foto".
 
-### Sumário
+  "Trocar foto" volta à conferência; identificar de novo gasta outro pedido. Avisar por ano e falta de ISBN foi descartado
+  (limite de ano sem base nos dados).
+- **Divergência:** linha sob o campo ("Na capa: Lassalle"), que aplica o valor ao tocar.
+- **`tipo_sugerido`:** faixa "Parece um livro não jurídico" + "Trocar", que muda só o campo, sem novo pedido.
+- **Estante na revisão:** já vem com a do último livro adicionado (por `adicionadoEm`, sem dado novo).
+- **Obrigatórios:** sem título ninguém salva; autor, editora e ano só são exigidos com `origem == manual`, e nos outros casos
+  viram aviso (revisa 10/10: livro antigo sem ano obrigaria a inventar).
+- **Tipo do livro:** padrão `juridico` para livros já gravados e JSON sem o campo. Muda o prompt do Gemini, o passo do LexML (só
+  jurídico) e um filtro na busca. `Picker` no Formulário (padrão jurídico), Todos/Jurídico/Não jurídico na tela Filtros; nada no
+  Detalhe nem na lista.
 
-- **Captura**: `VNDocumentCameraViewController` (VisionKit, várias páginas) → `VNRecognizeTextRequest`.
-  Etapa opcional depois da confirmação do livro e também na tela do livro. Só funciona no aparelho
-  (no simulador, `isSupported` é falso); o parser é testado com texto, no Domínio.
-- **Alternativa sem câmera**: `PhotosPicker` com várias páginas, sempre disponível (e a única no
-  simulador). Fotos vão do Mac para o simulador arrastando para a janela ou com
-  `xcrun simctl addmedia booted foto.jpg`.
-- **Parser algorítmico** (`Regras/ParserSumario`) por **âncoras + geometria**, não por linha (uma entrada
-  ocupa várias linhas e a página nem sempre fica na última):
-  - números à direita (x > ~85% da largura) formam a coluna de páginas;
-  - uma entrada começa em "§ N.NNN." / "Art. N.NNN —" / numeração (1., 1.1, I, a)) / recuo; a âncora vai para
-    `numeracao`;
-  - a página da entrada é o número da coluna cujo y cai dentro do bloco dela (às vezes vem uma linha antes do fim);
-  - PARTE / CAPÍTULO / caixa alta / centralizado = níveis sem página;
-  - formato "Título, 5" (sem pontilhado, com romanos) tratado à parte;
-  - ruídos: cabeçalho corrido, fólio, transparência do verso (filtrar pela confiança), página curva;
-  - colar texto (sem geometria) usa o mesmo parser, com cada linha numa caixa de largura inteira.
-  A saída passa pela `ValidacaoSumario`, como a entrada manual.
-- **Gemini como reserva** quando o parser falha (Edge Function `estruturar-sumario`).
-- **Pré-preenchimento pela `descricao`** do LexML (`Sumário: ... -- ...`), com `origem = lexml`.
-- Guarda só o texto, não as fotos.
+### Câmera
 
-### Avaliação (decide algoritmo × IA com números)
+Híbrida. **Câmera própria** (AVFoundation + `VNDetectRectanglesRequest` para desenhar o quadrado, correção de perspectiva,
+captura manual, prévia própria) na capa e na ficha/rosto. **`VNDocumentCameraViewController`** (VisionKit) no sumário. **`PhotosPicker`**
+sempre como alternativa, a única no simulador (linha de 08/10). Fotos vão do Mac para o simulador arrastando para a janela
+ou com `xcrun simctl addmedia booted foto.jpg`.
 
-Conjunto de ~30 livros reais (capa, ficha CIP ou folha de rosto) e **~10 sumários** com gabarito anotado à
-mão (hoje: 4 livros, 5 páginas de sumário); medir acerto por campo (livro) e por item/nível/página (sumário),
-do parser e do Gemini.
+### Imagens
 
-- **Fotos** em `avaliacao/fotos/livro-0N-<nome>/` (`capa.jpg`, `ficha-cip.jpg`, `folha-rosto.jpg`,
-  `sumario-0N.jpg`), **fora do Git** (direitos autorais e tamanho).
-- **OCR em JSON**, no Git, em `avaliacao/ocr/`: gerado no Mac por um teste/script que roda o Vision nas fotos
-  (texto, caixa, confiança de cada linha). Os parsers são testados com esse JSON, inclusive na CI, sem as fotos.
-- **Gabarito** em `avaliacao/gabarito/livro-0N.json`, no Git:
-  ```
-  { "id", "fonte_identificacao",
-    "livro": { "titulo", "subtitulo", "autores", "colaboradores": [ { "nome", "papel" } ], "editora", "local",
-               "ano", "edicao", "reimpressao", "volume", "volume_rotulo", "parte", "serie", "isbn", "cdd", "cdu",
-               "assuntos" },
-    "sumario": [ { "ordem", "nivel", "rotulo", "titulo", "pagina" } ],
-    "notas" }
-  ```
-  No gabarito, `rotulo` corresponde à `numeracao` do app; `reimpressao` fica separada para medir, mas no app
-  vai junto em `edicao`; `cdd`, `cdu` e `assuntos` não têm campo no `Livro` (CDD e CDU com todos os códigos:
-  "CDU 342 / 32" → `["342", "32"]`). Nos tomos, `subtitulo` é a matéria abaixo do volume.
+- **`PrepararPagina`, assim que a foto é tirada:** OCR do Vision na resolução cheia (a capa não passa por OCR: vai reduzida
+  ao Gemini só como apoio, para confirmar o título) +
+  `VNDetectBarcodesRequest` + ISBN achado no OCR (`ISBN.normalizar`, falta só achá-lo no texto) → cópia reduzida → a original é solta
+  (~48 MB por foto de 12 MP descomprimida).
+- **Cópia em memória:** uma por página, no maior dos dois tamanhos (1200 px ou o do Gemini, a medir na 3.2), e a outra deriva
+  dela. Assim a estrela pode ir para qualquer foto, mesmo com a original já solta.
+- **Foto gravada:** só a foto do livro, a 1200 px / JPEG 0,8 (13/10). `fotoMiniatura` já usa armazenamento externo
+  (`allowsExternalBinaryDataStorage`), então isso não muda. A 3.1 mede HEIC × JPEG na mesma qualidade aparente; só troca se a
+  economia for clara e não complicar o export com fotos da Fase 5.
+- **Código de barras:** o leitor roda em todas as fotos, mas o EAN costuma ficar na contracapa, que o fluxo não fotografa. O ISBN
+  virá sobretudo do OCR da ficha. A 3.6 mede quantas vezes o leitor acha algo; só então vale discutir uma foto da contracapa.
+- **Só em memória:** se o iOS encerrar o app durante o fluxo, o usuário recomeça.
+
+### Código
+
+Nada de `UIImage`/`CGImage` no Domínio: as portas recebem e devolvem `Data`.
+
+- **Dominio:**
+  - `TipoDeLivro` (enum `String`, como `CorCategoria`: `juridico`, `geral`);
+  - `PaginaCapturada { papel, jpeg: Data, linhas: [LinhaOCR] }`;
+  - `LivroExtraido` (com CDD, CDU e assuntos);
+  - regras `FluxoDeCaptura` (etapas, obrigatórios, voltar) e `ValidacaoDaExtracao`;
+  - casos de uso `PrepararPagina` (OCR, código de barras, redução) e `IdentificarLivro` (extrair, validar, montar `RascunhoLivro`);
+  - portas `OCRServico`, `LeitorCodigoBarras`, `RedutorDeImagem`, `ExtratorDeLivro` e `CatalogoServico` (só na 3.7).
+- **Dados:** `OCRVision`, `LeitorCodigoBarrasVision`, redutor com ImageIO e `ExtratorSupabase` em `URLSession` (o `supabase-swift`
+  exige Xcode 26 e não compila no 14.2).
+- **Apresentacao/Scanner:** ViewModel com os estados `tipo, capa, fichaOuRosto, sumario, conferencia, lendo, revisao, erro`.
+  `EditarSumarioViewModel` ganha um destino injetado: hoje grava direto no repositório, e na revisão o livro ainda não existe.
+- **`LinhaOCR`:** struct só com Foundation (texto, caixa com x/y/largura/altura normalizados 0–1, confiança), montada em
+  `Dados/Visao`. A caixa serve para a ordem de leitura; ao Gemini vai só o texto.
+
+### Edge Function `identificar-livro`
+
+TypeScript/Deno, handler fino + módulos puros com `deno test` sobre respostas gravadas, sem rede nos testes. Sempre Gemini, pela API
+nativa; modelo em variável de ambiente, começando por `gemini-3.5-flash-lite`.
+
+**Entrada** (`POST /functions/v1/identificar-livro`, cabeçalho `apikey`):
+
+```json
+{
+  "tipo": "juridico",
+  "isbn_encontrado": "9788500000000",
+  "paginas": [
+    { "papel": "capa",           "imagem_base64": "…", "ocr": null },
+    { "papel": "ficha_ou_rosto", "imagem_base64": "…", "ocr": ["linha 1", "linha 2"] },
+    { "papel": "sumario",        "imagem_base64": "…", "ocr": ["linha 1", "linha 2"] }
+  ]
+}
+```
+
+- Exatamente uma `capa` e uma `ficha_ou_rosto`; `sumario` de 0 a 20, na ordem da conferência; corpo de até 15 MB. Os limites ficam em
+  variáveis de ambiente. Acima deles, a função recusa sem chamar o Gemini. Não existe pedido só de sumário.
+- `ocr`: linhas em ordem de leitura, sem coordenadas. A medição da 3.2 decide se o OCR vai mesmo (só imagens × imagens + OCR).
+- `isbn_encontrado`: já validado no app, ou `null`.
+- Imagens já reduzidas no iPhone: a função tem só 2 s de CPU e não decodifica imagem.
+
+**Saída 200:**
+
+```json
+{
+  "livro": { "titulo": "…", "autores": ["…"] },
+  "sumario": [ { "nivel": 1, "numeracao": "§ 5.108", "titulo": "…", "pagina": "3" } ],
+  "pagina_identificacao": "ficha | folha_de_rosto | outra",
+  "divergencias": [ { "campo": "autores", "valor": "Lassalle", "fonte": "capa" } ],
+  "tipo_sugerido": "geral",
+  "modelo": "gemini-3.5-flash-lite"
+}
+```
+
+`tipo_sugerido` só vem quando o tipo escolhido parece errado; senão, `null`.
+
+**Esquema de `livro` por tipo** (saída estruturada do Gemini; campo ausente vem `null`, e as listas vêm vazias):
+
+| Tipo | Campos |
+| --- | --- |
+| Ambos | `titulo`, `subtitulo`, `autores[]`, `colaboradores[{nome, papel}]`, `parte`, `volume`, `volume_rotulo`, `serie`, `edicao`, `editora`, `local`, `ano`, `isbn`, `cdd[]`, `cdu[]`, `assuntos[]` |
+| Só `juridico` | `artigos_inicio`, `artigos_fim` |
+
+Os itens de `sumario` são iguais nos dois tipos. O prompt jurídico acrescenta as regras de § e Art.; o geral não tem essas regras.
+
+**Prompt:** de **catalogação** ("extrair os metadados bibliográficos e a estrutura do sumário"), nunca "transcrever" ou "OCR",
+porque pedir a transcrição aumenta o risco de recitação. Diz o papel de cada página, usa o "Contrato de campos" abaixo e passa o
+`isbn_encontrado` para a conferência.
 
 ### Contrato de campos (ficha CIP, folha de rosto, capa e sumário)
 
-Conferido em 16/10 (2.5b) com o OCR do Gemini do livro 03 (tomo XLVIII) e do livro 01 (Lassalle, com ficha CIP),
-contra as fotos. É a referência do que extrair, para o parser (Fase 3) e para o prompt do Gemini (Fase 4): o JSON
-pedido usa estes nomes, e campo sem lugar aqui é lacuna do modelo, não do OCR.
+Conferido em 16/10 (2.5b) com o OCR do Gemini do livro 03 (tomo XLVIII) e do livro 01 (Lassalle, com ficha CIP), contra as
+fotos. É a base do esquema JSON e do prompt: campo sem lugar aqui é lacuna do modelo, não do OCR.
 
 | Impresso | Campo | Exemplo real |
 | --- | --- | --- |
@@ -950,7 +1012,7 @@ pedido usa estes nomes, e campo sem lugar aqui é lacuna do modelo, não do OCR.
 | Cidade | `local` | "Rio de Janeiro" |
 | Ano da edição (não o do copyright) | `ano` | 1972 |
 | ISBN | `isbn13` (regra `ISBN`) | — |
-| CDD, CDU, assuntos da ficha | `FichaExtraida` (fora do `Livro`) | CDD "320"; CDU "342", "32"; "Direito constitucional", "Ciência política" |
+| CDD, CDU, assuntos da ficha | `LivroExtraido` (fora do `Livro`) | CDD "320"; CDU "342", "32"; "Direito constitucional", "Ciência política" |
 | Item do sumário | `ItemSumario`: `nivel`, `numeracao`, `titulo`, `pagina` (texto) | nível 3, "§ 5.108", "Conceito e natureza…", "3" |
 
 Regras contra omissão:
@@ -963,38 +1025,203 @@ Regras contra omissão:
 - Divisões sem página (Parte, Capítulo) são itens com `pagina` vazia. Elementos pré-textuais (Nota explicativa,
   Prefácio, Introdução) são itens de nível 1 com a página impressa ("ix").
 - Autor de um item do sumário fica no `titulo`, como impresso ("Prefácio [Aurélio Wander Bastos]").
-- Fontes divergentes (CIP "Lassale" × capa "Lassalle"): transcrever a de maior confiança (ordem de 09/10) e
-  devolver a outra como divergência, para a tela de confirmação (Fase 3).
+- Fontes divergentes (CIP "Lassale" × capa "Lassalle"): transcrever a de maior confiança (**ficha > folha de rosto > capa**) e
+  devolver a outra em `divergencias`, para a revisão. O ISBN válido do OCR ou do código de barras vence o do Gemini.
 - Fora, de propósito: cabeçalho corrido ("Tábua sistemática das matérias"), fólio, texto do verso, créditos
   (produção, capa), endereço da editora, ano do copyright, datas de vida do autor, números de controle e de chamada.
 
+### Validação da extração
+
+Regra pura no Domínio (`[eu escrevo]`), antes de abrir a revisão. Nada é corrigido sozinho, como na 2.6:
+
+- **ISBN:** passa pelo `ISBN.normalizar`. Inválido: campo vazio + "ISBN lido não é válido: …". Diferente do achado no aparelho: vale o
+  do aparelho, e o do Gemini vira divergência.
+- **Sumário:** passa pelo `ValidacaoSumario` e pelo `NumeroDePagina`. Com erro (título vazio, nível que salta), a revisão mostra "N
+  itens precisam de ajuste" e bloqueia o "Salvar" até corrigir na folha. A importação rejeita backup com esses dados (linha de 21/10);
+  gravá-los quebraria a restauração. Avisos de página não bloqueiam.
+
+### Segurança e cota
+
+- **Chave do Gemini** só em secret da função, nunca no app.
+- **Acesso:** a função exige a chave `sb_publishable_` no `apikey`, conferida no handler (`verify_jwt` sozinho não autentica; a forma
+  exata fica para a 3.2). **Sem login anônimo e sem limite diário:** o app tem 1 usuário, 2 no máximo, por causa do Sideloadly, e usa
+  até acabar a cota. Risco aceito: quem tiver a chave pode gastar a cota do dia, sem custo em dinheiro (sem cobrança ativada, o
+  Gemini só recusa).
+- **Recusa por tamanho:** acima de 20 páginas ou 15 MB, antes de chamar o Gemini.
+- **Fatos verificados em 06/11 na documentação oficial:**
+  - Gemini: limite por projeto, com o dia zerando à meia-noite do Pacífico; números só no AI Studio
+    (`aistudio.google.com/rate-limit`). Único número achado: 500/dia no `gemini-3.5-flash-lite`, em relato de usuário; os ~20/dia do
+    Flash estão sem confirmação. Os modelos 2.5 estão obsoletos. Pedido com imagem inline: até 20 MB.
+  - Plano grátis do Gemini: conteúdo usado para melhorar produtos, revisão humana possível, não enviar dado pessoal. Aceito sem
+    aviso na tela; rever se houver outros usuários.
+  - Edge Functions no plano grátis: 256 MB, 2 s de CPU, 150 s de relógio. O tamanho máximo do corpo não é publicado: a 3.2 mede com 15 MB.
+- **Riscos a medir:** um sumário de 20 páginas pode gerar ~24 mil tokens (estimativa) e chegar perto dos 150 s. A 3.2 mede o tempo
+  por página; a 3.6 confirma com um sumário longo.
+
+### Erros
+
+Em todos, as fotos reduzidas e o OCR continuam em memória. Fila de pendentes adiada. O `finishReason` de recitação ou segurança
+vira `recusa_do_modelo`; no 429, a função lê a resposta do Gemini para separar a cota do dia do limite por minuto.
+
+| Erro | Código (HTTP) | Mensagem | Opções |
+| --- | --- | --- | --- |
+| Sem internet | erro do `URLSession` | "Sem conexão." | Tentar de novo · Preencher à mão |
+| Cota do dia | `cota_do_dia` (429) | "A cota de identificação acabou por hoje." | Preencher à mão |
+| Limite por minuto | `limite_por_minuto` (429) | "Muitos pedidos seguidos." | Tentar de novo · Preencher à mão |
+| Recitação ou segurança | `recusa_do_modelo` (422) | "O Gemini não respondeu sobre este livro." | Preencher à mão |
+| Tempo esgotado | `tempo_esgotado` (504) | "A leitura demorou demais. Tente com menos páginas de sumário." | Voltar à conferência · Preencher à mão |
+| Outro erro | `pedido_invalido`, `pedido_grande`, `resposta_invalida`, `erro_do_gemini` | "Não foi possível identificar o livro." | Tentar de novo · Preencher à mão |
+
+"Preencher à mão" abre o Formulário com a foto do livro, o tipo e o ISBN válido, `origem = manual` (valem os obrigatórios de 10/10);
+as demais fotos são descartadas.
+
+### Avaliação
+
+O conjunto mede o **Gemini**: só imagens × imagens + OCR do Vision, por campo (livro) e por item/nível/página (sumário). Hoje são 4
+livros (5 páginas de sumário); o livro 01 usa a foto da ficha, e os outros, a folha de rosto. Meta: ~30 livros e ~10 sumários, com
+livros com ISBN e não jurídicos, que os 4 atuais não cobrem.
+
+- **Fotos** em `avaliacao/fotos/livro-0N-<nome>/` (`capa.jpg`, `ficha-cip.jpg`, `folha-rosto.jpg`, `sumario-0N.jpg`), **fora do Git**.
+  Só o livro 01 tem capa, e o livro 04 não tem sumário: o Ricardo fotografa o que faltar, se tiver os livros; o resto fica sem medir.
+- **OCR em JSON**, no Git, em `avaliacao/ocr/`: gerado no Mac por um script que roda o Vision nas fotos (texto, caixa, confiança de cada linha).
+- **Medição fora da CI:** usa rede e cota. Chave do Gemini em variável de ambiente, nunca no repositório.
+- **Gabarito** em `avaliacao/gabarito/livro-0N.json`, no Git, transcrito pelo Claude a partir das fotos e revisado pelo Ricardo.
+  **Nunca a partir dos JSONs do Gemini** (`avaliacao/json_gemini/`): contaminaria a medição.
+  ```
+  { "id", "fonte_identificacao",
+    "livro": { "titulo", "subtitulo", "autores", "colaboradores": [ { "nome", "papel" } ], "editora", "local",
+               "ano", "edicao", "reimpressao", "volume", "volume_rotulo", "parte", "serie", "isbn", "cdd", "cdu",
+               "assuntos" },
+    "sumario": [ { "ordem", "nivel", "numeracao", "titulo", "pagina" } ],
+    "notas" }
+  ```
+  `reimpressao` fica separada para medir, mas no app vai junto em `edicao`; `cdd`, `cdu` e `assuntos` não têm campo no `Livro`
+  (CDD e CDU com todos os códigos: "CDU 342 / 32" → `["342", "32"]`). Nos tomos, `subtitulo` é a matéria abaixo do volume.
+
+### LexML (3.7, opcional)
+
+Só para jurídicos, depois da extração; OCR + Gemini funcionam sem esta parte. Busca o livro já extraído, o usuário confirma, enriquece
+pela `/urn` (CDDir), e o livro mostra que faz parte do catálogo.
+
+- Mandar a `buscar_livro` **só o título extraído**, nunca o texto inteiro: autor e editora no texto derrubam a `similarity` abaixo do
+  limiar (Fase 1, opção (c″)).
+- Conferir no `lexml_livros` como o LexML registra os volumes (no título? um registro por tomo?) antes de fechar a pontuação.
+- O leitor do `/urn` às vezes devolve a hierarquia da CDDir repetida ("… > DIREITO PRIVADO > DIREITO CIVIL").
+- Edge Function `enriquecer-urn`: porta de `data/enriquecer_urn.py`, 5 s entre pedidos.
+- Pontuação (buscar amplo, só título, ~10 candidatos; ordenar com todos os sinais):
+
+| Sinal | Peso | Comparação |
+| --- | --- | --- |
+| ISBN igual | decide | exato, dígito válido |
+| Título | alto | trigramas, sem acento |
+| Autor | médio | Jaro-Winkler após normalizar "Sobrenome, Nome" e iniciais |
+| Ano, editora | desempate | igualdade/proximidade |
+| Volume, edição | desempate | títulos iguais de obras em vários volumes |
+
+### Adiado
+
+Sem prazo; cada item volta se o uso pedir.
+
+| Item | Motivo | Para quando voltar |
+| --- | --- | --- |
+| **Login anônimo + limite por usuário** (**incremento futuro de aprendizado**) | Com 1–2 usuários, custa mais do que protege | `POST /auth/v1/signup` por `URLSession`, tokens no Keychain; função com `auth: 'user'`; tabela com RLS; limite por IP em 10/h, sem CAPTCHA (decidido em 06/11). Confirmar o `signup` anônimo com `curl` |
+| `ParserFichaCIP`, `ParserFolhaDeRosto`, `ParserSumario` | O Gemini lê as páginas; três parsers por geometria deixaram de ser necessários | Voltam se a medição mostrar que o Gemini não basta. Ideia: geometria do Vision (altura da caixa ≈ tamanho da fonte; coluna de páginas à direita; âncoras "§", "Art.") sobre `LinhaOCR` |
+| Fila de pendentes | "Tentar de novo" cobre a falha comum | Rascunho em disco, com limpeza |
+| Sumário por foto em livro já salvo | O sumário vai junto do livro, num pedido só; depois, à mão | O contrato precisaria aceitar pedido sem `capa` |
+| Colar texto no sumário | Dependia do parser | — |
+| Pré-preenchimento pela `descricao` do LexML | Não é necessário ao fluxo | No Supabase a `descricao` está cortada em 400 caracteres (`MAX_DESCRICAO_CSV` em `data/extrair_livros_lexml.py`; 10.145 de 24.118): reimportar a coluna ou ler a ficha `/urn`, e descartar o item cortado |
+| Google Books | O Gemini é o caminho principal | `googlebooks` fica no enum de `Livro.origem` |
+| Estante sugerida pela CDDir | Depende da 3.7 | — |
+| "Último livro escaneado" no Início | Não é necessário ao fluxo | — |
+| Cache local de candidatos | O fluxo novo não tem candidatos | — |
+| Sugestão de categorias pelos assuntos da ficha | Não é necessária ao fluxo | O esquema já pede `assuntos`, então não muda o contrato |
+| Aviso de livro repetido | Caso pequeno agora; sem ISBN, exige comparar título, volume e edição | A 3.6 mostra se o caso acontece |
+
+`foto` continua em `ItemSumario.origem`, sem quem a grave, porque o JSON v1 pode trazê-la.
+
 ### Checklists
 
-> **Sujeito a revisão (04/11):** o Ricardo anunciou mudanças para a Fase 3. Elas serão discutidas depois do
-> `/fechar-fase` da Fase 2 e **antes de iniciar a Fase 3**. Assuntos: arquitetura da Fase 3 (com a criação de novas
-> telas), fluxo de dados, uso ou não do LexML e uso do OCR da Apple + Gemini. Nada foi decidido ainda: o checklist abaixo
-> e as seções de identificação e sumário continuam como estavam, mas não comece por eles antes dessa discussão.
+Antes de escrever testes em cada parte, as fronteiras abaixo passam pelo OK do Ricardo (regra do `CLAUDE.md`). Decisão com
+alternativas reais no meio de uma parte: `/decidir`.
 
-- Fase 3:
-  - [ ] Script/teste local: Vision nas fotos → `avaliacao/ocr/*.json`
-  - [ ] Gabaritos dos 4 livros já fotografados; ampliar até ~30 livros / ~10 sumários
-  - [ ] `LinhaOCR` no Domínio + leitura do JSON nos testes
-  - [ ] `ParserFichaCIP` + testes
-  - [ ] `ParserFolhaDeRosto` (geometria) + testes
-  - [ ] `ParserSumario` (âncoras + geometria) + testes
-  - [ ] Script de medição (acerto por campo e por item/nível/página)
-  - [ ] Conferir como o LexML registra volumes; RPC + pontuação com volume/edição/ano no desempate
-  - [ ] Câmera + `PhotosPicker` pedindo capa, ficha CIP ou folha de rosto
-  - [ ] Tela de confirmação (candidatos, "nenhum desses", manual, estante sugerida pela CDDir, prateleira,
-        assuntos da CIP como sugestão de categorias); cache local
-  - [ ] Scanner de sumário (VisionKit e `PhotosPicker`) + colar texto
-- Fase 4: Edge Functions `enriquecer-urn` (porta de `data/enriquecer_urn.py`, 5 s entre pedidos),
-  `identificar-livro` (Google Books, Gemini) e `estruturar-sumario` (Gemini); chaves como secrets;
-  limite de chamadas por dispositivo; pré-preenchimento do sumário pela `descricao`.
-  **Atenção (achado de 09/10):** no Supabase a `descricao` está cortada em 400 caracteres
-  (`MAX_DESCRICAO_CSV` em `data/extrair_livros_lexml.py`; 10.145 de 24.118). O pré-preenchimento precisa da
-  descrição inteira (reimportar a coluna ou ler a ficha `/urn`) e descartar o item cortado.
-  O leitor do `/urn` às vezes devolve a hierarquia da CDDir repetida ("… > DIREITO PRIVADO > DIREITO CIVIL").
+**Fase 3**
+
+- [ ] **3.1 Tipo do livro**
+  - *Objetivo:* o livro ganha o tipo sem perder o que já está gravado no iPhone.
+  - *Entra:* `TipoDeLivro`; `Livro.tipo` e `RascunhoLivro.tipo`; nova versão do modelo Core Data com migração leve; `tipo` no JSON v1
+    (sempre gravado, ausente = `juridico`, desconhecido rejeita o arquivo; no Core Data, desconhecido = `juridico`); `FiltroBusca.tipo`;
+    `Picker` no Formulário e opção na tela Filtros; medição HEIC × JPEG.
+  - *Fronteiras de teste:*
+    - migração, abrindo um banco gravado no modelo antigo: pega esquema incompatível; deixa passar volume e tempo de um banco real.
+    - leitura do JSON v1 (sem o campo, com valor desconhecido, ida e volta): pega perda de backup antigo; deixa passar arquivo de versão futura com outras mudanças.
+    - `FiltroBusca` por tipo: pega livro errado no resultado; deixa passar a aparência da tela.
+    - valor gravado desconhecido no Core Data: pega queda ao ler; deixa passar o motivo de o valor existir.
+  - *Fora:* scanner, servidor, selo na lista.
+- [ ] **3.2 Servidor primeiro**
+  - *Objetivo:* saber, com números, se o Gemini lê os livros, antes de escrever telas.
+  - *Entra:* binários do Deno e do Supabase CLI no Monterey (o Homebrew não funciona; conferir antes); script Vision → `avaliacao/ocr/`;
+    gabaritos; fotos que faltam (Ricardo); Edge Function com handler fino e módulos puros; esquema, prompt e erros conhecidos; chave da
+    função e `verify_jwt`; medição nos 4 livros (só imagens × imagens + OCR; lado maior e qualidade da imagem; tempo por página; Flash-Lite);
+    corpo de 15 MB; cota real conferida no AI Studio (Ricardo).
+  - *Fronteiras de teste (`deno test`, sem rede):*
+    - validação do pedido (papéis, páginas, tamanho): pega pedido fora do contrato; deixa passar o limite real da plataforma, que a medição cobre.
+    - montagem do pedido ao Gemini (prompt por tipo, esquema): pega campo ou regra faltando; deixa passar a qualidade da resposta.
+    - leitura de respostas gravadas (sucesso, recitação, segurança, 429 do dia e por minuto, JSON inválido): pega erro mal classificado; deixa passar mudança futura da API.
+  - *Fora:* app; ampliar o conjunto (3.6); LexML.
+- [ ] **3.3 App sem telas**
+  - *Objetivo:* o fluxo inteiro funciona em testes, com serviços falsos.
+  - *Entra:* `PaginaCapturada`, `LivroExtraido`, `LinhaOCR`; `FluxoDeCaptura` `[eu escrevo]`; `ValidacaoDaExtracao` `[eu escrevo]`;
+    `PrepararPagina`, `IdentificarLivro`; portas; `OCRVision`, `LeitorCodigoBarrasVision`, redutor ImageIO; `ExtratorSupabase`; obrigatórios
+    por `origem` no `RascunhoLivro`; serviços falsos. A decidir aqui: como a URL e a chave entram no `.ipa`.
+  - *Fronteiras de teste:*
+    - `FluxoDeCaptura`: pega avanço sem foto obrigatória e voltar errado; deixa passar a tela.
+    - `ValidacaoDaExtracao` (exemplos do "Contrato de campos"): pega ISBN inválido gravado e sumário quebrado; deixa passar erro de leitura que pareça válido, que a revisão cobre.
+    - `IdentificarLivro` com portas falsas: pega ordem errada e erro mal repassado; deixa passar o servidor real.
+    - `PrepararPagina` com portas falsas: pega capa com OCR e ISBN perdido; deixa passar a qualidade do Vision.
+    - `ExtratorSupabase` com JSON gravado: pega contrato diferente do servidor; deixa passar rede real.
+    - `RascunhoLivro`: pega obrigatório errado por `origem`; deixa passar o texto do aviso.
+  - *Fora:* telas; câmera.
+- [ ] **3.4 Telas do scanner**
+  - *Objetivo:* do botão da câmera até "Livro salvo", primeiro a lógica e depois o estilo.
+  - *Entra:* botão da câmera; dois cartões; câmera própria, VisionKit e `PhotosPicker`; prévia; conferência; leitura; revisão (com divergências, página
+    lida e `tipo_sugerido`); "Livro salvo"; "Descartar este livro?"; destino injetado no `EditarSumarioViewModel`. A navegação respeita o laço de
+    `navigationDestination(for:)` em folha (20/10). Apagar a pasta `Confirmacao/`. Estilo: câmera → conferência → leitura → revisão → salvo, escuro primeiro.
+  - *Fronteiras de teste:*
+    - ViewModel do scanner com serviços falsos: pega estado errado entre etapas; deixa passar a câmera real.
+    - `EditarSumarioViewModel` com o destino novo: pega regressão da 2.6; deixa passar a navegação.
+  - *Fora:* mensagens de erro finas (3.5). A câmera só se prova no iPhone (3.6).
+- [ ] **3.5 Erros e sem internet**
+  - *Objetivo:* nenhuma falha perde as fotos nem deixa o usuário sem saída.
+  - *Entra:* tabela de "Erros"; "Tentar de novo" sem refazer OCR; "Preencher à mão".
+  - *Fronteiras de teste:*
+    - classificação no `ExtratorSupabase`: pega código trocado; deixa passar erro novo do servidor.
+    - ViewModel em cada erro: pega opção errada ou fotos perdidas; deixa passar a aparência.
+    - "Preencher à mão": pega foto, tipo ou ISBN perdido e `origem` errada; deixa passar o Formulário em si, já testado.
+  - *Fora:* fila de pendentes.
+- [ ] **3.6 iPhone com livros reais**
+  - *Objetivo:* provar o fluxo no aparelho e ampliar a avaliação.
+  - *Entra:* câmera, memória e tempo no iPhone; ~30 livros e ~10 sumários, com ISBN, não jurídicos e sumário longo; quantas vezes o código de barras acha algo;
+    confirmar N, X e o modelo. Bugs do teste viram tarefas "b".
+  - *Fronteira de teste:* a medição, contra os gabaritos: pega piora por campo; deixa passar livro de um tipo fora do conjunto.
+  - *Fora:* recursos novos.
+- [ ] **3.7 (opcional) LexML**
+  - *Objetivo:* em jurídicos, confirmar no catálogo e trazer a CDDir.
+  - *Entra:* ver "LexML (3.7, opcional)"; `CatalogoServico`; `enriquecer-urn`; filtro por CDDir na tela Filtros, se houver dado.
+  - *Fronteiras de teste:*
+    - pontuação com fichas reais: pega ordem errada entre volumes; deixa passar registro ausente do catálogo.
+    - leitor do `/urn` com HTML gravado: pega hierarquia repetida; deixa passar mudança do site.
+  - *Fora:* qualquer dependência do fluxo principal: sem esta parte, tudo continua funcionando.
+- [ ] **3.8 Fechamento**
+  - *Objetivo:* fechar a fase com o PLANO igual ao que foi feito.
+  - *Entra:* conferir o modo escuro; atualizar este PLANO; `/fechar-fase`, com auditoria dos testes e mutação manual.
+  - *Fronteira de teste:* a auditoria, nos testes alterados na fase: pega teste tautológico ou fraco; deixa passar o que nenhum teste cobre, que a mutação manual ajuda a achar.
+  - *Fora:* funcionalidades novas.
+
+**Fase 4**
+
+A Fase 3 absorveu a Edge Function `identificar-livro`, o Gemini, as chaves como secrets e a `enriquecer-urn` (na 3.7). A `estruturar-sumario` saiu:
+o sumário vai no mesmo pedido do livro. O limite de chamadas por dispositivo saiu junto com o login. **A Fase 4 não tem conteúdo obrigatório**: só
+abre se o Ricardo escolher itens de "Adiado".
 
 ## Fases 5 e 6
 
@@ -1128,3 +1355,23 @@ Regras contra omissão:
 | 03/11 | A busca mostra todos os itens do sumário que casam com a consulta, na ordem do sumário e sem limite (2.8b) | Teste no iPhone ("coletivo"): o item de melhor nota escondia os outros, e o usuário não achava o trecho. Descartados: melhor nota primeiro (as páginas ficam fora de ordem) e "3 + mais N" (esconde atrás de um toque). Revisa a regra da seção Busca ("o item mostrado é o de melhor nota BM25"); o `notaDoItem` saiu |
 | 03/11 | Entram os itens com o maior número de palavras da consulta que algum item do livro alcança; as palavras do título do livro não contam, a não ser que todas estejam nele | "Todas as palavras" não mostrava nada quando parte da consulta está no título (referência #19); dispensar as palavras de qualquer campo fora do sumário quebrava "coletivo" (está no subtítulo) e "art 1710"; contar o título fazia o cabeçalho genérico com "direito" esconder o "§ 5.153 Dissídios coletivos". Custo aceito: em "direito coletivo" num livro sem essas palavras no título, os itens só com "coletivo" somem se algum tiver as duas |
 | 03/11 | Conjunto de referência: o item certo precisa estar entre os itens mostrados | Com a lista não existe mais "o" item mostrado. Conferência mais fraca, aceita de propósito; continua só com o livro no top 3. Revisa a linha de 09/10 (item certo como restrição) |
+| 06/11 | O app aceita livros jurídicos e gerais: `TipoDeLivro` (`juridico`, `geral`, padrão `juridico`; cartão "Não jurídico"), que muda o prompt, o passo do LexML e um filtro na busca, sem selo na lista | Pedido do Ricardo. `naoJuridico` descartado: negação, e ficaria errado com um terceiro tipo; o valor bruto vai para o Core Data e para o JSON v1 |
+| 06/11 | O Gemini é o caminho principal da identificação: o ISBN confere a resposta e o usuário revisa tudo antes de salvar. Revisa as linhas de 03/10 e 09/10 da ordem de confiança | O "IA não inventa" de 03/10 passa a ser garantido pela revisão e pela validação da extração, não por deixar a IA por último. Fotos reais têm pouco ISBN e OCR geométrico daria muitos parsers frágeis |
+| 06/11 | A captura tem uma só etapa "ficha ou folha de rosto", uma foto. Revisa a linha de 09/10 ("a captura pede folha de rosto") | Livros novos trazem ficha CIP e antigos só a folha de rosto; duas fotos pediriam uma a mais sem dado novo. Pedir sempre a folha de rosto perderia ISBN e coleção da ficha |
+| 06/11 | `ParserFichaCIP`, `ParserFolhaDeRosto` e `ParserSumario` adiados; ficam `LinhaOCR` e as regras que validam a resposta. Revisa a linha de 09/10 dos parsers | O OCR só precisa ir em ordem de leitura ao Gemini; escrever e manter três parsers por geometria deixou de ser necessário. Podem voltar se a medição mostrar que o Gemini não basta |
+| 06/11 | Pontuação e `buscar_livro` deixam de identificar o livro: servem só à parte opcional do LexML (3.7), para jurídicos | OCR + Gemini funcionam sem o catálogo. Descartar o LexML perderia a CDDir; mantê-lo como caminho principal exigiria os parsers |
+| 06/11 | O Contrato de campos de 16/10 vira o esquema JSON pedido ao Gemini, por tipo; `LivroExtraido` substitui a `FichaExtraida` (nunca criada) e guarda CDD, CDU e assuntos. Divergências: ficha > folha de rosto > capa | Saída estruturada evita interpretar texto livre. Revisa a referência à ordem de 09/10 no Contrato |
+| 06/11 | O conjunto de avaliação mede o Gemini (só imagens × imagens + OCR), por campo e por item/nível/página; gabarito transcrito das fotos, nunca dos JSONs do Gemini, e com `numeracao`. Revisa a medição dos parsers de 09/10 | Gabarito derivado do próprio Gemini contaminaria a medição. A comparação decide se vale enviar o OCR |
+| 06/11 | Câmera híbrida: AVFoundation + `VNDetectRectanglesRequest` em capa e ficha/rosto; `VNDocumentCameraViewController` no sumário; `PhotosPicker` sempre como alternativa | O VisionKit não permite a etapa com prévia própria; a câmera própria não compensa no sumário de várias páginas. Mantém a linha de 08/10 |
+| 06/11 | Cada foto é preparada ao ser tirada (`PrepararPagina`: OCR, código de barras, redução; porta `RedutorDeImagem`); `IdentificarLivro` recebe as páginas prontas | A original tem ~48 MB descomprimida e precisa ser solta antes da próxima foto; OCR só no envio manteria todas em memória |
+| 06/11 | Até salvar, cada página fica numa cópia no maior dos tamanhos (1200 px ou o do Gemini); a estrela vale para qualquer foto; só a foto do livro é gravada. Complementa a linha de 13/10 (1200 px) | A estrela pode ir para a ficha, cuja original já foi solta. Duas cópias por página gastariam memória sem ganho |
+| 06/11 | Uma Edge Function `identificar-livro`, um pedido por livro, até 20 páginas de sumário e 15 MB; sumário por foto só junto do livro; `estruturar-sumario` sai. Revisa a linha de 03/10 ("Sumário fundido nas Fases 3 e 4") | Escolha do Ricardo: o Gemini vê o livro inteiro e gasta um pedido só. "Escanear sumário" separado no Detalhe descartado. Limites: 20 MB do Gemini e 150 s de relógio da função; números a confirmar na 3.2 e na 3.6 |
+| 06/11 | Sempre Gemini, pela API nativa, com o modelo em variável de ambiente; sem porta compatível com OpenAI | O endpoint compatível está em beta e não documenta `finish_reason` nem recitação, que o app trata como erro conhecido. Escolha do Ricardo: não há plano de trocar de provedor |
+| 06/11 | Função sem login e sem limite diário: exige só a chave `sb_publishable_`, conferida no handler; usa até acabar a cota do Gemini. Login anônimo + limite por usuário ficam como incremento futuro de aprendizado. Revisa o "limite de chamadas por dispositivo" da Fase 4 | O app tem 1 usuário, 2 no máximo, por causa do Sideloadly. Login, renovação de token e Keychain custam mais do que protegem, porque qualquer um com a chave criaria um login. Risco aceito: quem tiver a chave pode gastar a cota do dia, sem custo em dinheiro |
+| 06/11 | Plano grátis do Gemini aceito, sem aviso na tela | Termos: o conteúdo pode melhorar produtos e passar por revisão humana, e não se deve enviar dado pessoal. Páginas de livro raramente têm isso, e o usuário é o dono do app. Rever se houver outros usuários |
+| 06/11 | Cliente do Supabase em `URLSession`, sem o `supabase-swift` | O pacote exige Xcode 26 / Swift 6.2 e não compila no Xcode 14.2 |
+| 06/11 | Sem o título, ninguém salva; autor, editora e ano só são exigidos quando `origem == manual`, e nos outros casos viram aviso. Revisa a linha de 10/10 | Livro antigo sem ano obrigaria a inventar dado para salvar. Afrouxar também o manual descartado: o Ricardo quer fichas completas no que é digitado |
+| 06/11 | `tipo` no JSON v1: sempre gravado, ausente = `juridico`, desconhecido rejeita o arquivo; Core Data ganha versão nova com migração leve e teste contra banco antigo. Complementa a linha de 21/10 | Já há dados no iPhone e backups v1. Cair no padrão em silêncio com valor desconhecido perderia dado. A v2 do JSON descartada: o campo é aditivo |
+| 06/11 | Fotos e OCR só em memória durante o fluxo; sem fila de pendentes (adiada) | "Tentar de novo" cobre a falha comum. Gravar rascunho em disco pede limpeza e estado novo para um caso raro; se o iOS encerrar o app, o usuário recomeça |
+| 06/11 | Adiados: colar texto, pré-preenchimento pela `descricao`, Google Books, sumário por foto em livro salvo, sugestão de categorias, estante pela CDDir, último livro escaneado, aviso de livro repetido. Revisa as linhas de 03/10 e 09/10 que os previam | Nenhum é necessário ao fluxo novo. `foto` e `googlebooks` ficam nos enums, porque o JSON v1 pode trazê-los |
+| 06/11 | Supabase CLI entra na 3.2. Revisa a linha de 07/10 ("só na Fase 4") | As Edge Functions vieram para a Fase 3 |
