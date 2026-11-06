@@ -1137,24 +1137,82 @@ Sem prazo; cada item volta se o uso pedir.
 
 ### Checklists
 
-> **Sujeito a revisão (04/11):** o Ricardo anunciou mudanças para a Fase 3. Elas serão discutidas depois do
-> `/fechar-fase` da Fase 2 e **antes de iniciar a Fase 3**. Assuntos: arquitetura da Fase 3 (com a criação de novas
-> telas), fluxo de dados, uso ou não do LexML e uso do OCR da Apple + Gemini. Nada foi decidido ainda: o checklist abaixo
-> e as seções de identificação e sumário continuam como estavam, mas não comece por eles antes dessa discussão.
+Antes de escrever testes em cada parte, as fronteiras abaixo passam pelo OK do Ricardo (regra do `CLAUDE.md`). Decisão com
+alternativas reais no meio de uma parte: `/decidir`.
 
-- Fase 3:
-  - [ ] Script/teste local: Vision nas fotos → `avaliacao/ocr/*.json`
-  - [ ] Gabaritos dos 4 livros já fotografados; ampliar até ~30 livros / ~10 sumários
-  - [ ] `LinhaOCR` no Domínio + leitura do JSON nos testes
-  - [ ] `ParserFichaCIP` + testes
-  - [ ] `ParserFolhaDeRosto` (geometria) + testes
-  - [ ] `ParserSumario` (âncoras + geometria) + testes
-  - [ ] Script de medição (acerto por campo e por item/nível/página)
-  - [ ] Conferir como o LexML registra volumes; RPC + pontuação com volume/edição/ano no desempate
-  - [ ] Câmera + `PhotosPicker` pedindo capa, ficha CIP ou folha de rosto
-  - [ ] Tela de confirmação (candidatos, "nenhum desses", manual, estante sugerida pela CDDir, prateleira,
-        assuntos da CIP como sugestão de categorias); cache local
-  - [ ] Scanner de sumário (VisionKit e `PhotosPicker`) + colar texto
+**Fase 3**
+
+- [ ] **3.1 Tipo do livro**
+  - *Objetivo:* o livro ganha o tipo sem perder o que já está gravado no iPhone.
+  - *Entra:* `TipoDeLivro`; `Livro.tipo` e `RascunhoLivro.tipo`; nova versão do modelo Core Data com migração leve; `tipo` no JSON v1
+    (sempre gravado, ausente = `juridico`, desconhecido rejeita o arquivo; no Core Data, desconhecido = `juridico`); `FiltroBusca.tipo`;
+    `Picker` no Formulário e opção na tela Filtros; medição HEIC × JPEG.
+  - *Fronteiras de teste:*
+    - migração, abrindo um banco gravado no modelo antigo: pega esquema incompatível; deixa passar volume e tempo de um banco real.
+    - leitura do JSON v1 (sem o campo, com valor desconhecido, ida e volta): pega perda de backup antigo; deixa passar arquivo de versão futura com outras mudanças.
+    - `FiltroBusca` por tipo: pega livro errado no resultado; deixa passar a aparência da tela.
+    - valor gravado desconhecido no Core Data: pega queda ao ler; deixa passar o motivo de o valor existir.
+  - *Fora:* scanner, servidor, selo na lista.
+- [ ] **3.2 Servidor primeiro**
+  - *Objetivo:* saber, com números, se o Gemini lê os livros, antes de escrever telas.
+  - *Entra:* binários do Deno e do Supabase CLI no Monterey (o Homebrew não funciona; conferir antes); script Vision → `avaliacao/ocr/`;
+    gabaritos; fotos que faltam (Ricardo); Edge Function com handler fino e módulos puros; esquema, prompt e erros conhecidos; chave da
+    função e `verify_jwt`; medição nos 4 livros (só imagens × imagens + OCR; lado maior e qualidade da imagem; tempo por página; Flash-Lite);
+    corpo de 15 MB; cota real conferida no AI Studio (Ricardo).
+  - *Fronteiras de teste (`deno test`, sem rede):*
+    - validação do pedido (papéis, páginas, tamanho): pega pedido fora do contrato; deixa passar o limite real da plataforma, que a medição cobre.
+    - montagem do pedido ao Gemini (prompt por tipo, esquema): pega campo ou regra faltando; deixa passar a qualidade da resposta.
+    - leitura de respostas gravadas (sucesso, recitação, segurança, 429 do dia e por minuto, JSON inválido): pega erro mal classificado; deixa passar mudança futura da API.
+  - *Fora:* app; ampliar o conjunto (3.6); LexML.
+- [ ] **3.3 App sem telas**
+  - *Objetivo:* o fluxo inteiro funciona em testes, com serviços falsos.
+  - *Entra:* `PaginaCapturada`, `LivroExtraido`, `LinhaOCR`; `FluxoDeCaptura` `[eu escrevo]`; `ValidacaoDaExtracao` `[eu escrevo]`;
+    `PrepararPagina`, `IdentificarLivro`; portas; `OCRVision`, `LeitorCodigoBarrasVision`, redutor ImageIO; `ExtratorSupabase`; obrigatórios
+    por `origem` no `RascunhoLivro`; serviços falsos. A decidir aqui: como a URL e a chave entram no `.ipa`.
+  - *Fronteiras de teste:*
+    - `FluxoDeCaptura`: pega avanço sem foto obrigatória e voltar errado; deixa passar a tela.
+    - `ValidacaoDaExtracao` (exemplos do "Contrato de campos"): pega ISBN inválido gravado e sumário quebrado; deixa passar erro de leitura que pareça válido, que a revisão cobre.
+    - `IdentificarLivro` com portas falsas: pega ordem errada e erro mal repassado; deixa passar o servidor real.
+    - `PrepararPagina` com portas falsas: pega capa com OCR e ISBN perdido; deixa passar a qualidade do Vision.
+    - `ExtratorSupabase` com JSON gravado: pega contrato diferente do servidor; deixa passar rede real.
+    - `RascunhoLivro`: pega obrigatório errado por `origem`; deixa passar o texto do aviso.
+  - *Fora:* telas; câmera.
+- [ ] **3.4 Telas do scanner**
+  - *Objetivo:* do botão da câmera até "Livro salvo", primeiro a lógica e depois o estilo.
+  - *Entra:* botão da câmera; dois cartões; câmera própria, VisionKit e `PhotosPicker`; prévia; conferência; leitura; revisão (com divergências, página
+    lida e `tipo_sugerido`); "Livro salvo"; "Descartar este livro?"; destino injetado no `EditarSumarioViewModel`. A navegação respeita o laço de
+    `navigationDestination(for:)` em folha (20/10). Apagar a pasta `Confirmacao/`. Estilo: câmera → conferência → leitura → revisão → salvo, escuro primeiro.
+  - *Fronteiras de teste:*
+    - ViewModel do scanner com serviços falsos: pega estado errado entre etapas; deixa passar a câmera real.
+    - `EditarSumarioViewModel` com o destino novo: pega regressão da 2.6; deixa passar a navegação.
+  - *Fora:* mensagens de erro finas (3.5). A câmera só se prova no iPhone (3.6).
+- [ ] **3.5 Erros e sem internet**
+  - *Objetivo:* nenhuma falha perde as fotos nem deixa o usuário sem saída.
+  - *Entra:* tabela de "Erros"; "Tentar de novo" sem refazer OCR; "Preencher à mão".
+  - *Fronteiras de teste:*
+    - classificação no `ExtratorSupabase`: pega código trocado; deixa passar erro novo do servidor.
+    - ViewModel em cada erro: pega opção errada ou fotos perdidas; deixa passar a aparência.
+    - "Preencher à mão": pega foto, tipo ou ISBN perdido e `origem` errada; deixa passar o Formulário em si, já testado.
+  - *Fora:* fila de pendentes.
+- [ ] **3.6 iPhone com livros reais**
+  - *Objetivo:* provar o fluxo no aparelho e ampliar a avaliação.
+  - *Entra:* câmera, memória e tempo no iPhone; ~30 livros e ~10 sumários, com ISBN, não jurídicos e sumário longo; quantas vezes o código de barras acha algo;
+    confirmar N, X e o modelo. Bugs do teste viram tarefas "b".
+  - *Fronteira de teste:* a medição, contra os gabaritos: pega piora por campo; deixa passar livro de um tipo fora do conjunto.
+  - *Fora:* recursos novos.
+- [ ] **3.7 (opcional) LexML**
+  - *Objetivo:* em jurídicos, confirmar no catálogo e trazer a CDDir.
+  - *Entra:* ver "LexML (3.7, opcional)"; `CatalogoServico`; `enriquecer-urn`; filtro por CDDir na tela Filtros, se houver dado.
+  - *Fronteiras de teste:*
+    - pontuação com fichas reais: pega ordem errada entre volumes; deixa passar registro ausente do catálogo.
+    - leitor do `/urn` com HTML gravado: pega hierarquia repetida; deixa passar mudança do site.
+  - *Fora:* qualquer dependência do fluxo principal: sem esta parte, tudo continua funcionando.
+- [ ] **3.8 Fechamento**
+  - *Objetivo:* fechar a fase com o PLANO igual ao que foi feito.
+  - *Entra:* conferir o modo escuro; atualizar este PLANO; `/fechar-fase`, com auditoria dos testes e mutação manual.
+  - *Fronteira de teste:* a auditoria, nos testes alterados na fase: pega teste tautológico ou fraco; deixa passar o que nenhum teste cobre, que a mutação manual ajuda a achar.
+  - *Fora:* funcionalidades novas.
+
 - Fase 4: Edge Functions `enriquecer-urn` (porta de `data/enriquecer_urn.py`, 5 s entre pedidos),
   `identificar-livro` (Google Books, Gemini) e `estruturar-sumario` (Gemini); chaves como secrets;
   limite de chamadas por dispositivo; pré-preenchimento do sumário pela `descricao`.
