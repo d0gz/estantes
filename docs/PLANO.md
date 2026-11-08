@@ -540,7 +540,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 - **Busca (2.7, decidido em 20/10 via `/decidir`; estilo E1–E4 sobre as capturas `Busca/*_1.0–1.1`, a aprovar no uso):**
   - Inicio: botão com a aparência da barra (lupa, "Título, autor ou assunto", `tertiarySystemFill`) numa pilha acima da
-    lista (Q29), que empurra a tela "Busca" (título pequeno, "Cancelar" à direita, voltar escondido).
+    lista (Q29), que empurra a tela "Busca" (título pequeno, "Cancelar" à esquerda, voltar escondido).
   - Cabeçalho fixo sobre os resultados (`safeAreaInset` + `.ultraThinMaterial` + fio embaixo): campo próprio e a
     linha horizontal de chips [Filtros (n)] [Categorias ▾] [estantes…]. **Categorias com escolha múltipla (Q30–Q32,
     revisa a Q18 de escolha única):** o chip empurra a tela "Categorias" (`CategoriasDaBuscaView`: chips coloridos, ✓,
@@ -732,7 +732,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
     montagem; falha → "Não foi possível preparar a busca." e nova tentativa na próxima. Releitura de categorias que
     falha descarta o índice; uma `geracao` impede que uma montagem antiga desfaça o descarte.
   - Telas: no Inicio, `BotaoDeBusca` (aparência da barra) numa pilha acima da lista (Q29) → tela empurrada **"Busca"**
-    (`BuscaView`: campo próprio focado ao entrar, "Cancelar" à direita com o voltar escondido, `BuscaViewModel` novo a
+    (`BuscaView`: campo próprio focado ao entrar, "Cancelar" à esquerda com o voltar escondido, `BuscaViewModel` novo a
     cada entrada). Dentro dela, cabeçalho fixo (campo + [Filtros (n)] [Categorias ▾] [estantes…], estantes só com 2 ou
     mais), resultados, e as telas empurradas **Filtros** (autor, editora, anos de 4 dígitos; faixa invertida mostra o
     erro e esconde o voltar, pedido do Ricardo), **Categorias** (várias, OU) e o Detalhe. Busca a cada tecla pelo
