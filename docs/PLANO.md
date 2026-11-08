@@ -109,6 +109,25 @@ ios/EstantesTests/
   Ferramentas: XcodeGen 2.46.0 (binário pronto; não reinstalar) e `gh` (PRs e acompanhamento da CI).
 - Plano B, se o ciclo pela nuvem ficar lento: OCLP + macOS Sequoia + Xcode 26 no Mac.
 
+### Xcode desinstalado (08/11)
+
+Em 08/11 o Ricardo desinstalou o Xcode 14.2 (build 14C18, 12 GB) para liberar espaço; a ideia é reinstalar a mesma
+versão depois. Estado antes de remover: Command Line Tools 14.2 instaladas à parte, simulador "iPhone 14" em
+`~/Library/Developer/CoreSimulator` (3,8 GB), 41 GB livres no disco, 548 testes passando.
+Sem o Xcode, o `./scripts/testar.sh` não roda: até reinstalar, só a CI (Xcode 26) testa o código Swift.
+
+**Reinstalado em 08/11**: Xcode 14.2 (14C18), `./scripts/testar.sh` com 548 testes, 2 pulados e 0 falhas, igual à CI
+de 05/11. Os dois `sudo` abaixo não foram necessários: o `xcode-select` e a licença aceita sobrevivem à desinstalação.
+
+Ao reinstalar, conferir:
+- [x] Baixar `Xcode_14.2.xip` em developer.apple.com/download/all (a App Store do Monterey não oferece mais;
+      precisa de cerca de 20 GB livres enquanto descompacta).
+- [x] Deixar em `/Applications/Xcode.app` (mesmo nome) e rodar
+      `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` e `sudo xcodebuild -license accept`.
+- [x] Abrir o Xcode uma vez para instalar os componentes adicionais.
+- [x] `xcodebuild -version` mostra Xcode 14.2 / 14C18; `xcrun simctl list devices available` mostra o "iPhone 14".
+- [x] `./scripts/testar.sh` passa com o mesmo número de testes da CI.
+
 ### Regras para compilar nos dois Xcodes (críticas)
 
 - iOS 16 mínimo; `SWIFT_VERSION = 5.0`.
@@ -524,7 +543,7 @@ Só na biblioteca do usuário, no aparelho e offline. Tudo em `Dominio/Busca/`, 
 
 - **Busca (2.7, decidido em 20/10 via `/decidir`; estilo E1–E4 sobre as capturas `Busca/*_1.0–1.1`, a aprovar no uso):**
   - Inicio: botão com a aparência da barra (lupa, "Título, autor ou assunto", `tertiarySystemFill`) numa pilha acima da
-    lista (Q29), que empurra a tela "Busca" (título pequeno, "Cancelar" à direita, voltar escondido).
+    lista (Q29), que empurra a tela "Busca" (título pequeno, "Cancelar" à esquerda, voltar escondido).
   - Cabeçalho fixo sobre os resultados (`safeAreaInset` + `.ultraThinMaterial` + fio embaixo): campo próprio e a
     linha horizontal de chips [Filtros (n)] [Categorias ▾] [estantes…]. **Categorias com escolha múltipla (Q30–Q32,
     revisa a Q18 de escolha única):** o chip empurra a tela "Categorias" (`CategoriasDaBuscaView`: chips coloridos, ✓,
@@ -716,7 +735,7 @@ Ordem das tarefas: 2.1 entidades + porta ✅ · 2.2 Core Data ✅ · 2.3 normali
     montagem; falha → "Não foi possível preparar a busca." e nova tentativa na próxima. Releitura de categorias que
     falha descarta o índice; uma `geracao` impede que uma montagem antiga desfaça o descarte.
   - Telas: no Inicio, `BotaoDeBusca` (aparência da barra) numa pilha acima da lista (Q29) → tela empurrada **"Busca"**
-    (`BuscaView`: campo próprio focado ao entrar, "Cancelar" à direita com o voltar escondido, `BuscaViewModel` novo a
+    (`BuscaView`: campo próprio focado ao entrar, "Cancelar" à esquerda com o voltar escondido, `BuscaViewModel` novo a
     cada entrada). Dentro dela, cabeçalho fixo (campo + [Filtros (n)] [Categorias ▾] [estantes…], estantes só com 2 ou
     mais), resultados, e as telas empurradas **Filtros** (autor, editora, anos de 4 dígitos; faixa invertida mostra o
     erro e esconde o voltar, pedido do Ricardo), **Categorias** (várias, OU) e o Detalhe. Busca a cada tecla pelo
