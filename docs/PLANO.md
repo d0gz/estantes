@@ -116,14 +116,17 @@ versão depois. Estado antes de remover: Command Line Tools 14.2 instaladas à p
 `~/Library/Developer/CoreSimulator` (3,8 GB), 41 GB livres no disco, 548 testes passando.
 Sem o Xcode, o `./scripts/testar.sh` não roda: até reinstalar, só a CI (Xcode 26) testa o código Swift.
 
+**Reinstalado em 08/11**: Xcode 14.2 (14C18), `./scripts/testar.sh` com 548 testes, 2 pulados e 0 falhas, igual à CI
+de 05/11. Os dois `sudo` abaixo não foram necessários: o `xcode-select` e a licença aceita sobrevivem à desinstalação.
+
 Ao reinstalar, conferir:
-- [ ] Baixar `Xcode_14.2.xip` em developer.apple.com/download/all (a App Store do Monterey não oferece mais;
+- [x] Baixar `Xcode_14.2.xip` em developer.apple.com/download/all (a App Store do Monterey não oferece mais;
       precisa de cerca de 20 GB livres enquanto descompacta).
-- [ ] Deixar em `/Applications/Xcode.app` (mesmo nome) e rodar
+- [x] Deixar em `/Applications/Xcode.app` (mesmo nome) e rodar
       `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` e `sudo xcodebuild -license accept`.
-- [ ] Abrir o Xcode uma vez para instalar os componentes adicionais.
-- [ ] `xcodebuild -version` mostra Xcode 14.2 / 14C18; `xcrun simctl list devices available` mostra o "iPhone 14".
-- [ ] `./scripts/testar.sh` passa com o mesmo número de testes da CI.
+- [x] Abrir o Xcode uma vez para instalar os componentes adicionais.
+- [x] `xcodebuild -version` mostra Xcode 14.2 / 14C18; `xcrun simctl list devices available` mostra o "iPhone 14".
+- [x] `./scripts/testar.sh` passa com o mesmo número de testes da CI.
 
 ### Regras para compilar nos dois Xcodes (críticas)
 
