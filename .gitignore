@@ -11,6 +11,7 @@ DerivedData/
 
 # Segredos
 .env
+.claude/settings.local.json
 supabase/.temp/
 
 # Dados grandes do LexML

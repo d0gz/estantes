@@ -37,3 +37,48 @@ Prefira descrever intenção (papel) a descrever coordenadas. Evite isso só qua
 
 ### Minhas respostas
 <!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
+
+(sem respostas)
+
+## Tarefa avulsa — Proteção contra segredos em permissões do Claude Code (2026-11-09)
+
+### O que foi feito
+Auditoria do repositório (público) após notícia sobre a pesquisa da Apiiro, e duas proteções preventivas: `.claude/settings.local.json` entrou no `.gitignore` e `Read(./.env)` entrou em `permissions.deny` no `.claude/settings.json`. A auditoria não achou nada exposto; não há credencial a trocar.
+
+### Conceitos envolvidos
+- **O vetor.** Ao escolher "Yes, and don't ask again" para um comando com credencial literal (ex.: uma senha dentro de uma URL), o comando inteiro vira regra `allow` em `.claude/settings.local.json`, em texto puro. Se esse arquivo for commitado num repositório público, o segredo é publicado. Não é CVE: é um fluxo de uso que mistura conveniência e persistência.
+- **Exposto não é vazado.** Exposto = o segredo está num lugar acessível a quem não deveria. Vazado = alguém de fato o obteve. Você só pode provar a primeira; a segunda, em repositório público, deve ser presumida (há bots que varrem commits em segundos).
+- **Rotacionar antes de limpar.** Se um dia vazar: primeiro invalide e troque a credencial; só depois limpe. Apagar do arquivo não apaga do histórico git, nem das cópias e forks já feitos. Reescrever histórico é higiene, não remédio.
+- **Por que busca por formato não basta.** Gitleaks e TruffleHog procuram padrões (prefixos de chave, entropia). Uma senha de banco dentro de um comando comum não tem formato reconhecível; por isso 215 arquivos passaram. A auditoria aqui também foi por regex, então tem o mesmo limite.
+- **`.gitignore` só afeta arquivos não rastreados.** Se o arquivo já estiver no índice do git, ignorá-lo não o remove (seria preciso `git rm --cached`). Aqui o arquivo nunca existiu no repositório, então a regra basta.
+- **Defesa em profundidade.** Várias camadas imperfeitas somadas: `.gitignore` (impede o commit acidental), `deny` (impede a ferramenta de ler o `.env`), hábito (não aprovar segredo literal).
+
+### Por que assim
+- `.gitignore` do projeto, e não só exclude global: ele é versionado e vale em qualquer clone ou máquina. O exclude global da Apple/Claude Code fica só na máquina que o configurou.
+- `Read(./.env)` com caminho exato: bloqueia o `.env` real sem bloquear `.env.example`, que só tem placeholders e é útil ao assistente.
+- Preferir `psql "$SUPABASE_DB_URL"`: só o nome da variável fica salvo na regra; o valor continua no ambiente.
+
+### Alternativas descartadas
+- Confiar só no exclude global: não acompanha o projeto.
+- `Read(./.env*)`: pegaria o `.env.example` junto.
+- Scanner de segredos na CI: útil, mas com o limite de formato descrito acima; fica como possível extra.
+
+### Padrões e boas práticas
+Menor privilégio e defesa em profundidade; segredos no ambiente, nunca em argumentos de comando; rotação como resposta padrão a qualquer suspeita. Não confie em nenhuma camada sozinha.
+
+### Armadilhas
+- `deny` em `Read` não barra `cat .env` pelo Bash: é redução de risco, não barreira. Só o hábito e o ambiente separam o segredo do comando.
+- O `.gitignore` não protege arquivo já rastreado: confira com `git ls-files .claude`.
+- Reautorizações antigas (`~/.claude.json`, por projeto) ficam fora do repositório, mas valem uma olhada periódica.
+
+### Para ir além
+- Documentação do Claude Code: seção de permissões e `settings` (`permissions.allow/deny`).
+- GitHub Docs: "Removing sensitive data from a repository" (e por que se rotaciona primeiro).
+
+### Perguntas
+1. Com suas palavras: qual a diferença entre segredo "exposto" e "vazado", e por que isso muda a ordem "rotacionar, depois limpar"?
+2. Se amanhã um `settings.local.json` com senha já tivesse sido commitado, o `.gitignore` resolveria? Que passos, em ordem, você daria?
+3. Por que o `deny` em `Read(./.env)` não impede um `cat .env` via Bash, e o que você faria para cobrir essa lacuna?
+
+### Minhas respostas
+<!-- Ricardo responde aqui por escrito. O teacher corrige na próxima chamada. -->
